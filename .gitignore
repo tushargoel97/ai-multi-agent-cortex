@@ -24,3 +24,20 @@ env
 .DS_Store
 .idea
 *.log
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+# Virtual environments
+.venv
+
+# Python environment variables
+.env
+.python-version
+
+# Environment variables
+/.env
