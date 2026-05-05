@@ -21,3 +21,6 @@ project_context
 .pytest_cache
 .vscode
 env
+.DS_Store
+.idea
+*.log
