@@ -19,4 +19,4 @@ RUN touch .env
 
 EXPOSE 2024
 
-CMD ["uv", "run", "langgraph", "dev", "--host", "0.0.0.0", "--port", "2024", "--no-browser", "--config", "langgraph.json"]
+CMD ["uv", "run", "langgraph", "dev", "--host", "0.0.0.0", "--port", "2024", "--no-browser", "--no-reload", "--config", "langgraph.json"]

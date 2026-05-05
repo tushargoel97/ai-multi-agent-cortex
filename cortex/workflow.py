@@ -22,12 +22,29 @@ from cortex.observability import setup_tracing
 # Initialise tracing before any LangChain objects are constructed.
 setup_tracing()
 
-# Make in-memory langgraph runtime flush thread state to disk more often so
-# threads aren't lost on container restart (default is 10s; we lower to 2s).
+# Lower the periodic flush interval (default 10s) so threads survive container
+# restarts even when shutdown happens quickly. Disabling the dev-server reload
+# (`langgraph dev --no-reload`) means rewriting these pickle files no longer
+# triggers a hot reload.
 try:
     from langgraph_runtime_inmem import _persistence as _lg_persist  # type: ignore
 
-    _lg_persist._flush_interval = 2
+    _lg_persist._flush_interval = 3
+
+    # Best-effort: on SIGTERM, do a final sync of all registered persistent
+    # dicts so we don't lose anything created in the last few seconds.
+    import signal as _signal
+
+    def _final_flush(_signum, _frame) -> None:
+        try:
+            for _ref in list(_lg_persist._stores.values()):
+                store = _ref()
+                if store is not None:
+                    store.sync()
+        except Exception:  # noqa: BLE001
+            pass
+
+    _signal.signal(_signal.SIGTERM, _final_flush)
 except Exception:  # noqa: BLE001
     pass
 
