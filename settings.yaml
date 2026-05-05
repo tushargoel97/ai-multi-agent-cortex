@@ -1,0 +1,33 @@
+# ── Cortex Configuration ──────────────────────────────────────────────
+#
+# Every value is driven by an environment variable.
+# Unset variables are left blank and fall back to Pydantic defaults.
+
+# ── Identity ─────────────────────────────────────────────────────────────────
+
+assistant_name: "$ASSISTANT_NAME"
+
+# ── Database ─────────────────────────────────────────────────────────────────
+
+database_url: "$DATABASE_URL"
+
+# ── Embeddings ───────────────────────────────────────────────────────────────
+
+embedding_model: "$EMBEDDING_MODEL"
+
+# ── LLM Provider ─────────────────────────────────────────────────────────────
+# Supported providers: openai, azure_openai
+
+provider: "$LLM_PROVIDER"
+
+openai:
+  model: "$OPENAI_MODEL"
+  api_key: "$OPENAI_API_KEY"
+  base_url: "$OPENAI_BASE_URL"
+
+azure_openai:
+  model: "$AZURE_OPENAI_MODEL"
+  temperature: "$AZURE_OPENAI_TEMPERATURE"
+  api_key: "$AZURE_OPENAI_API_KEY"
+  azure_endpoint: "$AZURE_OPENAI_ENDPOINT"
+  api_version: "$AZURE_OPENAI_API_VERSION"
