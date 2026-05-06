@@ -1,13 +1,18 @@
-"""Web tools: lightweight Wikipedia summary lookup.
+"""Web tools: Wikipedia summary lookup, live internet search, and crypto prices.
 
-Uses the public Wikipedia REST API — no API key required, no extra dependencies.
+Uses public, no-API-key endpoints (Wikipedia REST, DuckDuckGo HTML, CoinGecko) so
+the tools work out of the box without extra credentials. Stdlib only — no new
+dependencies.
 """
 
 from __future__ import annotations
 
+import html
 import json
+import re
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 
 from pydantic import BaseModel, Field
 
@@ -185,4 +190,198 @@ def crypto_price(symbols: str, currencies: str = "usd,inr") -> str:
             f"Symbols {unknown} were not recognized aliases; queried as-is."
         )
     return json.dumps(out, indent=2)
+
+
+# ── Live internet search (DuckDuckGo HTML, no API key) ───────────────────────
+
+_DDG_HTML = "https://html.duckduckgo.com/html/?q="
+# Browser-like UA so DuckDuckGo doesn't return a stripped no-JS notice page.
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+class _DDGResultParser(HTMLParser):
+    """Extract (title, url, snippet) tuples from DuckDuckGo's HTML results."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.results: list[dict[str, str]] = []
+        self._cur: dict[str, str] | None = None
+        self._capture: str | None = None  # "title" | "snippet" | None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = dict(attrs)
+        cls = a.get("class", "") or ""
+        if tag == "a" and "result__a" in cls:
+            self._cur = self._cur or {}
+            href = a.get("href", "") or ""
+            # DDG wraps real URLs in /l/?uddg=<encoded>
+            if "uddg=" in href:
+                try:
+                    qs = urllib.parse.urlparse(href).query
+                    href = urllib.parse.parse_qs(qs).get("uddg", [href])[0]
+                except Exception:  # noqa: BLE001
+                    pass
+            self._cur["url"] = href
+            self._capture = "title"
+        elif tag == "a" and "result__snippet" in cls:
+            self._cur = self._cur or {}
+            self._capture = "snippet"
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._capture is not None:
+            if self._capture == "snippet" and self._cur:
+                self.results.append(self._cur)
+                self._cur = None
+            self._capture = None
+
+    def handle_data(self, data: str) -> None:
+        if self._capture and self._cur is not None:
+            self._cur[self._capture] = (self._cur.get(self._capture, "") + data).strip()
+
+
+class _TextExtractor(HTMLParser):
+    """Best-effort visible-text extractor (drops <script>/<style>/<nav> etc.)."""
+
+    _SKIP = {"script", "style", "noscript", "nav", "header", "footer", "form", "aside"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in self._SKIP:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._SKIP and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0:
+            text = data.strip()
+            if text:
+                self._chunks.append(text)
+
+    @property
+    def text(self) -> str:
+        joined = " ".join(self._chunks)
+        # Collapse whitespace
+        return re.sub(r"\s+", " ", joined).strip()
+
+
+def _ddg_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
+    url = _DDG_HTML + urllib.parse.quote(query)
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+    with urllib.request.urlopen(req, timeout=8.0) as resp:
+        body = resp.read().decode("utf-8", errors="replace")
+    parser = _DDGResultParser()
+    parser.feed(body)
+    return parser.results[:max_results]
+
+
+def _fetch_text(url: str, max_chars: int = 2000, timeout: float = 6.0) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        ctype = resp.headers.get("Content-Type", "")
+        if "html" not in ctype.lower() and "text" not in ctype.lower():
+            return f"[non-text content: {ctype}]"
+        body = resp.read(800_000).decode("utf-8", errors="replace")
+    extractor = _TextExtractor()
+    try:
+        extractor.feed(body)
+    except Exception:  # noqa: BLE001
+        return html.unescape(re.sub(r"<[^>]+>", " ", body))[:max_chars]
+    return html.unescape(extractor.text)[:max_chars]
+
+
+class WebSearchInput(BaseModel):
+    """Input for live internet search."""
+
+    query: str = Field(description="Natural-language search query.")
+    max_results: int = Field(
+        default=5,
+        ge=1,
+        le=8,
+        description="Number of search results to return (1-8).",
+    )
+    fetch_pages: bool = Field(
+        default=True,
+        description=(
+            "If true, fetch and extract readable text from the top results "
+            "so the agent has actual page content (not just snippets)."
+        ),
+    )
+
+
+@register_tool(args_schema=WebSearchInput)
+def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> str:
+    """Search the live internet via DuckDuckGo and return combined results.
+
+    Use this for ANY question that needs **current / up-to-date / recent**
+    information that may not be in Wikipedia or the local knowledge base —
+    news, prices, scores, releases, weather, stock/crypto quotes, recent
+    events, product specs, etc. Returns a JSON document with the top results
+    (title, url, snippet) and, optionally, extracted page text for each.
+    No API key required.
+    """
+    try:
+        results = _ddg_search(query, max_results=max_results)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"error": f"Web search failed: {exc}"})
+
+    if not results:
+        return json.dumps({"query": query, "results": [], "note": "No matches."})
+
+    enriched: list[dict[str, str]] = []
+    for r in results:
+        item = {
+            "title": r.get("title", ""),
+            "url": r.get("url", ""),
+            "snippet": r.get("snippet", ""),
+        }
+        if fetch_pages and item["url"]:
+            try:
+                item["content"] = _fetch_text(item["url"])
+            except Exception as exc:  # noqa: BLE001
+                item["content"] = f"[fetch failed: {exc}]"
+        enriched.append(item)
+
+    return json.dumps(
+        {"source": "duckduckgo", "query": query, "results": enriched},
+        indent=2,
+    )
+
+
+class FetchUrlInput(BaseModel):
+    """Input for fetching a single URL."""
+
+    url: str = Field(description="Absolute http(s) URL to fetch.")
+    max_chars: int = Field(
+        default=4000,
+        ge=200,
+        le=20000,
+        description="Maximum characters of extracted text to return.",
+    )
+
+
+@register_tool(args_schema=FetchUrlInput)
+def fetch_url(url: str, max_chars: int = 4000) -> str:
+    """Fetch a single web page and return its readable text content.
+
+    Use this when `web_search` returned a promising URL but the snippet/auto-
+    extracted content was too short, or when the user asks you to read a
+    specific page. Returns plain text (HTML stripped).
+    """
+    if not url.startswith(("http://", "https://")):
+        return json.dumps({"error": "URL must start with http:// or https://"})
+    try:
+        text = _fetch_text(url, max_chars=max_chars, timeout=8.0)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"error": f"Fetch failed: {exc}", "url": url})
+    return json.dumps({"url": url, "content": text}, indent=2)
 

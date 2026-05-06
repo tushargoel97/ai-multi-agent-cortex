@@ -30,6 +30,7 @@ services:
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
       - langgraph_state:/app/.langgraph_api
+    stop_grace_period: 30s
     depends_on:
       db:
         condition: service_healthy

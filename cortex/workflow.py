@@ -22,25 +22,24 @@ from cortex.observability import setup_tracing
 # Initialise tracing before any LangChain objects are constructed.
 setup_tracing()
 
-# Lower the periodic flush interval (default 10s) so threads survive container
-# restarts even when shutdown happens quickly. Disabling the dev-server reload
-# (`langgraph dev --no-reload`) means rewriting these pickle files no longer
-# triggers a hot reload.
+
+# ── In-mem persistence: flush on SIGTERM ────────────────────────────────────
+# `langgraph dev` uses langgraph_runtime_inmem which periodically pickles its
+# state to disk. On `docker compose down/restart`, Docker sends SIGTERM to PID
+# 1; we install a handler that forces a final sync so the most recent threads
+# survive the restart. (Requires Python to actually be PID 1 — see Dockerfile.)
 try:
-    from langgraph_runtime_inmem import _persistence as _lg_persist  # type: ignore
+    from langgraph_runtime_inmem import _persistence as _lg_persist  # type: ignore[import-not-found]
 
     _lg_persist._flush_interval = 3
-
-    # Best-effort: on SIGTERM, do a final sync of all registered persistent
-    # dicts so we don't lose anything created in the last few seconds.
     import signal as _signal
 
-    def _final_flush(_signum, _frame) -> None:
+    def _final_flush(_signum, _frame) -> None:  # noqa: ANN001
         try:
             for _ref in list(_lg_persist._stores.values()):
-                store = _ref()
-                if store is not None:
-                    store.sync()
+                _store = _ref()
+                if _store is not None:
+                    _store.sync()
         except Exception:  # noqa: BLE001
             pass
 

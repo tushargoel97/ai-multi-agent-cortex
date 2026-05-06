@@ -19,4 +19,9 @@ RUN touch .env
 
 EXPOSE 2024
 
-CMD ["uv", "run", "langgraph", "dev", "--host", "0.0.0.0", "--port", "2024", "--no-browser", "--no-reload", "--config", "langgraph.json"]
+# Run Python directly as PID 1 so Docker SIGTERM reaches our SIGTERM handler.
+# (uv run would spawn Python as a child process, swallowing the signal,
+#  which prevents the in-mem persistence flush from running on shutdown.)
+CMD ["/app/.venv/bin/python", "/app/.venv/bin/langgraph", "dev", \
+     "--host", "0.0.0.0", "--port", "2024", "--no-browser", "--no-reload", \
+     "--config", "langgraph.json"]
