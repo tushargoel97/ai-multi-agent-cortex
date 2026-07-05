@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getContentString } from "./utils";
+import { cn } from "@/lib/utils";
 
 /** The router node emits a marker AIMessage with additional_kwargs.routing. */
 export function getRoutingIntent(message: Message | undefined): string | null {
@@ -156,6 +157,16 @@ export function threadUsage(messages: Message[]): {
 interface Activity {
   label: string;
   icon: LucideIcon;
+  intent?: string;
+}
+
+/** The most recent routing marker's intent, scanning newest-first. */
+function lastRoutingIntent(messages: Message[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const intent = getRoutingIntent(messages[i]);
+    if (intent) return intent;
+  }
+  return null;
 }
 
 /** Derive what the graph is doing right now from the streamed messages. */
@@ -167,10 +178,27 @@ function deriveActivity(messages: Message[]): Activity | null {
     return { label: "Routing your request", icon: Zap };
   }
 
+  // Image generation is one long node with no streamed tokens — keep a
+  // prominent card up for the whole wait, keyed off the routing marker
+  // (which stops being the last message once an empty placeholder lands).
+  if (lastRoutingIntent(messages) === "image_generation") {
+    const done =
+      last.type === "ai" &&
+      getRoutingIntent(last) == null &&
+      getContentString(last.content).length > 0;
+    if (!done) {
+      return {
+        label: "Generating your image…",
+        icon: Palette,
+        intent: "image_generation",
+      };
+    }
+  }
+
   const intent = getRoutingIntent(last);
   if (intent) {
     const agent = agentForIntent(intent);
-    return { label: `${agent.label} is thinking`, icon: agent.icon };
+    return { label: `${agent.label} is thinking`, icon: agent.icon, intent };
   }
 
   if (last.type === "ai") {
@@ -196,6 +224,7 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const activity = deriveActivity(messages);
   if (!activity) return null;
   const Icon = activity.icon;
+  const isImageGen = activity.intent === "image_generation";
 
   const lastHuman = [...messages].reverse().find((m) => m.type === "human");
   const queryTokens = lastHuman
@@ -208,9 +237,28 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const total = threadUsage(messages);
 
   return (
-    <div className="mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-muted/40 px-3.5 py-2">
-      <Icon className="size-4 animate-pulse text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">{activity.label}</span>
+    <div
+      className={cn(
+        "mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border px-3.5 py-2",
+        isImageGen
+          ? "animate-pulse border-fuchsia-400/40 bg-gradient-to-r from-fuchsia-500/10 via-amber-400/10 to-sky-500/10"
+          : "border-border bg-muted/40",
+      )}
+    >
+      <Icon
+        className={cn(
+          "size-4 animate-pulse",
+          isImageGen ? "text-fuchsia-500" : "text-muted-foreground",
+        )}
+      />
+      <span
+        className={cn(
+          "text-sm",
+          isImageGen ? "font-medium text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {activity.label}
+      </span>
       <span className="flex items-center gap-1">
         <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full bg-foreground/50" />
         <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full bg-foreground/50" />
