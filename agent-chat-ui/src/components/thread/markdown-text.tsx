@@ -113,12 +113,28 @@ const defaultComponents: any = {
       {...props}
     />
   ),
-  p: ({ className, ...props }: { className?: string }) => (
-    <p
-      className={cn("mt-5 mb-5 leading-7 first:mt-0 last:mb-0", className)}
-      {...props}
-    />
-  ),
+  p: ({
+    className,
+    node,
+    ...props
+  }: {
+    className?: string;
+    node?: { children?: Array<{ type?: string; tagName?: string }> };
+  }) => {
+    // A markdown image renders as <GeneratedImage> (a <div>), and a <div> is
+    // invalid inside a <p> (hydration error). When this paragraph wraps an
+    // image, render a <div> instead to keep the DOM valid.
+    const hasBlockChild = node?.children?.some(
+      (c) => c?.type === "element" && c.tagName === "img",
+    );
+    const Tag = hasBlockChild ? "div" : "p";
+    return (
+      <Tag
+        className={cn("mt-5 mb-5 leading-7 first:mt-0 last:mb-0", className)}
+        {...props}
+      />
+    );
+  },
   a: ({ className, ...props }: { className?: string }) => (
     <a
       className={cn(
