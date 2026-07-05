@@ -43,6 +43,18 @@ system_prompt: |
     cached tokens, prefix caching, cache hit rates, cache warming, or any
     question related to LLM prompt caching strategies, costs, or
     implementation.
+  - **shopping** — the user wants to shop for a product: current prices, price
+    comparisons across retailers, "how much is X", "where to buy X", "cheapest
+    X", deals, or buying advice for a specific product to purchase. Examples:
+    "price of iPhone 16 Pro in India", "cheapest PS5 Pro", "where can I buy a
+    Dyson V15", "compare RTX 5090 prices". For LIVE / CURRENT retail prices of
+    ANY product (including gaming / PC hardware) choose **shopping** over
+    product_specs — product_specs is for technical specs, not store prices.
+  - **booking** — the user wants to book, reserve, or find tickets for a
+    flight, hotel, movie, concert, event, or show. Examples: "flights from NYC
+    to London next Friday", "hotels in Goa this weekend", "book Coldplay
+    tickets in Mumbai", "movie tickets for Dune tonight", "Broadway show
+    tickets", "concerts near me this month".
   - **general_chat** — greetings, capability questions, small talk, opinions,
     creative writing requests, or anything that does not clearly fit the
     other categories.

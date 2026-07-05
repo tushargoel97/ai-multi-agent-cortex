@@ -13,7 +13,9 @@ import {
   NotebookPen,
   Palette,
   Search,
+  ShoppingBag,
   Sparkles,
+  Ticket,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +52,8 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   prompt_caching: { label: "Prompt Expert", icon: Zap },
   general_chat: { label: "Assistant", icon: Bot },
   image_generation: { label: "Image Artist", icon: Palette },
+  shopping: { label: "Shopping Assistant", icon: ShoppingBag },
+  booking: { label: "Booking Assistant", icon: Ticket },
 };
 
 const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
@@ -62,6 +66,8 @@ const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
   get_current_time: { label: "Checking the clock", icon: Clock },
   save_memory: { label: "Saving a memory", icon: NotebookPen },
   search_memories: { label: "Recalling memories", icon: NotebookPen },
+  product_prices: { label: "Comparing prices", icon: ShoppingBag },
+  find_bookings: { label: "Finding booking options", icon: Ticket },
 };
 
 export function agentForIntent(intent: string | null) {

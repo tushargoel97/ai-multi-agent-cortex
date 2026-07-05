@@ -10,3 +10,5 @@ class Agents(StrEnum):
     PROMPT_CACHER = "prompt_cacher"
     SPECIALIST = "specialist"
     SYNTHESIZER = "synthesizer"
+    SHOPPING = "shopping"
+    BOOKING = "booking"

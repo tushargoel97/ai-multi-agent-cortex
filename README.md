@@ -37,6 +37,8 @@ CLI steps are required for day-to-day use.
 │                  └─ router ─┬─ generalist     ───────────────▶ END    │
 │                            ├─ prompt_cacher ──────────────────▶ END   │
 │                            ├─ imagegen      ──────────────────▶ END   │
+│                            ├─ shopping      ──────────────────▶ END   │
+│                            ├─ booking       ──────────────────▶ END   │
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┤                           │
 │                            ├─ specialist ─┼─▶ synthesize ──────▶ END │
@@ -58,7 +60,7 @@ CLI steps are required for day-to-day use.
 
 | Agent           | Purpose                                                          | Tools                                                                     |
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `router`        | Classifies user intent into one of seven capability types        | none (structured output only)                                             |
+| `router`        | Classifies user intent into one of nine capability types        | none (structured output only)                                             |
 | `generalist`    | Default chat agent — greetings, opinions, creative tasks         | `get_current_time`, memory                                                |
 | `researcher`    | Factual questions, grounded answers with citations               | `search_knowledge_base`, `wikipedia_search`, `web_search`, `fetch_url`, `techpowerup_specs`, `crypto_price`, memory |
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
@@ -66,12 +68,14 @@ CLI steps are required for day-to-day use.
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
 | `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none — answers purely from the fine-tuned model's weights                 |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
+| `shopping`      | Product shopping — live regional prices, comparisons, buying advice | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
+| `booking`       | Booking — flights, hotels, movies, concerts, events, shows       | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
 | `synthesizer`   | Formatting pass over factual answers (tables, worked math) + fact grounding | none                                                           |
 
 ### Routing
 
 The router emits a structured `RouterIntent` (via provider strategies) with
-one of seven labels, each mapped to a node:
+one of nine labels, each mapped to a node:
 
 - `general_chat` → `generalist`
 - `knowledge_query` → `researcher`
@@ -80,6 +84,8 @@ one of seven labels, each mapped to a node:
 - `prompt_caching` → `prompt_cacher`
 - `product_specs` → `specialist`
 - `image_generation` → `imagegen`
+- `shopping` → `shopping`
+- `booking` → `booking`
 
 Unknown labels fall back to `general_chat`. If the routing model itself is
 unavailable (e.g. a small local model that can't emit structured output), a
@@ -380,11 +386,12 @@ ai-multi-agent-cortex/
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
 │   │   └── agents/           # YAML agent specs (router, generalist, researcher,
-│   │                       #   reasoner, coder, prompt_cacher, specialist, synthesizer)
+│   │                       #   reasoner, coder, shopping, booking, prompt_cacher,
+│   │                       #   specialist, synthesizer)
 │   ├── model_client/         # Chat + embedding client factories
 │   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
 │   ├── scripts/              # one-off maintenance scripts
-│   └── tools/                # registry + web / utility / shared / memory tools
+│   └── tools/                # registry + web / commerce / utility / shared / memory tools
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
 ├── trainer/                  # Host-side MLX LoRA fine-tuning service (port 8200)
 │   ├── app/                  # FastAPI: dataset, train, convert, scrape, gap research

@@ -46,6 +46,8 @@ class Intent(StrEnum):
     PRODUCT_SPECS = "product_specs"
     IMAGE_GENERATION = "image_generation"
     CODING_TASK = "coding_task"
+    SHOPPING = "shopping"
+    BOOKING = "booking"
 
 
 class RouterIntent(BaseModel):
@@ -65,6 +67,8 @@ _INTENT_TO_NODE: dict[Intent, str] = {
     Intent.PRODUCT_SPECS: "specialist",
     Intent.IMAGE_GENERATION: "imagegen",
     Intent.CODING_TASK: "coder",
+    Intent.SHOPPING: "shopping",
+    Intent.BOOKING: "booking",
 }
 
 
@@ -336,6 +340,8 @@ def route_by_intent(
     "prompt_cacher",
     "specialist",
     "imagegen",
+    "shopping",
+    "booking",
 ]:
     """Read the router's structured classification and pick the next node."""
     last_msg = state["messages"][-1]
@@ -445,6 +451,16 @@ async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 async def coder(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Coding specialist — writes, explains, reviews, refactors, and debugs code."""
     return await _run_agent(Agents.CODER, state, config, Intent.CODING_TASK.value)
+
+
+async def shopping(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Shopping specialist — region-aware product prices and buying advice."""
+    return await _run_agent(Agents.SHOPPING, state, config, Intent.SHOPPING.value)
+
+
+async def booking(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Booking specialist — flights, hotels, movies, concerts, events, and shows."""
+    return await _run_agent(Agents.BOOKING, state, config, Intent.BOOKING.value)
 
 
 async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
@@ -757,6 +773,8 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_node("researcher", researcher)
     builder.add_node("reasoner", reasoner)
     builder.add_node("coder", coder)
+    builder.add_node("shopping", shopping)
+    builder.add_node("booking", booking)
     builder.add_node("prompt_cacher", prompt_cacher)
     builder.add_node("specialist", specialist)
     builder.add_node("imagegen", imagegen)
@@ -770,6 +788,8 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_edge("generalist", END)
     builder.add_edge("prompt_cacher", END)
     builder.add_edge("imagegen", END)
+    builder.add_edge("shopping", END)
+    builder.add_edge("booking", END)
     # Factual agents get a formatting pass (tables / worked math / structure).
     # The coder shares this node too, but synthesize handles code
     # deterministically (a parse-only syntax check) — it never lets the fast

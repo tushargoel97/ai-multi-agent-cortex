@@ -32,8 +32,11 @@ const INTENT_ORDER = [
   "general_chat",
   "knowledge_query",
   "reasoning_task",
+  "coding_task",
   "prompt_caching",
   "product_specs",
+  "shopping",
+  "booking",
   "image_generation",
 ];
 
@@ -42,8 +45,11 @@ const INTENT_LABELS: Record<string, string> = {
   general_chat: "General chat",
   knowledge_query: "Knowledge query",
   reasoning_task: "Reasoning task",
+  coding_task: "Coding task",
   prompt_caching: "Prompt caching",
   product_specs: "Product specs",
+  shopping: "Shopping",
+  booking: "Booking",
   image_generation: "Image generation",
 };
 
