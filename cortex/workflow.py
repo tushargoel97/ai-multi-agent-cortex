@@ -345,12 +345,16 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         routing = {"intent": fallback.value, "reasoning": f"heuristic fallback ({type(e).__name__})"}
         intent_value = fallback.value
     # In auto mode, record which model this intent resolves to so the UI's
-    # routing chip can show it. The answering node picks the same model via
-    # the same auto_intent, so this stays accurate; it's cosmetic either way.
+    # routing chip can show it. Skip image_generation: its real model is only
+    # known after generation (the imagegen node reports result.model_used), so
+    # a pre-guess (the first image candidate) would be misleading.
     configurable = (config or {}).get("configurable") or {}
     from cortex.db.services.auto_mode import is_auto, resolve_auto_model
 
-    if is_auto(configurable.get("model_id")):
+    if (
+        is_auto(configurable.get("model_id"))
+        and intent_value != Intent.IMAGE_GENERATION.value
+    ):
         try:
             resolved = resolve_auto_model(intent_value)
             if resolved is not None:

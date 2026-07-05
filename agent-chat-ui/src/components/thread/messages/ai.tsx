@@ -157,9 +157,27 @@ export function AssistantMessage({
   // bare chat bubble with the raw intent label.
   const routingIntent = getRoutingIntent(message);
   if (routingIntent) {
-    return (
-      <RoutingChip intent={routingIntent} model={getRoutingModel(message)} />
-    );
+    let chipModel = getRoutingModel(message);
+    if (routingIntent === "image_generation") {
+      // The real image model is only known after generation — read it from the
+      // image-result message that follows this router marker, not a pre-guess.
+      const idx = thread.messages.findIndex((m) => m.id === message?.id);
+      const result =
+        idx >= 0
+          ? thread.messages
+              .slice(idx + 1)
+              .find(
+                (m) =>
+                  m.type === "ai" &&
+                  !!(m as { response_metadata?: { model_name?: string } })
+                    .response_metadata?.model_name,
+              )
+          : undefined;
+      chipModel =
+        (result as { response_metadata?: { model_name?: string } } | undefined)
+          ?.response_metadata?.model_name ?? null;
+    }
+    return <RoutingChip intent={routingIntent} model={chipModel} />;
   }
 
   return (
