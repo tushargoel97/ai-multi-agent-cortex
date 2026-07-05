@@ -64,6 +64,7 @@ interface Offer {
   url: string;
   price?: string;
   snippet?: string;
+  available?: boolean | null;
 }
 
 interface ShoppingData {
@@ -103,8 +104,17 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
                 <div className="truncate text-sm font-medium text-foreground">
                   {o.title || prettyDomain(o.retailer)}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {prettyDomain(o.retailer)}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="truncate">{prettyDomain(o.retailer)}</span>
+                  {o.available === true ? (
+                    <span className="shrink-0 rounded bg-green-500/15 px-1 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+                      In stock
+                    </span>
+                  ) : o.available === false ? (
+                    <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Out of stock
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">

@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import date
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, urlsplit
 
 from pydantic import BaseModel, Field
 
@@ -117,6 +117,82 @@ def _retailer_url(domain: str, product: str) -> str:
     if tmpl:
         return tmpl.format(q=quote(product))
     return "https://www.google.com/search?q=" + quote_plus(f"{product} site:{domain}")
+
+
+# ── Live product lookup: recognized retailers + price/stock extraction ──────
+_ALL_SHOP_DOMAINS: set[str] = {d for _c, _ds in _SHOPPING_SITES.values() for d in _ds}
+_ALL_SHOP_DOMAINS |= {
+    "amazon.com", "newegg.com", "bhphotovideo.com", "costco.com", "microcenter.com",
+    "gamestop.com", "very.co.uk", "snapdeal.com", "paytmmall.com",
+}
+
+_REGION_COUNTRY: dict[str, str] = {
+    "US": "USA", "IN": "India", "UK": "United Kingdom", "CA": "Canada",
+    "AU": "Australia", "DE": "Germany", "FR": "France", "AE": "UAE",
+    "SG": "Singapore", "JP": "Japan",
+}
+
+_PRICE_RE = re.compile(
+    r"(?:US\$|A\$|C\$|S\$|AED|Rs\.?|₹|\$|£|€|¥)\s?\d[\d.,]*\d"
+    r"|(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)\s?\d[\d.,]*\d"
+    r"|\d[\d.,]*\d\s?(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)",
+    re.IGNORECASE,
+)
+_OOS_RE = re.compile(r"out of stock|currently unavailable|sold out|unavailable", re.I)
+_IN_STOCK_RE = re.compile(r"in stock|add to cart|buy now|available", re.I)
+
+
+def _host(url: str) -> str:
+    try:
+        h = urlsplit(url).netloc.lower()
+    except Exception:  # noqa: BLE001
+        return ""
+    return h[4:] if h.startswith("www.") else h
+
+
+def _match_retailer(url: str) -> str:
+    """Recognized shopping domain for a URL (e.g. amazon.in), or ''."""
+    h = _host(url)
+    for d in _ALL_SHOP_DOMAINS:
+        if h == d or h.endswith("." + d):
+            return d
+    return ""
+
+
+def _price_from_text(*texts: str) -> str:
+    for t in texts:
+        m = _PRICE_RE.search(t or "")
+        if m:
+            return m.group(0).strip()
+    return ""
+
+
+def _price_value(price: str) -> float | None:
+    """Numeric value from a price string, for cheapest-first sorting."""
+    m = re.search(r"\d[\d.,]*", price or "")
+    if not m:
+        return None
+    num = m.group(0).strip(".,")
+    if "," in num and "." in num:
+        num = (num.replace(".", "").replace(",", ".")
+               if num.rfind(",") > num.rfind(".") else num.replace(",", ""))
+    elif "," in num:
+        num = (num.replace(",", ".")
+               if num.count(",") == 1 and re.search(r",\d{2}$", num)
+               else num.replace(",", ""))
+    try:
+        return float(num)
+    except ValueError:
+        return None
+
+
+def _stock_flag(text: str, has_price: bool) -> bool | None:
+    """True/False/None in-stock guess from a listing snippet."""
+    if _OOS_RE.search(text):
+        return False
+    if has_price or _IN_STOCK_RE.search(text):
+        return True
+    return None
 
 
 # ── Booking: city→IATA, date parsing, and deep-link builders ───────────────
@@ -311,38 +387,85 @@ class ProductPricesInput(BaseModel):
 
 @register_tool(args_schema=ProductPricesInput)
 def product_prices(product: str, region: str = "US") -> str:
-    """Get working links to buy a product across the major online retailers for
-    the user's region.
+    """Find where a product is available to buy, with direct product-page links
+    plus any price and in-stock status the live listing shows.
 
-    Returns a JSON list of retailer links that each open the store's LIVE
-    search results for the product (Amazon / Walmart / Best Buy for the US;
-    Amazon.in / Flipkart / Croma for India; …). Use for "how much is X",
-    "cheapest X", "where to buy X", or shopping comparisons. Live prices and
-    availability are shown on the retailer page — never guess them. The links
-    render to the user as cards, so keep your reply short (point them at the
-    cards and add any genuinely useful buying tip).
+    Uses live web search (Firecrawl / Brave / SerpAPI / Tavily when a key is
+    set) to return the ACTUAL product page on each retailer for the user's
+    region — with the price and stock hint from the listing, region's own
+    retailers first. Without a search key it falls back to per-retailer search
+    links. Use for "where to buy X", "cheapest X", "is X in stock", or price
+    comparisons. The offers render as cards, so keep your reply short; confirm
+    the final price/stock on the retailer page.
     """
     reg = _norm_region(region)
     currency, sites = _SHOPPING_SITES[reg]
-    offers = [
-        {
-            "retailer": domain,
-            "title": product,
-            "url": _retailer_url(domain, product),
-            "price": "",
-        }
-        for domain in sites
-    ]
+    country = _REGION_COUNTRY.get(reg, "")
+
+    try:
+        from cortex.tools.web import _provider_search
+
+        hits = _provider_search(f"{product} price buy {country}".strip(), 12)
+    except Exception:  # noqa: BLE001
+        hits = []
+
+    offers: list[dict] = []
+    seen: set[str] = set()
+    for r in hits:
+        dom = _match_retailer(r.get("url", ""))
+        if not dom or dom in seen:
+            continue
+        seen.add(dom)
+        title, snippet = r.get("title", ""), r.get("snippet", "")
+        price = _price_from_text(snippet, title)
+        offers.append(
+            {
+                "retailer": dom,
+                "title": (title or product).strip()[:120],
+                "url": r.get("url", ""),
+                "price": price,
+                "price_value": _price_value(price),
+                "available": _stock_flag(f"{title} {snippet}", bool(price)),
+            }
+        )
+
+    if offers:
+        offers.sort(
+            key=lambda o: (
+                o["retailer"] not in sites,   # region's own retailers first
+                o["price_value"] is None,     # priced offers next
+                o["price_value"] or 0.0,      # cheapest first
+            )
+        )
+        note = (
+            "Live results — direct product pages with the price/stock each "
+            "listing showed. Confirm the final price and stock on the page."
+        )
+    else:
+        offers = [
+            {
+                "retailer": d,
+                "title": product,
+                "url": _retailer_url(d, product),
+                "price": "",
+                "price_value": None,
+                "available": None,
+            }
+            for d in sites
+        ]
+        note = (
+            "These open each retailer's search for the product. Set "
+            "FIRECRAWL_API_KEY for direct product pages, live prices, and "
+            "in-stock status."
+        )
+
     return json.dumps(
         {
             "product": product,
             "region": reg,
             "currency": currency,
             "offers": offers,
-            "note": (
-                "Each link opens the retailer's live search for this product — "
-                "compare current prices and availability there before buying."
-            ),
+            "note": note,
         },
         ensure_ascii=False,
     )
