@@ -76,7 +76,10 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
           style={!loaded && !errored ? { minHeight: "14rem" } : undefined}
         />
         {!loaded && !errored && (
-          <div className="pointer-events-none absolute inset-0 animate-pulse bg-muted" />
+          <div className="imggen-fill pointer-events-none">
+            <div className="imggen-frame__aurora" />
+            <div className="imggen-frame__shimmer" />
+          </div>
         )}
         {errored && (
           <div className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm">

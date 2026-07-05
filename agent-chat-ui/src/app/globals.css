@@ -210,7 +210,7 @@
   border-color: var(--border) !important;
 }
 
-/* ── Generated-image loading frame: a 3D dotted grid flowing in blue/purple ── */
+/* ── Generating-image loader: drifting aurora + diagonal shimmer sweep ── */
 .imggen-frame {
   position: relative;
   width: 100%;
@@ -218,128 +218,97 @@
   aspect-ratio: 1 / 1;
   border-radius: 1rem;
   overflow: hidden;
-  border: 1px solid rgba(129, 140, 248, 0.4);
-  background: radial-gradient(120% 100% at 50% 100%, #26204a 0%, #0a0912 72%);
-  perspective: 340px;
-  perspective-origin: 50% 32%;
+  isolation: isolate;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  background: #0b0a14;
 }
-.imggen-frame__grid,
-.imggen-frame__scan {
+/* Soft, slowly drifting colour blobs (indigo → violet → fuchsia → cyan). */
+.imggen-frame__aurora {
   position: absolute;
-  bottom: 0;
-  left: -50%;
-  width: 200%;
-  height: 300%;
-  transform: rotateX(74deg);
-  transform-origin: 50% 100%;
-  background-size: 30px 30px;
+  inset: -35%;
+  background:
+    radial-gradient(38% 46% at 25% 30%, rgba(99, 102, 241, 0.65), transparent 60%),
+    radial-gradient(32% 42% at 78% 32%, rgba(217, 70, 239, 0.5), transparent 60%),
+    radial-gradient(42% 46% at 62% 76%, rgba(56, 189, 248, 0.45), transparent 62%),
+    radial-gradient(36% 42% at 30% 82%, rgba(139, 92, 246, 0.5), transparent 60%);
+  filter: blur(16px) saturate(135%);
+  animation: imggen-aurora 7s ease-in-out infinite alternate;
+  will-change: transform;
+}
+/* Diagonal light sweep across the frame — the universal "loading" cue. */
+.imggen-frame__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 28%,
+    rgba(255, 255, 255, 0.12) 46%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.12) 54%,
+    transparent 72%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: screen;
+  animation: imggen-shimmer 1.8s linear infinite;
   will-change: background-position;
 }
-/* Dim base grid — the dots the scanner sweeps across. */
-.imggen-frame__grid {
-  background-image: radial-gradient(
-    circle,
-    rgba(150, 132, 205, 0.55) 2px,
-    transparent 2.9px
-  );
-  animation: imggen-floor 1.3s linear infinite;
-}
-/* Bright dots revealed only inside a vertical band that sweeps side to side,
-   shifting hue (blue ⇄ purple) as it goes — the scan. */
-.imggen-frame__scan {
-  background-image: radial-gradient(
-    circle,
-    rgba(130, 214, 255, 1) 2.4px,
-    transparent 3px
-  );
-  -webkit-mask-image: linear-gradient(
-    90deg,
-    transparent,
-    #000 25%,
-    #000 75%,
-    transparent
-  );
-  mask-image: linear-gradient(
-    90deg,
-    transparent,
-    #000 25%,
-    #000 75%,
-    transparent
-  );
-  -webkit-mask-size: 45% 100%;
-  mask-size: 45% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  animation:
-    imggen-floor 1.3s linear infinite,
-    imggen-scan 2.4s ease-in-out infinite alternate,
-    imggen-scan-hue 3.6s linear infinite alternate;
-  will-change: background-position, mask-position, filter;
-}
-@keyframes imggen-floor {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: 0 30px;
-  }
-}
-@keyframes imggen-scan {
-  from {
-    -webkit-mask-position: -30% 0;
-    mask-position: -30% 0;
-  }
-  to {
-    -webkit-mask-position: 130% 0;
-    mask-position: 130% 0;
-  }
-}
-@keyframes imggen-scan-hue {
-  from {
-    filter: drop-shadow(0 0 8px rgba(120, 200, 255, 0.95)) hue-rotate(-25deg);
-  }
-  to {
-    filter: drop-shadow(0 0 8px rgba(120, 200, 255, 0.95)) hue-rotate(75deg);
-  }
-}
-/* Depth vignette: fade the grid at the top and bottom of the frame. */
+/* Inner ring + faint top sheen for depth. */
 .imggen-frame::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(
-      120% 75% at 50% 112%,
-      rgba(129, 140, 248, 0.25),
-      transparent 55%
-    ),
-    linear-gradient(
-      to bottom,
-      #0a0912 0%,
-      rgba(10, 9, 18, 0.92) 18%,
-      transparent 50%,
-      transparent 88%,
-      rgba(10, 9, 18, 0.45) 100%
-    );
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  background: radial-gradient(
+    120% 80% at 50% -10%,
+    rgba(255, 255, 255, 0.08),
+    transparent 55%
+  );
+}
+@keyframes imggen-aurora {
+  0% {
+    transform: translate3d(-4%, -3%, 0) rotate(0deg) scale(1.05);
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) rotate(8deg) scale(1.18);
+  }
+  100% {
+    transform: translate3d(-2%, 4%, 0) rotate(-6deg) scale(1.1);
+  }
+}
+@keyframes imggen-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
 }
 .imggen-frame__label {
   position: absolute;
   inset-inline: 0;
   bottom: 0.9rem;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  color: #c7d2fe;
+  color: #e0e7ff;
   font-size: 0.8rem;
   font-weight: 500;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.75);
+}
+/* Same look, unframed — used while the produced image's bytes load. */
+.imggen-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0a14;
 }
 @media (prefers-reduced-motion: reduce) {
-  .imggen-frame__grid,
-  .imggen-frame__scan {
+  .imggen-frame__aurora,
+  .imggen-frame__shimmer {
     animation: none;
   }
 }
