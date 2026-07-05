@@ -250,6 +250,7 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
       <div className="mr-auto w-full max-w-md">
         <div className="imggen-frame">
           <div className="imggen-frame__grid" />
+          <div className="imggen-frame__scan" />
           <div className="imggen-frame__label">
             <Sparkles className="size-3.5 animate-pulse text-indigo-300" />
             Generating your image…

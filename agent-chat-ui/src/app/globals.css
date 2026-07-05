@@ -223,36 +223,72 @@
   perspective: 460px;
   perspective-origin: 50% 38%;
 }
-.imggen-frame__grid {
+.imggen-frame__grid,
+.imggen-frame__scan {
   position: absolute;
   left: -50%;
   top: -50%;
   width: 200%;
   height: 200%;
-  transform: rotateX(62deg);
+  transform: rotateX(58deg);
   transform-origin: 50% 50%;
-  background-image:
-    radial-gradient(circle, rgba(196, 168, 255, 1) 2.2px, transparent 3px),
-    radial-gradient(circle, rgba(120, 170, 255, 0.85) 2.2px, transparent 3px);
-  background-size:
-    30px 30px,
-    30px 30px;
-  background-position:
-    0 0,
-    15px 15px;
-  animation: imggen-grid-flow 0.9s linear infinite;
-  will-change: background-position;
+  background-size: 28px 28px;
 }
-@keyframes imggen-grid-flow {
+/* Dim base grid — the dots the scanner sweeps across. */
+.imggen-frame__grid {
+  background-image: radial-gradient(
+    circle,
+    rgba(150, 132, 205, 0.5) 2px,
+    transparent 2.8px
+  );
+}
+/* Bright dots revealed only inside a vertical band that sweeps side to side,
+   shifting hue (blue ⇄ purple) as it goes — the scan. */
+.imggen-frame__scan {
+  background-image: radial-gradient(
+    circle,
+    rgba(130, 214, 255, 1) 2.4px,
+    transparent 3px
+  );
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 25%,
+    #000 75%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 25%,
+    #000 75%,
+    transparent
+  );
+  -webkit-mask-size: 45% 100%;
+  mask-size: 45% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation:
+    imggen-scan 2.4s ease-in-out infinite alternate,
+    imggen-scan-hue 3.6s linear infinite alternate;
+  will-change: mask-position, filter;
+}
+@keyframes imggen-scan {
   from {
-    background-position:
-      0 0,
-      15px 15px;
+    -webkit-mask-position: -30% 0;
+    mask-position: -30% 0;
   }
   to {
-    background-position:
-      0 30px,
-      15px 45px;
+    -webkit-mask-position: 130% 0;
+    mask-position: 130% 0;
+  }
+}
+@keyframes imggen-scan-hue {
+  from {
+    filter: drop-shadow(0 0 8px rgba(120, 200, 255, 0.95)) hue-rotate(-25deg);
+  }
+  to {
+    filter: drop-shadow(0 0 8px rgba(120, 200, 255, 0.95)) hue-rotate(75deg);
   }
 }
 /* Depth vignette: fade the grid at the top and bottom of the frame. */
@@ -284,7 +320,7 @@
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
 }
 @media (prefers-reduced-motion: reduce) {
-  .imggen-frame__grid {
+  .imggen-frame__scan {
     animation: none;
   }
 }
