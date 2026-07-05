@@ -175,14 +175,14 @@ function lastRoutingIntent(messages: Message[]): string | null {
  *  when the backend `langsmith:nostream` tag doesn't fully suppress them. */
 export function isInternalNoiseMessage(message: Message): boolean {
   if (message.type !== "ai") return false;
-  const s = getContentString(message.content).trim();
-  if (!s.startsWith("{") || !s.includes('"allowed"')) return false;
-  try {
-    const parsed = JSON.parse(s);
-    return !!parsed && typeof parsed === "object" && "allowed" in parsed;
-  } catch {
-    return false;
-  }
+  let s = getContentString(message.content).trim();
+  // The guardrail model sometimes wraps its verdict in a ```json fence.
+  const fence = s.match(/^```(?:json)?\s*/i);
+  if (fence) s = s.slice(fence[0].length).trimStart();
+  // The image safety-guardrail verdict: {"allowed": true|false, "reason": …}.
+  // Matched even mid-stream (partial JSON) since no real answer starts like
+  // this, so it never flashes into the transcript.
+  return /^\{\s*"allowed"\s*:/.test(s);
 }
 
 /** Derive what the graph is doing right now from the streamed messages. */

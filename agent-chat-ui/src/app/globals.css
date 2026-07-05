@@ -214,43 +214,45 @@
 .imggen-frame {
   position: relative;
   width: 100%;
-  max-width: 28rem;
+  max-width: 24rem;
   aspect-ratio: 1 / 1;
   border-radius: 1rem;
   overflow: hidden;
-  border: 1px solid rgba(129, 140, 248, 0.3);
-  background: radial-gradient(circle at 50% 130%, #241f4d 0%, #0c0b18 68%);
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  background: radial-gradient(130% 130% at 50% 45%, #201a3a 0%, #0a0913 78%);
+  perspective: 460px;
+  perspective-origin: 50% 38%;
 }
 .imggen-frame__grid {
   position: absolute;
-  left: -60%;
-  right: -60%;
-  top: -25%;
-  bottom: -70%;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  transform: rotateX(62deg);
+  transform-origin: 50% 50%;
   background-image:
-    radial-gradient(circle, rgba(167, 139, 250, 0.95) 1.6px, transparent 2.6px),
-    radial-gradient(circle, rgba(96, 165, 250, 0.7) 1.6px, transparent 2.6px);
+    radial-gradient(circle, rgba(196, 168, 255, 1) 2.2px, transparent 3px),
+    radial-gradient(circle, rgba(120, 170, 255, 0.85) 2.2px, transparent 3px);
   background-size:
-    26px 26px,
-    26px 26px;
+    30px 30px,
+    30px 30px;
   background-position:
     0 0,
-    13px 13px;
-  transform: perspective(320px) rotateX(58deg);
-  transform-origin: 50% 100%;
-  animation: imggen-grid-flow 1.5s linear infinite;
-  filter: drop-shadow(0 0 5px rgba(129, 140, 248, 0.55));
+    15px 15px;
+  animation: imggen-grid-flow 0.9s linear infinite;
+  will-change: background-position;
 }
 @keyframes imggen-grid-flow {
   from {
     background-position:
       0 0,
-      13px 13px;
+      15px 15px;
   }
   to {
     background-position:
-      0 26px,
-      13px 39px;
+      0 30px,
+      15px 45px;
   }
 }
 /* Depth vignette: fade the grid at the top and bottom of the frame. */
@@ -261,10 +263,10 @@
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(12, 11, 24, 0.55) 0%,
-    transparent 32%,
-    transparent 62%,
-    rgba(12, 11, 24, 0.75) 100%
+    rgba(10, 9, 19, 0.7) 0%,
+    transparent 30%,
+    transparent 80%,
+    rgba(10, 9, 19, 0.5) 100%
   );
 }
 .imggen-frame__label {
