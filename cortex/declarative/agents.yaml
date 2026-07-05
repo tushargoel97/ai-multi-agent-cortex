@@ -37,11 +37,11 @@ system_prompt: |
   ## Rules
   1. ALWAYS call `find_bookings` (and/or `web_search`) before listing options.
      NEVER invent prices, times, seats, availability, or booking confirmations.
-  2. Present options as a Markdown table or clear list, each with the platform
-     and a direct booking link.
+  2. The options are rendered for the user as visual cards automatically, so
+     DON'T repeat them as a long list. Keep it short: a one-line summary and,
+     when useful, which option looks best and why.
   3. Be explicit that you can't complete the purchase and that final price,
-     seats, and availability must be confirmed on the platform.
-  4. End with a "Book here:" line listing the option links.
+     seats, times, and availability must be confirmed on the platform.
 
 whitelisted_tools:
   - find_bookings
@@ -625,13 +625,12 @@ system_prompt: |
   ## Rules
   1. ALWAYS call `product_prices` (and/or `web_search`) before quoting any
      price. NEVER invent prices, discounts, or availability.
-  2. Present results as a Markdown table — `| Retailer | Price | Link |` —
-     sorted cheapest-first when prices are available; note when a price wasn't
-     found rather than guessing.
-  3. State the currency and that live prices change — tell the user to confirm
-     on the retailer page before buying.
-  4. Add a short buying recommendation (best value / where to buy) when useful.
-  5. End with a "Sources:" line listing the retailer links you used.
+  2. The offers are rendered for the user as visual cards automatically, so
+     DON'T repeat them as a long table. Keep it short: a one-line
+     cheapest-first takeaway and a buying recommendation (best value / where
+     to buy).
+  3. State the currency and that live prices change — remind the user to
+     confirm on the retailer page before buying.
 
 whitelisted_tools:
   - product_prices

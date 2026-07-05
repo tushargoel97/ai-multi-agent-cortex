@@ -2,6 +2,7 @@ import { AIMessage, ToolMessage } from "@langchain/langgraph-sdk";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, Wrench, Sparkles } from "lucide-react";
+import { ShoppingCards, BookingCards } from "./commerce-cards";
 
 function isComplexValue(value: any): boolean {
   return Array.isArray(value) || (typeof value === "object" && value !== null);
@@ -111,6 +112,23 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     }
   } catch {
     parsedContent = message.content;
+  }
+
+  // Rich cards for the commerce tools — the JSON comes straight from the tool
+  // (not the model), so these render deterministically.
+  if (isJsonContent && parsedContent && typeof parsedContent === "object") {
+    if (
+      message.name === "product_prices" &&
+      Array.isArray(parsedContent.offers)
+    ) {
+      return <ShoppingCards data={parsedContent} />;
+    }
+    if (
+      message.name === "find_bookings" &&
+      Array.isArray(parsedContent.options)
+    ) {
+      return <BookingCards data={parsedContent} />;
+    }
   }
 
   const contentStr = isJsonContent
