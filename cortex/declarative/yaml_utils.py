@@ -28,6 +28,25 @@ def load_yaml(path: Path) -> dict | None:
         return None
 
 
+def load_yaml_documents(path: Path) -> list[dict]:
+    """Read a multi-document YAML file, returning each validated document.
+
+    Empty or invalid ``---`` documents are skipped with a warning.
+    """
+    docs: list[dict] = []
+    try:
+        with path.open(encoding="utf-8") as fh:
+            for raw in yaml.safe_load_all(fh):
+                if raw is None:
+                    continue
+                validated = validate_yaml(raw)
+                if validated is not None:
+                    docs.append(validated)
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning("Failed to load %s: %s", path, exc)
+    return docs
+
+
 def parse_yaml(content: str) -> dict | None:
     """Parse a raw YAML string.
 

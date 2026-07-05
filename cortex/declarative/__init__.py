@@ -1,7 +1,7 @@
 """Agent spec registry — declarative YAML loader.
 
-Scans the ``declarative/specs/`` directory for agent YAML files and builds
-a flat  name → AgentSpec  mapping.  The registry is populated eagerly at
+Loads all agent specs from ``agents.yaml`` (one ``---`` document per agent)
+into a flat  name → AgentSpec  mapping.  The registry is populated eagerly at
 import time so every other module can simply do::
 
     from cortex.declarative import AGENT_SPECS, get_agent_spec
@@ -11,43 +11,31 @@ import logging
 from pathlib import Path
 
 from cortex.declarative.models import AgentSpec, SpecRegistry
-from cortex.declarative.yaml_utils import load_yaml
+from cortex.declarative.yaml_utils import load_yaml_documents
 from cortex.enums import Agents
 from cortex.errors import AgentSpecNotFoundError
 
 logger = logging.getLogger(__name__)
 
-# Path to agent YAML specs — lives next to this file
-AGENT_SPECS_DIR = Path(__file__).parent / "agents"
-
-# YAML stems that are not agent definitions
-_SKIP_STEMS: frozenset[str] = frozenset({"schema", "__init__"})
+# All agent specs live in one multi-document YAML file next to this module.
+AGENT_SPECS_FILE = Path(__file__).parent / "agents.yaml"
 
 # Module-level registry (populated at the bottom of this file)
 AGENT_SPECS: SpecRegistry
 
 
 def load_agent_specs() -> SpecRegistry:
-    """Scan *AGENT_SPECS_DIR* and return a populated registry.
+    """Load every agent spec from ``agents.yaml`` (one ``---`` document each).
 
-    All ``.yaml`` files (except those in ``_SKIP_STEMS``) are treated as agent
-    specs.  Files that fail validation are skipped with a warning.
+    Documents that fail validation are skipped with a warning.
 
     Returns:
         Flat ``name → AgentSpec`` mapping.
     """
     registry: SpecRegistry = {}
 
-    spec_stems = {
-        f.stem
-        for f in AGENT_SPECS_DIR.iterdir()
-        if f.is_file() and f.suffix == ".yaml" and f.stem not in _SKIP_STEMS
-    }
-
-    for stem in sorted(spec_stems):
-        spec_data = load_yaml(AGENT_SPECS_DIR / f"{stem}.yaml")
-        if spec_data:
-            registry[spec_data["name"]] = AgentSpec.model_validate(spec_data)
+    for spec_data in load_yaml_documents(AGENT_SPECS_FILE):
+        registry[spec_data["name"]] = AgentSpec.model_validate(spec_data)
 
     logger.info("Loaded %d agent spec(s): %s", len(registry), sorted(registry))
     return registry
