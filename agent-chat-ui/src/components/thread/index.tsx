@@ -7,7 +7,7 @@ import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage } from "./messages/ai";
-import { AgentActivity } from "./agent-activity";
+import { AgentActivity, isInternalNoiseMessage } from "./agent-activity";
 import { HumanMessage } from "./messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
@@ -113,6 +113,24 @@ function OpenGitHubRepo() {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+/** Time-of-day greeting shown on an empty thread. Computed after mount to
+ *  avoid a server/client hydration mismatch on the hour. */
+function Greeting() {
+  const [greeting, setGreeting] = useState("Hello");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(
+      h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening",
+    );
+  }, []);
+  return (
+    <div className="flex flex-col items-center gap-1.5 text-center">
+      <h1 className="text-2xl font-semibold tracking-tight">{greeting}!</h1>
+      <p className="text-muted-foreground">How can I help you today?</p>
+    </div>
   );
 }
 
@@ -361,7 +379,7 @@ export function Thread() {
                     height={32}
                   />
                   <span className="text-xl font-semibold tracking-tight">
-                    Agent Chat
+                    Cortex
                   </span>
                 </motion.button>
               </div>
@@ -397,7 +415,11 @@ export function Thread() {
               content={
                 <>
                   {messages
-                    .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
+                    .filter(
+                      (m) =>
+                        !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) &&
+                        !isInternalNoiseMessage(m),
+                    )
                     .map((message, index) =>
                       message.type === "human" ? (
                         <HumanMessage
@@ -429,14 +451,7 @@ export function Thread() {
               }
               footer={
                 <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-background">
-                  {!chatStarted && (
-                    <div className="flex items-center gap-3">
-                      <LangGraphLogoSVG className="h-8 flex-shrink-0" />
-                      <h1 className="text-2xl font-semibold tracking-tight">
-                        Agent Chat
-                      </h1>
-                    </div>
-                  )}
+                  {!chatStarted && <Greeting />}
 
                   <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
 

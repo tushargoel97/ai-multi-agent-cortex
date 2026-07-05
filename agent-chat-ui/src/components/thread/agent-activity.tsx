@@ -3,6 +3,7 @@ import {
   Bot,
   BrainCircuit,
   Clock,
+  Code2,
   Cpu,
   Database,
   Globe,
@@ -46,6 +47,7 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   product_specs: { label: "Hardware Specialist", icon: Cpu },
   knowledge_query: { label: "Researcher", icon: Search },
   reasoning_task: { label: "Reasoner", icon: BrainCircuit },
+  coding_task: { label: "Coder", icon: Code2 },
   prompt_caching: { label: "Prompt Expert", icon: Zap },
   general_chat: { label: "Assistant", icon: Bot },
   image_generation: { label: "Image Artist", icon: Palette },
@@ -169,6 +171,21 @@ function lastRoutingIntent(messages: Message[]): string | null {
   return null;
 }
 
+/** Internal LLM outputs that must never render as chat bubbles — e.g. the
+ *  image safety-guardrail verdict ({"allowed": ...}). Belt-and-suspenders for
+ *  when the backend `langsmith:nostream` tag doesn't fully suppress them. */
+export function isInternalNoiseMessage(message: Message): boolean {
+  if (message.type !== "ai") return false;
+  const s = getContentString(message.content).trim();
+  if (!s.startsWith("{") || !s.includes('"allowed"')) return false;
+  try {
+    const parsed = JSON.parse(s);
+    return !!parsed && typeof parsed === "object" && "allowed" in parsed;
+  } catch {
+    return false;
+  }
+}
+
 /** Derive what the graph is doing right now from the streamed messages. */
 function deriveActivity(messages: Message[]): Activity | null {
   const last = messages[messages.length - 1];
@@ -179,14 +196,15 @@ function deriveActivity(messages: Message[]): Activity | null {
   }
 
   // Image generation is one long node with no streamed tokens — keep a
-  // prominent card up for the whole wait, keyed off the routing marker
-  // (which stops being the last message once an empty placeholder lands).
+  // prominent card up for the whole wait, keyed off the routing marker.
+  // Only the finished image (markdown image) clears it; internal messages
+  // like the safety-guardrail verdict must NOT hide it.
   if (lastRoutingIntent(messages) === "image_generation") {
-    const done =
+    const imageReady =
       last.type === "ai" &&
       getRoutingIntent(last) == null &&
-      getContentString(last.content).length > 0;
-    if (!done) {
+      getContentString(last.content).includes("![");
+    if (!imageReady) {
       return {
         label: "Generating your image…",
         icon: Palette,

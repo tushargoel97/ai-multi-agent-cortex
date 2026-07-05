@@ -74,7 +74,12 @@ async def screen_prompt(prompt: str) -> tuple[bool, str]:
         return True, "guardrail model unavailable — relying on API safety settings"
     try:
         model = build_client_from_resolved(resolved)
-        result = await model.ainvoke(_GUARDRAIL_PROMPT + prompt)
+        # Tag so LangGraph's `messages` stream mode never surfaces this internal
+        # guardrail verdict ({"allowed": ...}) as a chat bubble in the UI.
+        result = await model.ainvoke(
+            _GUARDRAIL_PROMPT + prompt,
+            config={"tags": ["langsmith:nostream"]},
+        )
         text = result.content if isinstance(result.content, str) else "".join(
             b.get("text", "") for b in result.content if isinstance(b, dict)
         )

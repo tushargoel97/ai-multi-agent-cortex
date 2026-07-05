@@ -36,8 +36,7 @@ CLI steps are required for day-to-day use.
 │  START ─▶ route ─┬─ specialist  (fine-tuned local model — bypass)     │
 │                  └─ router ─┬─ generalist     ───────────────▶ END    │
 │                            ├─ prompt_cacher   ───────────────▶ END    │
-│                            ├─ imagegen        ───────────────▶ END    │
-│                            ├─ researcher ─┐                           │
+│                            ├─ imagegen        ───────────────▶ END    ││                            ├─ coder           ───────────────▶ END      ││                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┼──▶ synthesize ───▶ END   │
 │                            └─ specialist ─┘                           │
 │                                                                       │
@@ -57,10 +56,11 @@ CLI steps are required for day-to-day use.
 
 | Agent           | Purpose                                                          | Tools                                                                     |
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `router`        | Classifies user intent into one of six capability types          | none (structured output only)                                             |
+| `router`        | Classifies user intent into one of seven capability types        | none (structured output only)                                             |
 | `generalist`    | Default chat agent — greetings, opinions, creative tasks         | `get_current_time`, memory                                                |
 | `researcher`    | Factual questions, grounded answers with citations               | `search_knowledge_base`, `wikipedia_search`, `web_search`, `fetch_url`, `techpowerup_specs`, `crypto_price`, memory |
-| `reasoner`      | Math, logic puzzles, code, step-by-step problem solving          | `calculator`, memory                                                      |
+| `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
+| `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
 | `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none — answers purely from the fine-tuned model's weights                 |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
@@ -69,11 +69,12 @@ CLI steps are required for day-to-day use.
 ### Routing
 
 The router emits a structured `RouterIntent` (via provider strategies) with
-one of six labels, each mapped to a node:
+one of seven labels, each mapped to a node:
 
 - `general_chat` → `generalist`
 - `knowledge_query` → `researcher`
 - `reasoning_task` → `reasoner`
+- `coding_task` → `coder`
 - `prompt_caching` → `prompt_cacher`
 - `product_specs` → `specialist`
 - `image_generation` → `imagegen`

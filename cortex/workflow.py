@@ -90,6 +90,7 @@ class Intent(StrEnum):
     PROMPT_CACHING = "prompt_caching"
     PRODUCT_SPECS = "product_specs"
     IMAGE_GENERATION = "image_generation"
+    CODING_TASK = "coding_task"
 
 
 class RouterIntent(BaseModel):
@@ -108,6 +109,7 @@ _INTENT_TO_NODE: dict[Intent, str] = {
     Intent.PROMPT_CACHING: "prompt_cacher",
     Intent.PRODUCT_SPECS: "specialist",
     Intent.IMAGE_GENERATION: "imagegen",
+    Intent.CODING_TASK: "coder",
 }
 
 
@@ -211,7 +213,9 @@ async def _update_summary(state: ChatState, config: RunnableConfig) -> dict[str,
         "Return only the updated summary, max ~200 words."
     )
     try:
-        result = await get_chat_client(config=config).ainvoke(prompt)
+        result = await get_chat_client(config=config).ainvoke(
+            prompt, config={"tags": ["langsmith:nostream"]}
+        )
         summary = result.content if isinstance(result.content, str) else str(result.content)
         return {"summary": summary.strip(), "summary_upto": len(msgs) - WINDOW_KEEP}
     except Exception:  # noqa: BLE001
@@ -366,7 +370,13 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 def route_by_intent(
     state: ChatState,
 ) -> Literal[
-    "generalist", "researcher", "reasoner", "prompt_cacher", "specialist", "imagegen"
+    "generalist",
+    "researcher",
+    "reasoner",
+    "coder",
+    "prompt_cacher",
+    "specialist",
+    "imagegen",
 ]:
     """Read the router's structured classification and pick the next node."""
     last_msg = state["messages"][-1]
@@ -473,6 +483,11 @@ async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     return await _run_agent(Agents.REASONER, state, config, Intent.REASONING_TASK.value)
 
 
+async def coder(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Coding specialist — writes, explains, reviews, refactors, and debugs code."""
+    return await _run_agent(Agents.CODER, state, config, Intent.CODING_TASK.value)
+
+
 async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """LLM-prompt-caching expert (large system prompt, demonstrates caching)."""
     return await _run_agent(Agents.PROMPT_CACHER, state, config, Intent.PROMPT_CACHING.value)
@@ -526,6 +541,49 @@ def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> boo
     return draft_nums <= synth_nums and (synth_nums - draft_nums) <= allowed_extra
 
 
+def _routed_intent(messages: list) -> str | None:
+    """Intent recorded by the router for this turn (newest marker wins)."""
+    for m in reversed(messages):
+        if _is_router_marker(m):
+            return (m.additional_kwargs.get("routing") or {}).get("intent")
+    return None
+
+
+_CODE_BLOCK_RE = re.compile(r"```([\w+-]*)\n(.*?)```", re.DOTALL)
+
+
+def _code_syntax_notes(text: str) -> list[str]:
+    """Parse-only syntax sanity checks on fenced code — never executes anything.
+
+    Conservative on purpose: only flags substantial, complete-looking Python
+    and any JSON, so intentional snippets / pseudocode don't false-positive.
+    True validation (running the code) is the sandbox roadmap item.
+    """
+    notes: list[str] = []
+    for lang, body in _CODE_BLOCK_RE.findall(text):
+        lang = lang.strip().lower()
+        if lang in ("python", "py"):
+            lines = [ln for ln in body.splitlines() if ln.strip()]
+            if len(lines) < 4 or not re.search(
+                r"^\s*(?:async\s+def|def|class|import|from)\b", body, re.M
+            ):
+                continue  # a snippet, not a full unit — skip
+            import ast
+
+            try:
+                ast.parse(body)
+            except SyntaxError as e:
+                notes.append(f"Python block near line {e.lineno}: {e.msg}")
+        elif lang == "json":
+            import json as _json
+
+            try:
+                _json.loads(body)
+            except ValueError:
+                notes.append("JSON block: not valid JSON")
+    return notes
+
+
 async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Formatting pass over factual answers (tables, worked math, structure).
 
@@ -541,6 +599,25 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         and final.content.strip()
     ):
         return {}
+    # Coding answers reuse this node but deterministically: never hand code to
+    # the fast-tier reformatter (it can silently corrupt it) — just run a
+    # parse-only syntax check and append a heads-up when a full block is broken.
+    if _routed_intent(msgs) == Intent.CODING_TASK.value:
+        notes = _code_syntax_notes(final.content)
+        if not notes:
+            return {}
+        note = "\n\n> ⚠️ **Syntax check:** " + "; ".join(notes[:3])
+        return {
+            "messages": [
+                AIMessage(
+                    id=final.id,
+                    content=final.content + note,
+                    additional_kwargs=final.additional_kwargs,
+                    response_metadata=final.response_metadata,
+                    usage_metadata=final.usage_metadata,
+                )
+            ]
+        }
     last_human = _last_human(msgs)
     question = _text_content(last_human) if last_human is not None else ""
     try:
@@ -690,8 +767,8 @@ def build_workflow() -> StateGraph:
     Flow:
         START → (fine-tuned model selected/default? → specialist)
               → router → (conditional)
-                          → generalist / prompt_cacher / imagegen  → END
-                          → researcher / reasoner / specialist     → synthesize → END
+                          → generalist / prompt_cacher / imagegen      → END
+                          → researcher / reasoner / specialist / coder → synthesize → END
 
     Auto mode: configurable.model_id == "auto" always goes through the router
     and each node resolves its model per intent (declarative/auto_mode.yaml).
@@ -718,6 +795,7 @@ def build_workflow() -> StateGraph:
     builder.add_node("generalist", generalist)
     builder.add_node("researcher", researcher)
     builder.add_node("reasoner", reasoner)
+    builder.add_node("coder", coder)
     builder.add_node("prompt_cacher", prompt_cacher)
     builder.add_node("specialist", specialist)
     builder.add_node("imagegen", imagegen)
@@ -732,9 +810,13 @@ def build_workflow() -> StateGraph:
     builder.add_edge("prompt_cacher", END)
     builder.add_edge("imagegen", END)
     # Factual agents get a formatting pass (tables / worked math / structure).
+    # The coder shares this node too, but synthesize handles code
+    # deterministically (a parse-only syntax check) — it never lets the fast
+    # model rewrite code.
     builder.add_edge("researcher", "synthesize")
     builder.add_edge("reasoner", "synthesize")
     builder.add_edge("specialist", "synthesize")
+    builder.add_edge("coder", "synthesize")
     builder.add_edge("synthesize", END)
 
     # Mirror auto-mode defaults into app_settings so the admin editor (which
