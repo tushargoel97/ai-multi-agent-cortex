@@ -6,3 +6,12 @@ __pycache__
 agent-chat-ui/node_modules
 agent-chat-ui/.next
 docs/
+# Heavy / host-only assets — kept out of the langgraph image (built with ADD .).
+# Where the container needs them (facts, generated images) they are provided at
+# runtime via docker-compose volume mounts, not baked into the image.
+models/
+generated_images/
+trainer/
+ai/
+*.ipynb
+.claude/

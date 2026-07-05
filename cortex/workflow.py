@@ -14,6 +14,7 @@ from langgraph.config import get_store
 from langgraph.graph import END, START, MessagesState, StateGraph
 from pydantic import BaseModel, Field
 
+import logging
 import re
 
 from cortex.config import get_settings
@@ -31,53 +32,7 @@ from cortex.observability import setup_tracing
 # Initialise tracing before any LangChain objects are constructed.
 setup_tracing()
 
-
-# ── In-mem persistence: flush on SIGTERM ────────────────────────────────────
-# `langgraph dev` uses langgraph_runtime_inmem which periodically pickles its
-# state to disk. On `docker compose down/restart`, Docker sends SIGTERM to PID
-# 1; we install a handler that forces a final sync so the most recent threads
-# survive the restart. (Requires Python to actually be PID 1 — see Dockerfile.)
-import logging as _logging
-
-_persist_logger = _logging.getLogger("cortex.persistence")
-
-try:
-    from langgraph_runtime_inmem import _persistence as _lg_persist  # type: ignore[import-not-found]
-
-    _lg_persist._flush_interval = 3
-    import atexit as _atexit
-    import signal as _signal
-    import threading as _threading
-
-    def _final_flush(*_args) -> None:  # noqa: ANN002
-        try:
-            for _ref in list(_lg_persist._stores.values()):
-                _store = _ref()
-                if _store is not None:
-                    _store.sync()
-        except Exception:  # noqa: BLE001
-            _persist_logger.exception("Final flush of in-mem state failed")
-
-    # signal.signal only works from the main thread, and langgraph dev may
-    # import this module from a worker thread — fall back to atexit there.
-    if _threading.current_thread() is _threading.main_thread():
-        _signal.signal(_signal.SIGTERM, _final_flush)
-        _persist_logger.info(
-            "In-mem persistence shim active: flush_interval=3s, SIGTERM flush installed"
-        )
-    else:
-        _atexit.register(_final_flush)
-        _persist_logger.info(
-            "In-mem persistence shim active: flush_interval=3s, atexit flush "
-            "(module imported off the main thread)"
-        )
-except Exception:  # noqa: BLE001
-    # If langgraph_runtime_inmem internals change, chat threads will NOT
-    # survive restarts — surface it instead of failing silently.
-    _persist_logger.exception(
-        "Persistence shim could not attach (langgraph_runtime_inmem internals "
-        "changed?) — thread history will be lost on container restart!"
-    )
+_persist_logger = logging.getLogger("cortex.workflow")
 
 
 # ── Router Schema ────────────────────────────────────────────────────────────

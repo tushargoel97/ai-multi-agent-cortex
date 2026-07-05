@@ -23,38 +23,47 @@ services:
       dockerfile: docker/Dockerfile.langgraph
     image: ai-multi-agent-cortex-langgraph
     ports:
-      - "2024:2024"
+      # The official LangGraph Server binds port 8000 inside the container.
+      - "2024:8000"
     env_file:
       - .env
     environment:
+      # App code (cortex.db via SQLAlchemy) keeps the psycopg2 URL.
       DATABASE_URL: postgresql+psycopg2://cortex:cortex@db:5432/cortex
+      # Native LangGraph Server persistence: checkpoints, threads, and the
+      # semantic memory store all live durably in Postgres (pgvector).
+      POSTGRES_URI: postgres://cortex:cortex@db:5432/cortex?sslmode=disable
+      REDIS_URI: redis://redis:6379
+      # Self-hosted license verification only — tracing stays off, so no run
+      # data is sent to LangSmith. Set LANGSMITH_API_KEY in .env (see .env.example).
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_TRACING: "false"
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
-      - langgraph_state:/app/.langgraph_api
       - ./generated_images:/app/generated_images
       # Ground-truth specs for the synthesizer's fact grounding (cortex/facts.py)
       - ./trainer/data:/app/trainer_data:ro
-    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "python /api/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
-  # Durable chat history: mirrors thread state (messages, titles) into the
-  # thread_backups Postgres table via the public LangGraph API, and restores
-  # it when the dev server's in-mem pickle store comes up empty (rebuilds,
-  # incompatible upgrades). See cortex/scripts/thread_backup.py.
-  thread-backup:
-    image: ai-multi-agent-cortex-langgraph
-    command: ["/app/.venv/bin/python", "-m", "cortex.scripts.thread_backup"]
-    environment:
-      DATABASE_URL: postgresql://cortex:cortex@db:5432/cortex
-      LANGGRAPH_URL: http://langgraph:2024
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      langgraph:
-        condition: service_started
+  # Run queue + streaming pub/sub for the LangGraph Server (ephemeral;
+  # durable state lives in Postgres, so no Redis volume is needed).
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   ui:
     build:
@@ -67,7 +76,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
       NEXT_PUBLIC_ASSISTANT_ID: cortex
-      LANGGRAPH_API_URL: http://langgraph:2024
+      LANGGRAPH_API_URL: http://langgraph:8000
       DATABASE_URL: postgresql://cortex:cortex@db:5432/cortex
       LOCAL_AI_URL: http://ai:8100
       # Host-side MLX fine-tuning service (trainer/ — runs on the host, not in Docker)
@@ -78,7 +87,7 @@ services:
       db:
         condition: service_healthy
       langgraph:
-        condition: service_started
+        condition: service_healthy
 
   # ── Self-hosted local LLM (llama-cpp + HuggingFace catalog) ────────────────
   ai:
@@ -258,7 +267,7 @@ services:
     env_file:
       - .env
     environment:
-      LANGGRAPH_URL: http://langgraph:2024
+      LANGGRAPH_URL: http://langgraph:8000
     volumes:
       - ./evals:/app/evals
       - ./cortex:/app/cortex
@@ -269,7 +278,6 @@ services:
 
 volumes:
   pgdata:
-  langgraph_state:
   langfuse_postgres_data:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
