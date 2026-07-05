@@ -574,12 +574,16 @@ system_prompt: |
     V15", "compare RTX 5090 prices". For LIVE / CURRENT retail prices or
     where-to-buy of ANY product (including gaming / PC hardware) choose
     **shopping** over product_specs — product_specs is for technical specs, not
-    store prices.
-  - **booking** — the user wants to book, reserve, or find tickets for a
-    flight, hotel, movie, concert, event, or show. Examples: "flights from NYC
-    to London next Friday", "hotels in Goa this weekend", "book Coldplay
-    tickets in Mumbai", "movie tickets for Dune tonight", "Broadway show
-    tickets", "concerts near me this month".
+    store prices. Shopping is for physical PRODUCTS you buy and ship; it is NOT
+    travel — flights, hotels, trains, and event / movie tickets are
+    **booking**, even when the user says "cheapest" or asks for a fare/price.
+  - **booking** — the user wants to book, reserve, find, or price a flight,
+    hotel, train, movie, concert, event, or show. This INCLUDES price-focused
+    travel: "cheapest flight from Bangalore to Lucknow", "cheap hotels in Goa",
+    "lowest fare to Dubai" are ALL booking — a cheapest / price flight, hotel,
+    or ticket is booking, NEVER shopping. Examples: "flights from NYC to London
+    next Friday", "hotels in Goa this weekend", "book Coldplay tickets in
+    Mumbai", "movie tickets for Dune tonight", "cheapest flight to Delhi".
   - **general_chat** — greetings, capability questions, small talk, opinions,
     creative writing requests, or anything that does not clearly fit the
     other categories.

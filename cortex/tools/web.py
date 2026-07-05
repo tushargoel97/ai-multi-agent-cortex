@@ -1,14 +1,17 @@
 """Web tools: Wikipedia summary lookup, live internet search, and crypto prices.
 
-Uses public, no-API-key endpoints (Wikipedia REST, DuckDuckGo HTML, CoinGecko) so
-the tools work out of the box without extra credentials. Stdlib only — no new
-dependencies.
+Wikipedia REST and CoinGecko work with no key. Live web search prefers a real
+search API when a key is set (``BRAVE_API_KEY``, ``SERPAPI_API_KEY``, or
+``TAVILY_API_KEY``) and falls back to DuckDuckGo scraping — which is frequently
+blocked, so a key is strongly recommended. Stdlib only — no new dependencies.
 """
 
 from __future__ import annotations
 
 import html
 import json
+import logging
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -17,6 +20,8 @@ from html.parser import HTMLParser
 from pydantic import BaseModel, Field
 
 from cortex.tools.registry import register_tool
+
+logger = logging.getLogger(__name__)
 
 
 _WIKI_SEARCH = "https://en.wikipedia.org/w/api.php?action=opensearch&format=json&limit=5&search="
@@ -318,26 +323,129 @@ class WebSearchInput(BaseModel):
     )
 
 
+def _http_json(
+    url: str, *, headers: dict | None = None, data: dict | None = None, timeout: float = 10.0
+) -> dict:
+    """Minimal JSON helper — POST when ``data`` is given, else GET."""
+    body = json.dumps(data).encode() if data is not None else None
+    h = {"User-Agent": _BROWSER_UA, "Accept": "application/json"}
+    if data is not None:
+        h["Content-Type"] = "application/json"
+    if headers:
+        h.update(headers)
+    req = urllib.request.Request(url, data=body, headers=h)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8", errors="replace"))
+
+
+def _provider_search(query: str, max_results: int) -> list[dict[str, str]]:
+    """Real web search via an API key when configured (Firecrawl → Brave →
+    SerpAPI → Tavily).
+
+    Returns ``[]`` when no key is set or the call fails, so callers fall back to
+    DuckDuckGo scraping.
+    """
+    firecrawl = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    if firecrawl:
+        try:
+            data = _http_json(
+                "https://api.firecrawl.dev/v1/search",
+                headers={"Authorization": f"Bearer {firecrawl}"},
+                data={"query": query, "limit": max_results},
+                timeout=20.0,
+            )
+            hits = data.get("data") or []
+            out = [
+                {"title": r.get("title", ""), "url": r.get("url", ""),
+                 "snippet": r.get("description", "")}
+                for r in hits[:max_results]
+            ]
+            if out:
+                return out
+        except Exception:  # noqa: BLE001
+            logger.warning("Firecrawl search failed", exc_info=True)
+
+    brave = os.getenv("BRAVE_API_KEY", "").strip()
+    if brave:
+        try:
+            data = _http_json(
+                "https://api.search.brave.com/res/v1/web/search?count="
+                + f"{max_results}&q=" + urllib.parse.quote(query),
+                headers={"X-Subscription-Token": brave},
+            )
+            hits = (data.get("web") or {}).get("results") or []
+            return [
+                {"title": r.get("title", ""), "url": r.get("url", ""),
+                 "snippet": r.get("description", "")}
+                for r in hits[:max_results]
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("Brave search failed", exc_info=True)
+
+    serp = os.getenv("SERPAPI_API_KEY", "").strip()
+    if serp:
+        try:
+            data = _http_json(
+                "https://serpapi.com/search.json?engine=google&num="
+                + f"{max_results}&q=" + urllib.parse.quote(query)
+                + "&api_key=" + urllib.parse.quote(serp),
+            )
+            hits = data.get("organic_results") or []
+            return [
+                {"title": r.get("title", ""), "url": r.get("link", ""),
+                 "snippet": r.get("snippet", "")}
+                for r in hits[:max_results]
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("SerpAPI search failed", exc_info=True)
+
+    tavily = os.getenv("TAVILY_API_KEY", "").strip()
+    if tavily:
+        try:
+            data = _http_json(
+                "https://api.tavily.com/search",
+                data={"api_key": tavily, "query": query, "max_results": max_results},
+            )
+            hits = data.get("results") or []
+            return [
+                {"title": r.get("title", ""), "url": r.get("url", ""),
+                 "snippet": r.get("content", "")}
+                for r in hits[:max_results]
+            ]
+        except Exception:  # noqa: BLE001
+            logger.warning("Tavily search failed", exc_info=True)
+
+    return []
+
+
 @register_tool(args_schema=WebSearchInput)
 def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> str:
-    """Search the live internet via DuckDuckGo and return combined results.
+    """Search the live internet and return combined results.
 
     Use this for ANY question that needs **current / up-to-date / recent**
     information that may not be in Wikipedia or the local knowledge base —
     news, prices, scores, releases, weather, stock/crypto quotes, recent
     events, product specs, etc. Returns a JSON document with the top results
     (title, url, snippet) and, optionally, extracted page text for each.
-    No API key required.
+
+    Uses a real search API when a key is configured (FIRECRAWL_API_KEY,
+    BRAVE_API_KEY, SERPAPI_API_KEY, or TAVILY_API_KEY); otherwise falls back to
+    DuckDuckGo, which is often blocked and may return nothing.
     """
     try:
-        results = _ddg_search(query, max_results=max_results)
+        results = _provider_search(query, max_results)
+        source = "api" if results else "duckduckgo"
+        if not results:
+            results = _ddg_search(query, max_results=max_results)
         # CPU/GPU queries: put TechPowerUp's database pages first — they are
         # the authoritative spec source (see also the techpowerup_specs tool).
         if _GPU_HINT_RE.search(query) or _CPU_HINT_RE.search(query):
             try:
-                tpu = _ddg_search(f"site:techpowerup.com {query}", max_results=3)
+                boost = _provider_search(f"techpowerup.com {query}", 3) or _ddg_search(
+                    f"site:techpowerup.com {query}", max_results=3
+                )
                 known = {r.get("url") for r in results}
-                results = [r for r in tpu if r.get("url") not in known] + results
+                results = [r for r in boost if r.get("url") not in known] + results
                 results = results[: max_results + 2]
             except Exception:  # noqa: BLE001 — boost is best-effort
                 pass
@@ -345,7 +453,17 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
         return json.dumps({"error": f"Web search failed: {exc}"})
 
     if not results:
-        return json.dumps({"query": query, "results": [], "note": "No matches."})
+        return json.dumps(
+            {
+                "query": query,
+                "results": [],
+                "note": (
+                    "No results — the free DuckDuckGo backend is blocked. Set "
+                    "FIRECRAWL_API_KEY (or BRAVE_API_KEY / SERPAPI_API_KEY / "
+                    "TAVILY_API_KEY) to enable real web search."
+                ),
+            }
+        )
 
     enriched: list[dict[str, str]] = []
     for r in results:
@@ -362,7 +480,7 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
         enriched.append(item)
 
     return json.dumps(
-        {"source": "duckduckgo", "query": query, "results": enriched},
+        {"source": source, "query": query, "results": enriched},
         indent=2,
     )
 
@@ -379,16 +497,44 @@ class FetchUrlInput(BaseModel):
     )
 
 
+def _firecrawl_scrape(url: str, max_chars: int) -> str:
+    """Scrape a page to clean markdown via Firecrawl (handles JS + anti-bot).
+
+    Returns ``""`` when no key is set or the call fails, so callers fall back.
+    """
+    key = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        return ""
+    try:
+        data = _http_json(
+            "https://api.firecrawl.dev/v1/scrape",
+            headers={"Authorization": f"Bearer {key}"},
+            data={"url": url, "formats": ["markdown"], "onlyMainContent": True},
+            timeout=30.0,
+        )
+        md = ((data.get("data") or {}).get("markdown") or "").strip()
+        return md[:max_chars]
+    except Exception:  # noqa: BLE001
+        logger.warning("Firecrawl scrape failed; falling back to urllib", exc_info=True)
+        return ""
+
+
 @register_tool(args_schema=FetchUrlInput)
 def fetch_url(url: str, max_chars: int = 4000) -> str:
     """Fetch a single web page and return its readable text content.
 
     Use this when `web_search` returned a promising URL but the snippet/auto-
     extracted content was too short, or when the user asks you to read a
-    specific page. Returns plain text (HTML stripped).
+    specific page. Prefers Firecrawl (JS-rendered, anti-bot) when
+    FIRECRAWL_API_KEY is set, else a plain HTML fetch (HTML stripped).
     """
     if not url.startswith(("http://", "https://")):
         return json.dumps({"error": "URL must start with http:// or https://"})
+    scraped = _firecrawl_scrape(url, max_chars)
+    if scraped:
+        return json.dumps(
+            {"url": url, "content": scraped, "source": "firecrawl"}, indent=2
+        )
     try:
         text = _fetch_text(url, max_chars=max_chars, timeout=8.0)
     except Exception as exc:  # noqa: BLE001
