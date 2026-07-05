@@ -11,6 +11,7 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
 
 import { TooltipIconButton } from "@/components/thread/tooltip-icon-button";
+import { GeneratedImage } from "./generated-image";
 import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
@@ -125,6 +126,12 @@ const defaultComponents: any = {
         className,
       )}
       {...props}
+    />
+  ),
+  img: ({ src, alt }: { src?: unknown; alt?: string }) => (
+    <GeneratedImage
+      src={typeof src === "string" ? src : undefined}
+      alt={alt}
     />
   ),
   blockquote: ({ className, ...props }: { className?: string }) => (

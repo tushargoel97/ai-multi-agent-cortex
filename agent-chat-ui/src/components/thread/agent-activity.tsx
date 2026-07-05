@@ -18,7 +18,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getContentString } from "./utils";
-import { cn } from "@/lib/utils";
 
 /** The router node emits a marker AIMessage with additional_kwargs.routing. */
 export function getRoutingIntent(message: Message | undefined): string | null {
@@ -242,7 +241,23 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const activity = deriveActivity(messages);
   if (!activity) return null;
   const Icon = activity.icon;
-  const isImageGen = activity.intent === "image_generation";
+
+  // Image generation gets a dedicated framed loader (a 3D dotted grid flowing
+  // in blue/purple) instead of the compact status row — the same box shape the
+  // finished image will fill.
+  if (activity.intent === "image_generation") {
+    return (
+      <div className="mr-auto w-full max-w-md">
+        <div className="imggen-frame">
+          <div className="imggen-frame__grid" />
+          <div className="imggen-frame__label">
+            <Sparkles className="size-3.5 animate-pulse text-indigo-300" />
+            Generating your image…
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const lastHuman = [...messages].reverse().find((m) => m.type === "human");
   const queryTokens = lastHuman
@@ -255,28 +270,9 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const total = threadUsage(messages);
 
   return (
-    <div
-      className={cn(
-        "mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border px-3.5 py-2",
-        isImageGen
-          ? "animate-pulse border-fuchsia-400/40 bg-gradient-to-r from-fuchsia-500/10 via-amber-400/10 to-sky-500/10"
-          : "border-border bg-muted/40",
-      )}
-    >
-      <Icon
-        className={cn(
-          "size-4 animate-pulse",
-          isImageGen ? "text-fuchsia-500" : "text-muted-foreground",
-        )}
-      />
-      <span
-        className={cn(
-          "text-sm",
-          isImageGen ? "font-medium text-foreground" : "text-muted-foreground",
-        )}
-      >
-        {activity.label}
-      </span>
+    <div className="mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-muted/40 px-3.5 py-2">
+      <Icon className="size-4 animate-pulse text-muted-foreground" />
+      <span className="text-sm text-muted-foreground">{activity.label}</span>
       <span className="flex items-center gap-1">
         <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full bg-foreground/50" />
         <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full bg-foreground/50" />
