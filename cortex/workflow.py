@@ -230,6 +230,18 @@ _HARDWARE_RE = re.compile(
     r"ryzen|intel core|i9-|i7-|core ultra|tflops|gpu|cpu|graphics card|nvidia|amd|h100|b200",
     re.IGNORECASE,
 )
+# Buy/price intent beats a bare hardware keyword: "where to buy a PS5 Pro" is
+# shopping, not a spec question. Booking wins over both.
+_SHOPPING_RE = re.compile(
+    r"\b(buy|purchase|order|shop|price|prices|pricing|cost|cheap|cheapest|"
+    r"deal|deals|discount|coupon|best price|where to buy|how much)\b",
+    re.IGNORECASE,
+)
+_BOOKING_RE = re.compile(
+    r"\b(book|booking|reserve|reservation|flight|flights|hotel|hotels|ticket|"
+    r"tickets|concert|movie|movies|show|shows|event|events)\b",
+    re.IGNORECASE,
+)
 
 
 def _heuristic_intent(messages: list) -> Intent:
@@ -237,7 +249,13 @@ def _heuristic_intent(messages: list) -> Intent:
         (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
     )
     text = str(last_human.content) if last_human is not None else ""
-    return Intent.PRODUCT_SPECS if _HARDWARE_RE.search(text) else Intent.GENERAL_CHAT
+    if _BOOKING_RE.search(text):
+        return Intent.BOOKING
+    if _SHOPPING_RE.search(text):
+        return Intent.SHOPPING
+    if _HARDWARE_RE.search(text):
+        return Intent.PRODUCT_SPECS
+    return Intent.GENERAL_CHAT
 
 
 def route_from_start(
