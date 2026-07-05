@@ -23,50 +23,28 @@ services:
       dockerfile: docker/Dockerfile.langgraph
     image: ai-multi-agent-cortex-langgraph
     ports:
-      # The official LangGraph Server binds port 8000 inside the container.
+      # The custom durable server (cortex/server) binds port 8000; host 2024.
       - "2024:8000"
     env_file:
       - .env
     environment:
-      # App code (cortex.db via SQLAlchemy) keeps the psycopg2 URL.
+      # App code + the durable server both read Postgres from here (the server
+      # normalizes the psycopg2 driver suffix — see cortex/server/runtime.py).
       DATABASE_URL: postgresql+psycopg2://cortex:cortex@db:5432/cortex
-      # Native LangGraph Server persistence: checkpoints, threads, and the
-      # semantic memory store all live durably in Postgres (pgvector).
-      POSTGRES_URI: postgres://cortex:cortex@db:5432/cortex?sslmode=disable
-      REDIS_URI: redis://redis:6379
-      # Self-hosted license verification only — tracing stays off, so no run
-      # data is sent to LangSmith. Set LANGSMITH_API_KEY in .env (see .env.example).
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
-      # Regional LangSmith API host — MUST match your account's data region or the
-      # license check 403s. Default GCP US; override in .env for EU/APAC/AWS.
-      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
-      LANGSMITH_TRACING: "false"
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
       - ./generated_images:/app/generated_images
       # Ground-truth specs for the synthesizer's fact grounding (cortex/facts.py)
       - ./trainer/data:/app/trainer_data:ro
     healthcheck:
-      test: ["CMD-SHELL", "python /api/healthcheck.py"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ok')"]
+      interval: 15s
+      timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 40s
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # Run queue + streaming pub/sub for the LangGraph Server (ephemeral;
-  # durable state lives in Postgres, so no Redis volume is needed).
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
 
   ui:
     build:

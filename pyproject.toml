@@ -5,6 +5,7 @@ description = "Multi-agent general-purpose AI assistant with observability, eval
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115.0",
     "jinja2>=3.1.6",
     "langchain>=1.2.12",
     "langchain-anthropic>=1.4.8",
@@ -19,10 +20,12 @@ dependencies = [
     "pgvector>=0.4.2",
     "psycopg2-binary>=2.9.11",
     "psycopg[binary]>=3.3.0",
+    "psycopg-pool>=3.2.0",
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "sqlalchemy>=2.0.48",
+    "uvicorn[standard]>=0.34.0",
 ]
 
 [dependency-groups]

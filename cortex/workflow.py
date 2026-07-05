@@ -720,7 +720,7 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
 # ── Graph ────────────────────────────────────────────────────────────────────
 
 
-def build_workflow() -> StateGraph:
+def build_workflow(*, checkpointer: Any = None, store: Any = None):
     """Construct and compile the multi-agent Cortex workflow.
 
     Flow:
@@ -743,9 +743,11 @@ def build_workflow() -> StateGraph:
           facts automatically and can save new ones via the save_memory tool.
 
     Persistence:
-        The LangGraph runtime provides the checkpointer; under `langgraph dev`
-        the in-mem state is flushed to the volume-backed .langgraph_api dir
-        (see the SIGTERM shim at the top of this module).
+        Durable. The custom server (cortex/server) compiles this graph with an
+        ``AsyncPostgresSaver`` checkpointer and ``AsyncPostgresStore``, so thread
+        state and long-term memory live in Postgres and survive restarts,
+        rebuilds, and upgrades. Pass ``checkpointer``/``store`` in; when omitted
+        (e.g. a bare ``langgraph dev`` for debugging) the runtime supplies its own.
     """
     builder = StateGraph(ChatState)
 
@@ -787,7 +789,7 @@ def build_workflow() -> StateGraph:
     except Exception:  # noqa: BLE001 — UI convenience, never blocks graph build
         _persist_logger.exception("publish_defaults at graph build failed")
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer, store=store)
 
 
 # Module-level compiled graph for langgraph.json
