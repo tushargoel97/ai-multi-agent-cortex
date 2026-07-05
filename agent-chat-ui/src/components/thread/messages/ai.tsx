@@ -169,8 +169,7 @@ export function AssistantMessage({
               .find(
                 (m) =>
                   m.type === "ai" &&
-                  !!(m as { response_metadata?: { model_name?: string } })
-                    .response_metadata?.model_name,
+                  getContentString(m.content).includes("/api/images/"),
               )
           : undefined;
       chipModel =

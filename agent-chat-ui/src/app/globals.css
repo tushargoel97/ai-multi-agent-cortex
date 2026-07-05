@@ -219,28 +219,30 @@
   border-radius: 1rem;
   overflow: hidden;
   border: 1px solid rgba(129, 140, 248, 0.4);
-  background: radial-gradient(130% 130% at 50% 45%, #201a3a 0%, #0a0913 78%);
-  perspective: 460px;
-  perspective-origin: 50% 38%;
+  background: radial-gradient(120% 100% at 50% 100%, #26204a 0%, #0a0912 72%);
+  perspective: 340px;
+  perspective-origin: 50% 32%;
 }
 .imggen-frame__grid,
 .imggen-frame__scan {
   position: absolute;
+  bottom: 0;
   left: -50%;
-  top: -50%;
   width: 200%;
-  height: 200%;
-  transform: rotateX(58deg);
-  transform-origin: 50% 50%;
-  background-size: 28px 28px;
+  height: 300%;
+  transform: rotateX(74deg);
+  transform-origin: 50% 100%;
+  background-size: 30px 30px;
+  will-change: background-position;
 }
 /* Dim base grid — the dots the scanner sweeps across. */
 .imggen-frame__grid {
   background-image: radial-gradient(
     circle,
-    rgba(150, 132, 205, 0.5) 2px,
-    transparent 2.8px
+    rgba(150, 132, 205, 0.55) 2px,
+    transparent 2.9px
   );
+  animation: imggen-floor 1.3s linear infinite;
 }
 /* Bright dots revealed only inside a vertical band that sweeps side to side,
    shifting hue (blue ⇄ purple) as it goes — the scan. */
@@ -269,9 +271,18 @@
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   animation:
+    imggen-floor 1.3s linear infinite,
     imggen-scan 2.4s ease-in-out infinite alternate,
     imggen-scan-hue 3.6s linear infinite alternate;
-  will-change: mask-position, filter;
+  will-change: background-position, mask-position, filter;
+}
+@keyframes imggen-floor {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 30px;
+  }
 }
 @keyframes imggen-scan {
   from {
@@ -297,13 +308,20 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgba(10, 9, 19, 0.7) 0%,
-    transparent 30%,
-    transparent 80%,
-    rgba(10, 9, 19, 0.5) 100%
-  );
+  background:
+    radial-gradient(
+      120% 75% at 50% 112%,
+      rgba(129, 140, 248, 0.25),
+      transparent 55%
+    ),
+    linear-gradient(
+      to bottom,
+      #0a0912 0%,
+      rgba(10, 9, 18, 0.92) 18%,
+      transparent 50%,
+      transparent 88%,
+      rgba(10, 9, 18, 0.45) 100%
+    );
 }
 .imggen-frame__label {
   position: absolute;
@@ -320,6 +338,7 @@
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
 }
 @media (prefers-reduced-motion: reduce) {
+  .imggen-frame__grid,
   .imggen-frame__scan {
     animation: none;
   }
