@@ -426,11 +426,23 @@ def _build_agent(
         )
     model = get_chat_client(config=config, auto_intent=auto_intent)
     static = spec.render_system_prompt(assistant_name=_assistant_name())
-    # Inject today's date so agents resolve "9th July", "next Friday", etc. to
-    # the correct (current) year — kept in the dynamic (post-cache) segment.
+    # Inject today's date + the user's browser region so agents resolve
+    # "9th July" to the right year and default shopping/booking to the user's
+    # country — kept in the dynamic (post-cache) segment.
+    from cortex.tools.commerce import region_from_browser
+
     now = datetime.now()
-    date_line = f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}."
-    dynamic = f"{date_line}\n\n{extra_system}" if extra_system else date_line
+    cfg = (config or {}).get("configurable") or {}
+    region = region_from_browser(
+        str(cfg.get("locale") or ""), str(cfg.get("timezone") or "")
+    )
+    context_line = (
+        f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}. "
+        f"The user appears to be in region {region} (from their browser); use "
+        f"it as the default country for shopping, booking, prices, and local "
+        f"results unless they say otherwise."
+    )
+    dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     return create_agent(
         model=model,
         tools=spec.get_tools(),

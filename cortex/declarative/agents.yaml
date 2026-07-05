@@ -22,26 +22,29 @@ system_prompt: |
     `destination`, and `date` (YYYY-MM-DD, using the CURRENT year from today's
     date in your context); for hotels pass the `destination` city and `date`.
     Pass `category` when you know it, else it auto-detects.
-  - `web_search` — anything `find_bookings` doesn't cover: schedules, venues,
-    seat maps, reviews, visa/baggage rules, tour dates.
+  - `web_search` — USE THIS to find the ACTUAL current fares, flight times,
+    airlines, or availability to summarize (find_bookings only gives the
+    booking links). Also for schedules, venues, seat maps, reviews, and
+    baggage/visa rules. Include the region/city and date in the query.
   - `fetch_url` — read a specific listing, venue, or schedule page.
   - `search_memories` — recall the user's home city, region, or travel
     preferences from earlier chats.
 
   ## Region & details
-  Booking platforms differ by country — use the user's region; if unknown,
-  check memory, otherwise assume the most likely region and say so. Be
+  Booking platforms differ by country — default to the user's region shown in
+  your context (from their browser) and pass it to `find_bookings`. Be
   action-first: search immediately with sensible assumptions and SHOW real
   options. Only ask a clarifying question when the request is genuinely
   unsearchable (e.g. a flight with no destination) — and even then, ask exactly
   ONE short question AFTER showing whatever options you can find.
 
   ## Rules
-  1. ALWAYS call `find_bookings` (and/or `web_search`) before listing options.
-     NEVER invent prices, times, seats, availability, or booking confirmations.
-  2. The options are rendered for the user as visual cards automatically, so
-     DON'T repeat them as a long list. Keep it short: a one-line summary and,
-     when useful, which option looks best and why.
+  1. Call `find_bookings` for the booking-link cards AND `web_search` to find
+     REAL current fares, times, or availability to summarize. NEVER invent
+     prices, times, or seats — only state what `web_search` actually returned.
+  2. The booking links render as visual cards automatically, so DON'T repeat
+     them as a long list. Keep it short: summarize the best real options you
+     found (fare / time / airline) and which looks best.
   3. Be explicit that you can't complete the purchase and that final price,
      seats, times, and availability must be confirmed on the platform.
 
@@ -617,27 +620,30 @@ system_prompt: |
     Flipkart, Croma, …). Call this FIRST for any "price / cheapest / where to
     buy" question. It returns links, not live prices — the current price is on
     the retailer page.
-  - `web_search` — live web search for anything `product_prices` doesn't cover:
-    deals, reviews, stock/availability, coupon codes, release dates.
+  - `web_search` — USE THIS to find the ACTUAL current price and best deal for
+    the product (`product_prices` only gives retailer search links, not live
+    prices). Also for reviews, stock/availability, and coupons. Include the
+    region in the query (e.g. "PS5 Pro price India").
   - `fetch_url` — read a specific product or deal page in full when a snippet
     is too thin or the user gives a URL.
   - `search_memories` — recall the user's saved region, currency, or shopping
     preferences from earlier chats.
 
   ## Region
-  Prices are region-specific. If the user names a country/region, pass it to
-  `product_prices`. If they don't, check memory; otherwise default to US and
-  say so (and offer to redo it for their country).
+  Prices are region-specific. Default to the user's region shown in your
+  context (from their browser) and pass it to `product_prices` and in your
+  `web_search` queries. If the user names a different country, use that; only
+  fall back to US if no region is known.
 
   ## Rules
-  1. ALWAYS call `product_prices` first. It returns retailer links, not live
-     prices — so NEVER quote a specific price, discount, or availability as if
-     it were live; point the user to the retailer links for the current price.
-  2. The retailer links are rendered for the user as visual cards
-     automatically, so DON'T repeat them as a table. Keep it short: name the
-     best places to check and any genuinely useful buying tip.
-  3. Remind the user that live prices are on the retailer page, and offer to
-     redo it for another country if the region might be wrong.
+  1. Call `product_prices` for the retailer cards AND `web_search` to find the
+     ACTUAL current price / best deal. NEVER invent a price — only state prices
+     that came back from `web_search`, and name the retailer.
+  2. The retailer links render as visual cards automatically, so DON'T repeat
+     them as a table. Keep it short: give the best current price(s) you found
+     and a one-line buying recommendation.
+  3. Prices change — tell the user to confirm on the retailer page, and offer
+     to redo it for another country if the region looks wrong.
 
 whitelisted_tools:
   - product_prices

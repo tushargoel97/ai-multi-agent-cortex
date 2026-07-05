@@ -75,6 +75,42 @@ def _norm_region(region: str | None) -> str:
     return r if r in _SHOPPING_SITES else _DEFAULT_REGION
 
 
+# Browser timezone → shopping/booking region (only the regions we support).
+_TZ_REGION: dict[str, str] = {
+    "Asia/Kolkata": "IN", "Asia/Calcutta": "IN",
+    "Europe/London": "UK",
+    "America/Toronto": "CA", "America/Vancouver": "CA", "America/Edmonton": "CA",
+    "America/Winnipeg": "CA", "America/Halifax": "CA",
+    "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU",
+    "Australia/Perth": "AU", "Australia/Adelaide": "AU",
+    "Europe/Berlin": "DE", "Europe/Paris": "FR",
+    "Asia/Dubai": "AE", "Asia/Singapore": "SG", "Asia/Tokyo": "JP",
+    "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
+    "America/Los_Angeles": "US", "America/Phoenix": "US", "America/Anchorage": "US",
+    "Pacific/Honolulu": "US",
+}
+
+
+def region_from_browser(locale: str = "", timezone: str = "") -> str:
+    """Best-effort shopping/booking region from the browser's timezone + locale.
+
+    Timezone (physical location) wins; then the locale's region subtag
+    (e.g. ``en-IN`` → IN); otherwise the default region (US).
+    """
+    tz = (timezone or "").strip()
+    if tz in _TZ_REGION:
+        return _TZ_REGION[tz]
+    loc = (locale or "").strip()
+    if "-" in loc:
+        reg = loc.rsplit("-", 1)[-1].upper()
+        reg = _REGION_ALIASES.get(reg, reg)
+        if reg in _SHOPPING_SITES:
+            return reg
+    if tz.startswith("Australia/"):
+        return "AU"
+    return _DEFAULT_REGION
+
+
 def _retailer_url(domain: str, product: str) -> str:
     """A working product-search link for a retailer (Google-scoped fallback)."""
     tmpl = _RETAILER_SEARCH.get(domain)

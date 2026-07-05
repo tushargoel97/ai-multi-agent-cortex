@@ -5,6 +5,7 @@ import {
   loadModelSelection,
   saveModelSelection,
   selectionToConfigurable,
+  browserContext,
   type ModelSelection,
 } from "@/components/model-selector";
 
@@ -36,7 +37,10 @@ export function ModelSelectionProvider({ children }: { children: ReactNode }) {
       value={{
         selection,
         setSelection,
-        buildConfigurable: () => selectionToConfigurable(selection),
+        buildConfigurable: () => ({
+          ...selectionToConfigurable(selection),
+          ...browserContext(),
+        }),
       }}
     >
       {children}

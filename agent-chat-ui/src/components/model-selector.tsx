@@ -76,6 +76,20 @@ export function selectionToConfigurable(
   return { model_id: sel.model_id };
 }
 
+/** Browser locale + timezone, sent with each run so agents default to the
+ *  user's country/region (shopping, booking, local results). */
+export function browserContext(): Record<string, unknown> {
+  if (typeof window === "undefined") return {};
+  try {
+    return {
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      locale: navigator.language,
+    };
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Compact in-line model picker for the chat input toolbar.
  * - Cloud mode: shows a small select.
