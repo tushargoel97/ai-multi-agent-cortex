@@ -37,6 +37,9 @@ services:
       # Self-hosted license verification only — tracing stays off, so no run
       # data is sent to LangSmith. Set LANGSMITH_API_KEY in .env (see .env.example).
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      # Regional LangSmith API host — MUST match your account's data region or the
+      # license check 403s. Default GCP US; override in .env for EU/APAC/AWS.
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       LANGSMITH_TRACING: "false"
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
