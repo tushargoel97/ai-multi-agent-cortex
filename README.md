@@ -68,8 +68,8 @@ CLI steps are required for day-to-day use.
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
 | `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none — answers purely from the fine-tuned model's weights                 |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
-| `shopping`      | Product shopping — live regional prices, comparisons, buying advice | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
-| `booking`       | Booking — flights, hotels, movies, concerts, events, shows       | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
+| `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
+| `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
 | `synthesizer`   | Formatting pass over factual answers (tables, worked math) + fact grounding | none                                                           |
 
 ### Routing
@@ -109,6 +109,27 @@ node resolves the best model for its intent from
 `app_settings` and switched from Admin → Models). Only models that are
 enabled in the registry are eligible, so the admin console stays in control.
 The routing chip in the transcript shows which model auto-mode picked.
+
+### Web search, shopping & booking
+
+Every agent is given **today's date** and the user's **region** (derived from
+the browser locale/timezone) so date- and location-sensitive answers are
+correct by default.
+
+- **Web search & scraping** — `web_search` and `fetch_url` use a real search
+  API when a key is set: **Firecrawl** (recommended; also powers JS/anti-bot
+  page scraping), or **Brave** / **SerpAPI** / **Tavily**. Without a key they
+  fall back to a best-effort DuckDuckGo scrape, which is often blocked — so set
+  `FIRECRAWL_API_KEY` (or one of the others) in `.env` for real results.
+- **Shopping** — `product_prices` looks the product up live and returns the
+  **actual product page** on each regional retailer with the **price** and an
+  **in-stock** hint (region's own stores first, cheapest first), rendered as
+  product cards with an *In stock* / *Out of stock* badge. Without a search key
+  it falls back to per-retailer search links.
+- **Booking** — `find_bookings` builds **dated deep links** into each platform's
+  live results (Google Flights, Skyscanner, KAYAK, MakeMyTrip, Cleartrip for
+  flights; Booking.com / Google Hotels; Ticketmaster / SeatGeek / BookMyShow for
+  events), rendered as booking cards. It never completes a purchase.
 
 ---
 
@@ -268,6 +289,7 @@ variables:
 | `LLM_PROVIDER`                      | `openai` or `azure_openai`                         |
 | `DATABASE_URL`                      | Postgres DSN (app + durable server share it)       |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin console login                                |
+| `FIRECRAWL_API_KEY`                 | Real web search + page scraping for `web_search` / `fetch_url` (or `BRAVE_API_KEY` / `SERPAPI_API_KEY` / `TAVILY_API_KEY`) |
 | `LANGFUSE_*`                        | Optional Langfuse tracing (observability profile)  |
 
 The `langgraph` container reads `DATABASE_URL` for both the app's SQLAlchemy
