@@ -46,6 +46,25 @@ services:
       db:
         condition: service_healthy
 
+  # Additive FastMCP server — exposes Cortex's stateless tools over MCP for
+  # external clients (Claude Desktop, IDEs, other agents). Decoupled from the
+  # chat app: the graph uses the same tools in-process, so this is never in the
+  # assistant's hot path and its downtime can't affect it. Stateful tools
+  # (memory, knowledge base) are intentionally not exposed here.
+  mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.langgraph
+    image: ai-multi-agent-cortex-langgraph
+    command: ["/app/.venv/bin/python", "-m", "cortex.tools.mcp"]
+    env_file:
+      - .env
+    environment:
+      MCP_PORT: "8811"
+    ports:
+      - "8811:8811"
+    restart: unless-stopped
+
   ui:
     build:
       context: .

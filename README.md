@@ -173,6 +173,16 @@ containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-speciali
 | `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server ([`cortex/server`](cortex/server)) |
 | `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
 | `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models                |
+| `mcp`       | 8811      | `docker/Dockerfile.langgraph` | FastMCP server exposing the stateless tools to external MCP clients |
+
+The **`mcp`** service is an *additive* [FastMCP](https://modelcontextprotocol.io)
+server ([`cortex/tools/mcp.py`](cortex/tools/mcp.py)) that re-exposes Cortex's
+**stateless** tools (web search, page fetch, Wikipedia, crypto, TechPowerUp
+specs, product prices, booking search, time, calculator) over MCP for external
+clients (Claude Desktop, IDEs, other agents). The chat graph uses the **same**
+tools in-process, so this server is never in the assistant's critical path — it
+adds no latency and its downtime can't affect the app. Stateful tools (memory,
+knowledge base) that need the runtime store / DB session stay in-process only.
 
 Optional stacks live behind compose profiles (off by default):
 
@@ -377,7 +387,7 @@ ai-multi-agent-cortex/
 │   ├── facts.py              # Authoritative specs for synthesizer grounding
 │   ├── imagegen.py           # Image generation + two-layer safety gate
 │   ├── memory.py             # Store embedding hook + memory namespace
-│   ├── config/               # Settings (Pydantic) + YAML loader
+│   ├── config.py             # Settings (Pydantic) + settings.yaml/.env loader
 │   ├── db/
 │   │   ├── engine.py         # SQLAlchemy session factory
 │   │   ├── models/           # LLMProvider, LLMModel, KnowledgeGap, AppSetting, KnowledgeArticle
@@ -385,13 +395,12 @@ ai-multi-agent-cortex/
 │   │   └── seed.py           # Registry + knowledge-base seeder
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
-│   │   └── agents/           # YAML agent specs (router, generalist, researcher,
-│   │                       #   reasoner, coder, shopping, booking, prompt_cacher,
-│   │                       #   specialist, synthesizer)
+│   │   └── agents.yaml       # All agent specs (one --- document per agent)
 │   ├── model_client/         # Chat + embedding client factories
 │   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
 │   ├── scripts/              # one-off maintenance scripts
-│   └── tools/                # registry + web / commerce / utility / shared / memory tools
+│   └── tools/                # registry + web/commerce/utility/shared/memory tools;
+│                             #   mcp.py exposes the stateless ones over FastMCP
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
 ├── trainer/                  # Host-side MLX LoRA fine-tuning service (port 8200)
 │   ├── app/                  # FastAPI: dataset, train, convert, scrape, gap research
@@ -417,8 +426,8 @@ ai-multi-agent-cortex/
 1. **New tool** — add a function in `cortex/tools/`, decorate with
    `@register_tool`, and import the module from
    `cortex/tools/__init__.py`.
-2. **New agent** — drop a YAML file in
-   `cortex/declarative/agents/<name>.yaml` listing its
+2. **New agent** — add a `---` document in
+   `cortex/declarative/agents.yaml` with its `name` and
    `whitelisted_tools`, then add a member to the `Agents` enum and a
    node in `cortex/workflow.py`.
 3. **New routing label** — extend `Intent` in `cortex/workflow.py`,
