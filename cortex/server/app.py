@@ -53,6 +53,11 @@ async def lifespan(app: FastAPI):
     checkpointer = AsyncPostgresSaver(pool)
     await checkpointer.setup()
 
+    # pgvector must exist before the store's vector migrations run; init.sql only
+    # covers freshly-initialized volumes, so guarantee it here too (idempotent).
+    async with pool.connection() as conn:
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
     store = AsyncPostgresStore(
         pool, index={"dims": EMBED_DIMS, "embed": aembed_texts}
     )
