@@ -35,10 +35,12 @@ CLI steps are required for day-to-day use.
 │                                                                       │
 │  START ─▶ route ─┬─ specialist  (fine-tuned local model — bypass)     │
 │                  └─ router ─┬─ generalist     ───────────────▶ END    │
-│                            ├─ prompt_cacher   ───────────────▶ END    │
-│                            ├─ imagegen        ───────────────▶ END    ││                            ├─ coder           ───────────────▶ END      ││                            ├─ researcher ─┐                           │
-│                            ├─ reasoner   ─┼──▶ synthesize ───▶ END   │
-│                            └─ specialist ─┘                           │
+│                            ├─ prompt_cacher ──────────────────▶ END   │
+│                            ├─ imagegen      ──────────────────▶ END   │
+│                            ├─ researcher ─┐                           │
+│                            ├─ reasoner   ─┤                           │
+│                            ├─ specialist ─┼─▶ synthesize ──────▶ END  │
+│                            └─ coder      ─┘                           │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -83,10 +85,13 @@ Unknown labels fall back to `general_chat`. If the routing model itself is
 unavailable (e.g. a small local model that can't emit structured output), a
 keyword heuristic classifies the turn so the run never fails.
 
-The `researcher`, `reasoner`, and `specialist` answers pass through the
-`synthesize` node — a presentation-only formatting pass (spec tables, worked
-math, structured research) that also grounds any drifted numbers against the
-authoritative spec YAMLs, then rewrites the final message in place.
+The `researcher`, `reasoner`, `specialist`, and `coder` answers pass through
+the `synthesize` node. For factual answers it is a presentation-only pass
+(spec tables, worked math, structured research) that grounds drifted numbers
+against the authoritative spec YAMLs and rewrites the final message in place.
+For `coder` answers it never lets the fast model touch the code — instead it
+runs a deterministic, parse-only syntax check (Python via `ast`, JSON via
+`json`) and appends a heads-up when a complete code block is broken.
 
 ### Auto mode
 
@@ -288,7 +293,7 @@ ai-multi-agent-cortex/
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
 │   │   └── agents/           # YAML agent specs (router, generalist, researcher,
-│   │                       #   reasoner, prompt_cacher, specialist, synthesizer)
+│   │                       #   reasoner, coder, prompt_cacher, specialist, synthesizer)
 │   ├── model_client/         # Chat + embedding client factories
 │   ├── scripts/              # thread_backup sidecar
 │   └── tools/                # registry + web / utility / shared / memory tools
