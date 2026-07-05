@@ -47,6 +47,7 @@ export default function ModelsPanel({
 }) {
   const [models, setModels] = useState<Model[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [autoProfile, setAutoProfile] = useState("balanced");
   const [form, setForm] = useState({
     provider_id: "",
     model_id: "",
@@ -147,8 +148,54 @@ export default function ModelsPanel({
     load();
   }
 
+  async function saveAutoProfile(profile: string) {
+    setAutoProfile(profile);
+    const r = await adminFetch("/api/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ key: "auto_profile", value: profile }),
+    });
+    if (r.ok) toast.success(`Auto mode profile: ${profile}`);
+    else toast.error("Could not save auto profile");
+  }
+
+  useEffect(() => {
+    adminFetch("/api/admin/settings")
+      .then((r) => (r.ok ? r.json() : { settings: {} }))
+      .then((d) => setAutoProfile(d.settings?.auto_profile || "balanced"))
+      .catch(() => {});
+  }, [refreshKey]);
+
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">✨ Auto mode profile</h3>
+            <p className="text-muted-foreground text-xs">
+              When chat users pick “Auto”, the router intent selects the model
+              from this profile (only enabled models are eligible).
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
+            {(["balanced", "quality", "cost"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => saveAutoProfile(p)}
+                className={
+                  "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors " +
+                  (autoProfile === p
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted")
+                }
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">Models</h2>
@@ -224,7 +271,7 @@ export default function ModelsPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-background">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>

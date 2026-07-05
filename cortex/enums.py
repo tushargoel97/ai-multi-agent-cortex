@@ -7,3 +7,5 @@ class Agents(StrEnum):
     RESEARCHER = "researcher"
     REASONER = "reasoner"
     PROMPT_CACHER = "prompt_cacher"
+    SPECIALIST = "specialist"
+    SYNTHESIZER = "synthesizer"

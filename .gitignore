@@ -12,6 +12,14 @@ wheels/
 # Environment variables
 /.env
 
+# Fine-tuning artifacts (host trainer)
+/models/*
+!/models/.gitkeep
+trainer/artifacts/
+trainer/vendor/
+trainer/data/*.jsonl
+trainer/data/sources/
+
 # LangGraph
 .langgraph_api
 
@@ -41,3 +49,9 @@ wheels/
 
 # Environment variables
 /.env
+# AI-generated chat images (bind-mounted into langgraph + ui)
+generated_images/*
+!generated_images/.gitkeep
+agent-chat-ui/tsconfig.tsbuildinfo
+models/catalog.json
+models/.cache/

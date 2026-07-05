@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from functools import lru_cache
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from sqlalchemy import select
@@ -75,6 +76,32 @@ def get_default_resolved_model(session: Session) -> ResolvedModel | None:
     )
 
 
+@lru_cache(maxsize=1)
+def _thinking_safe_anthropic_cls() -> type:
+    """ChatAnthropic that keeps round-tripped thinking blocks API-valid.
+
+    Claude 5 adaptive thinking can return a thinking block whose text is empty
+    (signature only). langchain-anthropic's streaming merge drops the empty
+    ``thinking`` field, and the API then rejects the block on the next agent
+    turn with "thinking.thinking: Field required".
+    """
+    from langchain_anthropic import ChatAnthropic
+
+    class _ThinkingSafeChatAnthropic(ChatAnthropic):
+        def _get_request_payload(self, *args, **kwargs):
+            payload = super()._get_request_payload(*args, **kwargs)
+            for message in payload.get("messages", []):
+                content = message.get("content")
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "thinking":
+                        block.setdefault("thinking", "")
+            return payload
+
+    return _ThinkingSafeChatAnthropic
+
+
 def build_client_from_resolved(
     resolved: ResolvedModel,
     *,
@@ -119,12 +146,10 @@ def build_client_from_resolved(
             return AzureChatOpenAI(**kwargs)
 
         case ProviderKind.ANTHROPIC:
-            from langchain_anthropic import ChatAnthropic
-
             kwargs = {"model": resolved.model_id}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
-            return ChatAnthropic(**kwargs)
+            return _thinking_safe_anthropic_cls()(**kwargs)
 
         case ProviderKind.GOOGLE:
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -144,6 +169,82 @@ def build_client_from_resolved(
 
         case _:
             raise ValueError(f"Unsupported provider kind: {resolved.kind}")
+
+
+# Contract with the admin UI: fine-tuned models are registered under the
+# local provider with this model_id prefix (see FinetunePanel / trainer).
+FINE_TUNED_PREFIX = "finetuned-"
+
+
+def get_fine_tuned_resolved_model(session: Session) -> ResolvedModel | None:
+    """Return the newest enabled fine-tuned model on an enabled local provider."""
+    stmt = (
+        select(LLMModel, LLMProvider)
+        .join(LLMProvider, LLMModel.provider_id == LLMProvider.id)
+        .where(LLMProvider.kind == ProviderKind.LOCAL.value)
+        .where(LLMModel.model_id.like(f"{FINE_TUNED_PREFIX}%"))
+        .where(LLMModel.enabled.is_(True))
+        .where(LLMProvider.enabled.is_(True))
+        .order_by(LLMModel.created_at.desc())
+        .limit(1)
+    )
+    row = session.execute(stmt).first()
+    if row is None:
+        return None
+    model, provider = row
+    return ResolvedModel(
+        kind=ProviderKind(provider.kind),
+        model_id=model.model_id,
+        api_key=provider.api_key,
+        base_url=provider.base_url,
+        azure_endpoint=provider.azure_endpoint,
+        azure_api_version=provider.azure_api_version,
+    )
+
+
+def resolve_fine_tuned_model() -> ResolvedModel | None:
+    """Session-managing wrapper around get_fine_tuned_resolved_model."""
+    with get_session() as s:
+        return get_fine_tuned_resolved_model(s)
+
+
+def resolve_by_model_id(model_id: str) -> ResolvedModel | None:
+    """Resolve an enabled model by its provider model_id (not the row UUID)."""
+    stmt = (
+        select(LLMModel, LLMProvider)
+        .join(LLMProvider, LLMModel.provider_id == LLMProvider.id)
+        .where(LLMModel.model_id == model_id)
+        .where(LLMModel.enabled.is_(True))
+        .where(LLMProvider.enabled.is_(True))
+        .order_by(LLMModel.created_at.desc())
+        .limit(1)
+    )
+    with get_session() as s:
+        row = s.execute(stmt).first()
+        if row is None:
+            return None
+        model, provider = row
+        return ResolvedModel(
+            kind=ProviderKind(provider.kind),
+            model_id=model.model_id,
+            api_key=provider.api_key,
+            base_url=provider.base_url,
+            azure_endpoint=provider.azure_endpoint,
+            azure_api_version=provider.azure_api_version,
+        )
+
+
+def get_provider_api_key(kind: ProviderKind) -> str | None:
+    """API key of the first enabled provider of the given kind."""
+    with get_session() as s:
+        stmt = (
+            select(LLMProvider)
+            .where(LLMProvider.kind == kind.value)
+            .where(LLMProvider.enabled.is_(True))
+            .limit(1)
+        )
+        provider = s.execute(stmt).scalar_one_or_none()
+        return provider.api_key if provider and provider.api_key else None
 
 
 def resolve_with_session(model_uuid: str | uuid.UUID | None) -> ResolvedModel | None:

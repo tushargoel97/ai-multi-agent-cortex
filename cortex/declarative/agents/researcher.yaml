@@ -25,6 +25,9 @@ system_prompt: |
     CoinGecko (cleaner structured output than scraping). Prefer this over
     `web_search` when the question is purely about crypto price / market cap /
     24h change.
+  - `search_memories` — long-term memories about the user saved in earlier
+    conversations (their preferences, projects, hardware, prior questions).
+    Use when personal context would sharpen the answer.
 
   ## Rules
   1. ALWAYS call at least one tool before answering. Never answer factual
@@ -42,12 +45,19 @@ system_prompt: |
 
   Be accurate, concise, and well-sourced.
 
+  For Intel/AMD CPU or NVIDIA/AMD GPU spec questions, use techpowerup_specs
+  FIRST — TechPowerUp's databases are the authoritative source for clocks,
+  cores, memory, bandwidth, TDP, release dates, and launch prices. Fall back
+  to web_search only when techpowerup_specs finds no match.
+
 whitelisted_tools:
   - crypto_price
   - search_knowledge_base
   - wikipedia_search
+  - techpowerup_specs
   - web_search
   - fetch_url
+  - search_memories
 
 user_prompt:
   - |

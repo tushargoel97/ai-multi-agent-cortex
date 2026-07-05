@@ -151,19 +151,20 @@ const defaultComponents: any = {
       {...props}
     />
   ),
+  // Spec-sheet style tables: framed grid, product-name header band, shaded
+  // spec-label column, zebra rows — scrolls horizontally instead of wrapping.
   table: ({ className, ...props }: { className?: string }) => (
-    <table
-      className={cn(
-        "my-5 w-full border-separate border-spacing-0 overflow-y-auto",
-        className,
-      )}
-      {...props}
-    />
+    <div className="my-5 overflow-x-auto rounded-xl border border-border shadow-sm">
+      <table
+        className={cn("w-full border-collapse text-sm", className)}
+        {...props}
+      />
+    </div>
   ),
   th: ({ className, ...props }: { className?: string }) => (
     <th
       className={cn(
-        "bg-muted px-4 py-2 text-left font-bold first:rounded-tl-lg last:rounded-tr-lg [&[align=center]]:text-center [&[align=right]]:text-right",
+        "border-b-2 border-r border-border bg-muted px-4 py-2.5 text-left text-[13px] font-semibold tracking-wide whitespace-nowrap last:border-r-0 [&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
       {...props}
@@ -172,7 +173,9 @@ const defaultComponents: any = {
   td: ({ className, ...props }: { className?: string }) => (
     <td
       className={cn(
-        "border-b border-l px-4 py-2 text-left last:border-r [&[align=center]]:text-center [&[align=right]]:text-right",
+        "border-b border-r border-border px-4 py-2.5 text-left align-top last:border-r-0",
+        "first:whitespace-nowrap first:bg-muted/40 first:font-medium",
+        "[&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
       {...props}
@@ -181,7 +184,7 @@ const defaultComponents: any = {
   tr: ({ className, ...props }: { className?: string }) => (
     <tr
       className={cn(
-        "m-0 border-b p-0 first:border-t [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg",
+        "m-0 p-0 even:bg-muted/20 [&:last-child>td]:border-b-0",
         className,
       )}
       {...props}

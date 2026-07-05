@@ -8,12 +8,21 @@ from typing import Any, Literal
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
 from langchain.agents.structured_output import ProviderStrategy
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_store
 from langgraph.graph import END, START, MessagesState, StateGraph
 from pydantic import BaseModel, Field
 
+import re
+
 from cortex.config import get_settings
+from cortex.db.services.llm_registry import (
+    FINE_TUNED_PREFIX,
+    build_client_from_resolved,
+    resolve_fine_tuned_model,
+    resolve_with_session,
+)
 from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.model_client import get_chat_client
@@ -28,24 +37,47 @@ setup_tracing()
 # state to disk. On `docker compose down/restart`, Docker sends SIGTERM to PID
 # 1; we install a handler that forces a final sync so the most recent threads
 # survive the restart. (Requires Python to actually be PID 1 — see Dockerfile.)
+import logging as _logging
+
+_persist_logger = _logging.getLogger("cortex.persistence")
+
 try:
     from langgraph_runtime_inmem import _persistence as _lg_persist  # type: ignore[import-not-found]
 
     _lg_persist._flush_interval = 3
+    import atexit as _atexit
     import signal as _signal
+    import threading as _threading
 
-    def _final_flush(_signum, _frame) -> None:  # noqa: ANN001
+    def _final_flush(*_args) -> None:  # noqa: ANN002
         try:
             for _ref in list(_lg_persist._stores.values()):
                 _store = _ref()
                 if _store is not None:
                     _store.sync()
         except Exception:  # noqa: BLE001
-            pass
+            _persist_logger.exception("Final flush of in-mem state failed")
 
-    _signal.signal(_signal.SIGTERM, _final_flush)
+    # signal.signal only works from the main thread, and langgraph dev may
+    # import this module from a worker thread — fall back to atexit there.
+    if _threading.current_thread() is _threading.main_thread():
+        _signal.signal(_signal.SIGTERM, _final_flush)
+        _persist_logger.info(
+            "In-mem persistence shim active: flush_interval=3s, SIGTERM flush installed"
+        )
+    else:
+        _atexit.register(_final_flush)
+        _persist_logger.info(
+            "In-mem persistence shim active: flush_interval=3s, atexit flush "
+            "(module imported off the main thread)"
+        )
 except Exception:  # noqa: BLE001
-    pass
+    # If langgraph_runtime_inmem internals change, chat threads will NOT
+    # survive restarts — surface it instead of failing silently.
+    _persist_logger.exception(
+        "Persistence shim could not attach (langgraph_runtime_inmem internals "
+        "changed?) — thread history will be lost on container restart!"
+    )
 
 
 # ── Router Schema ────────────────────────────────────────────────────────────
@@ -56,6 +88,8 @@ class Intent(StrEnum):
     KNOWLEDGE_QUERY = "knowledge_query"
     REASONING_TASK = "reasoning_task"
     PROMPT_CACHING = "prompt_caching"
+    PRODUCT_SPECS = "product_specs"
+    IMAGE_GENERATION = "image_generation"
 
 
 class RouterIntent(BaseModel):
@@ -72,6 +106,8 @@ _INTENT_TO_NODE: dict[Intent, str] = {
     Intent.KNOWLEDGE_QUERY: "researcher",
     Intent.REASONING_TASK: "reasoner",
     Intent.PROMPT_CACHING: "prompt_cacher",
+    Intent.PRODUCT_SPECS: "specialist",
+    Intent.IMAGE_GENERATION: "imagegen",
 }
 
 
@@ -79,41 +115,246 @@ def _assistant_name() -> str:
     return get_settings().assistant_name
 
 
+# ── Memory: short-term summary + long-term store recall ─────────────────────
+
+WINDOW_KEEP = 12      # newest messages passed verbatim to agents
+SUMMARY_TRIGGER = 20  # start summarizing once the thread outgrows this
+SUMMARY_REFRESH = 8   # fold-in cadence: new msgs beyond covered point
+
+
+class ChatState(MessagesState):
+    """Graph state = full message history + rolling summary bookkeeping."""
+
+    summary: str
+    summary_upto: int  # number of leading messages already folded into summary
+
+
+def _is_router_marker(m: object) -> bool:
+    return isinstance(m, AIMessage) and "routing" in (m.additional_kwargs or {})
+
+
+def _has_image(m: object) -> bool:
+    content = getattr(m, "content", None)
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(b, dict) and "image" in str(b.get("type", ""))
+        for b in content
+    )
+
+
+def _text_content(m: object) -> str:
+    """Plain text of a message whose content may be a block list."""
+    content = getattr(m, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            b.get("text", "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        ).strip()
+    return str(content or "")
+
+
+def _last_human(messages: list) -> HumanMessage | None:
+    return next((m for m in reversed(messages) if isinstance(m, HumanMessage)), None)
+
+
+def _window(messages: list) -> list:
+    """Newest WINDOW_KEEP messages, cleaned for model consumption.
+
+    Drops router intent markers and never starts on an orphan tool result.
+    The full history stays in graph state (the UI renders it) — this only
+    bounds what agents re-read each turn.
+    """
+    msgs = [m for m in messages if not _is_router_marker(m)]
+    w = msgs[-WINDOW_KEEP:]
+    while w and isinstance(w[0], ToolMessage):
+        w.pop(0)
+    return w
+
+
+def _transcript(messages: list) -> str:
+    lines = []
+    for m in messages:
+        if _is_router_marker(m) or getattr(m, "tool_calls", None):
+            continue
+        if isinstance(m, HumanMessage):
+            lines.append(f"User: {m.content}")
+        elif isinstance(m, AIMessage) and isinstance(m.content, str) and m.content:
+            lines.append(f"Assistant: {m.content}")
+    return "\n".join(lines)
+
+
+async def _update_summary(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Fold older messages into the rolling summary (short-term memory).
+
+    Returns state updates ({} when nothing to do). Full history is preserved;
+    the summary lets agents keep context without re-reading everything.
+    """
+    msgs = state["messages"]
+    upto = state.get("summary_upto", 0)
+    if len(msgs) <= SUMMARY_TRIGGER or len(msgs) - WINDOW_KEEP - upto < SUMMARY_REFRESH:
+        return {}
+
+    to_fold = _transcript(msgs[upto : len(msgs) - WINDOW_KEEP])
+    if not to_fold:
+        return {"summary_upto": len(msgs) - WINDOW_KEEP}
+
+    existing = state.get("summary", "")
+    prompt = (
+        "Maintain a compact running summary of a conversation. Preserve concrete "
+        "facts, names, numbers, decisions, and open questions; drop pleasantries.\n\n"
+        f"Current summary (may be empty):\n{existing or '(none)'}\n\n"
+        f"New messages to fold in:\n{to_fold}\n\n"
+        "Return only the updated summary, max ~200 words."
+    )
+    try:
+        result = await get_chat_client(config=config).ainvoke(prompt)
+        summary = result.content if isinstance(result.content, str) else str(result.content)
+        return {"summary": summary.strip(), "summary_upto": len(msgs) - WINDOW_KEEP}
+    except Exception:  # noqa: BLE001
+        _persist_logger.exception("Summary refresh failed — keeping previous summary")
+        return {}
+
+
+async def _recall_memories(messages: list) -> str:
+    """Semantic recall from the long-term store for the latest user message."""
+    last_human = next(
+        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
+    )
+    if last_human is None:
+        return ""
+    try:
+        from cortex.memory import MEMORY_NAMESPACE
+
+        store = get_store()
+        hits = await store.asearch(
+            MEMORY_NAMESPACE, query=str(last_human.content), limit=4
+        )
+        return "\n".join(f"- {h.value.get('content', '')}" for h in hits)
+    except Exception:  # noqa: BLE001 — store unavailable outside the runtime
+        return ""
+
+
+async def _memory_context(
+    state: ChatState, config: RunnableConfig
+) -> tuple[str, dict[str, Any]]:
+    """Build the system-prompt memory suffix and any summary state updates."""
+    updates = await _update_summary(state, config)
+    summary = updates.get("summary", state.get("summary", ""))
+    memories = await _recall_memories(state["messages"])
+
+    parts = []
+    if summary:
+        parts.append(f"## Conversation summary (older context)\n{summary}")
+    if memories:
+        parts.append(
+            "## Long-term memories about the user (from previous conversations)\n"
+            f"{memories}"
+        )
+    return "\n\n".join(parts), updates
+
+
 # ── Nodes ────────────────────────────────────────────────────────────────────
 
+# Safety net when the routing model is unavailable or emits garbage (e.g. a
+# small local model that can't do structured output): classify by keywords
+# instead of failing the whole run.
+_HARDWARE_RE = re.compile(
+    r"ps5|playstation|xbox|steam ?deck|nintendo|switch 2|rtx|geforce|radeon|"
+    r"ryzen|intel core|i9-|i7-|core ultra|tflops|gpu|cpu|graphics card|nvidia|amd|h100|b200",
+    re.IGNORECASE,
+)
 
-async def router(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
-    """Classify user intent using structured output (ProviderStrategy)."""
-    spec = get_agent_spec(Agents.ROUTER)
-    agent = create_agent(
-        model=get_chat_client(config=config),
-        tools=[],
-        system_prompt=spec.render_system_prompt(assistant_name=_assistant_name()),
-        response_format=ProviderStrategy(RouterIntent),
+
+def _heuristic_intent(messages: list) -> Intent:
+    last_human = next(
+        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
     )
-    # Filter to only human/AI messages — tool call/response pairs from prior
-    # agent runs would cause OpenAI to reject the request.
+    text = str(last_human.content) if last_human is not None else ""
+    return Intent.PRODUCT_SPECS if _HARDWARE_RE.search(text) else Intent.GENERAL_CHAT
+
+
+def route_from_start(
+    state: ChatState, config: RunnableConfig
+) -> Literal["router", "specialist"]:
+    """Send chats straight to the specialist when a fine-tuned model is the
+    effective chat model (dropdown selection OR registry default) — small
+    fine-tuned models cannot run the router's structured-output
+    classification, and picking them IS the intent."""
+    configurable = (config or {}).get("configurable") or {}
+    if configurable.get("local_base_url"):
+        return "router"  # "Use local LLM" toggle: user points at their own endpoint
+    from cortex.db.services.auto_mode import is_auto
+
+    if is_auto(configurable.get("model_id")):
+        return "router"  # auto mode: intent decides the model, never the bypass
+    last = _last_human(state["messages"])
+    if last is not None and _has_image(last):
+        return "router"  # images need a vision model, never the 1B specialist
+    try:
+        resolved = resolve_with_session(configurable.get("model_id"))
+        if resolved and resolved.model_id.startswith(FINE_TUNED_PREFIX):
+            return "specialist"
+    except Exception:  # noqa: BLE001 — registry hiccup: fall through to router
+        _persist_logger.exception("route_from_start model resolution failed")
+    return "router"
+
+
+async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Classify user intent using structured output (ProviderStrategy).
+
+    Never fails the run: if the routing model errors (bad key, local model
+    without structured-output support, connection loss), fall back to a
+    keyword heuristic so the turn still gets answered.
+    """
+    spec = get_agent_spec(Agents.ROUTER)
+    # Recent window only, filtered to human/AI messages — tool call/response
+    # pairs from prior agent runs would cause OpenAI to reject the request.
     chat_messages = [
         m
-        for m in state["messages"]
+        for m in _window(state["messages"])
         if isinstance(m, (HumanMessage, AIMessage))
         and not getattr(m, "tool_calls", None)
     ]
-    result = await agent.ainvoke({"messages": chat_messages})
-    intent: RouterIntent = result["structured_response"]
+    try:
+        agent = create_agent(
+            model=get_chat_client(config=config),
+            tools=[],
+            system_prompt=spec.render_system_prompt(assistant_name=_assistant_name()),
+            response_format=ProviderStrategy(RouterIntent),
+        )
+        result = await agent.ainvoke({"messages": chat_messages})
+        intent: RouterIntent = result["structured_response"]
+        routing = intent.model_dump()
+        intent_value = intent.intent.value
+    except Exception as e:  # noqa: BLE001
+        fallback = _heuristic_intent(chat_messages)
+        _persist_logger.warning(
+            "Router model failed (%s: %s) — heuristic fallback to %r",
+            type(e).__name__,
+            e,
+            fallback.value,
+        )
+        routing = {"intent": fallback.value, "reasoning": f"heuristic fallback ({type(e).__name__})"}
+        intent_value = fallback.value
     return {
         "messages": [
             AIMessage(
-                content=intent.intent.value,
-                additional_kwargs={"routing": intent.model_dump()},
+                content=intent_value,
+                additional_kwargs={"routing": routing},
             )
         ]
     }
 
 
 def route_by_intent(
-    state: MessagesState,
-) -> Literal["generalist", "researcher", "reasoner", "prompt_cacher"]:
+    state: ChatState,
+) -> Literal[
+    "generalist", "researcher", "reasoner", "prompt_cacher", "specialist", "imagegen"
+]:
     """Read the router's structured classification and pick the next node."""
     last_msg = state["messages"][-1]
     routing = last_msg.additional_kwargs.get("routing", {})
@@ -124,7 +365,38 @@ def route_by_intent(
     except ValueError:
         intent = Intent.GENERAL_CHAT  # safe fallback
 
-    return _INTENT_TO_NODE[intent]
+    node = _INTENT_TO_NODE[intent]
+    # The specialist is a text-only 1B model — hardware questions that come
+    # with an image (e.g. a screenshot of a spec table) go to the researcher,
+    # whose vision-capable model can actually read the image.
+    last = _last_human(state["messages"])
+    if node == "specialist" and last is not None and _has_image(last):
+        return "researcher"
+    return node
+
+
+def _system_prompt_for(model: Any, static: str, dynamic: str | None):
+    """Anthropic models get a cache_control breakpoint after the static agent
+    prompt — the cached prefix covers tool definitions + system, and dynamic
+    context (memories, summary) stays after the breakpoint so it never breaks
+    the cache. Other providers cache automatically; they get a plain string."""
+    try:
+        from langchain_anthropic import ChatAnthropic
+
+        if isinstance(model, ChatAnthropic):
+            blocks: list[dict[str, Any]] = [
+                {
+                    "type": "text",
+                    "text": static,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+            if dynamic:
+                blocks.append({"type": "text", "text": dynamic})
+            return SystemMessage(content=blocks)
+    except Exception:  # noqa: BLE001 — caching is an optimization, never a blocker
+        pass
+    return f"{static}\n\n{dynamic}" if dynamic else static
 
 
 def _build_agent(
@@ -132,6 +404,8 @@ def _build_agent(
     *,
     config: RunnableConfig | None = None,
     with_pii: bool = True,
+    extra_system: str | None = None,
+    auto_intent: str | None = None,
 ):
     spec = get_agent_spec(agent_id)
     middleware: list[Any] = []
@@ -143,40 +417,255 @@ def _build_agent(
         middleware.append(
             PIIMiddleware("email", strategy="redact", apply_to_output=True)
         )
+    model = get_chat_client(config=config, auto_intent=auto_intent)
+    static = spec.render_system_prompt(assistant_name=_assistant_name())
     return create_agent(
-        model=get_chat_client(config=config),
+        model=model,
         tools=spec.get_tools(),
-        system_prompt=spec.render_system_prompt(assistant_name=_assistant_name()),
+        system_prompt=_system_prompt_for(model, static, extra_system),
         middleware=middleware,
     )
 
 
-async def generalist(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+async def _run_agent(
+    agent_id: Agents,
+    state: ChatState,
+    config: RunnableConfig,
+    auto_intent: str | None = None,
+) -> dict[str, Any]:
+    """Shared node body: memory context + windowed history + agent invoke."""
+    memory_suffix, updates = await _memory_context(state, config)
+    agent = _build_agent(
+        agent_id,
+        config=config,
+        extra_system=memory_suffix or None,
+        auto_intent=auto_intent,
+    )
+    result = await agent.ainvoke({"messages": _window(state["messages"])})
+    return {"messages": result["messages"], **updates}
+
+
+async def generalist(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Default chat agent — friendly conversation + identity."""
-    agent = _build_agent(Agents.GENERALIST, config=config)
-    result = await agent.ainvoke({"messages": state["messages"]})
-    return {"messages": result["messages"]}
+    return await _run_agent(Agents.GENERALIST, state, config, Intent.GENERAL_CHAT.value)
 
 
-async def researcher(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Knowledge agent — local KB + Wikipedia."""
-    agent = _build_agent(Agents.RESEARCHER, config=config)
-    result = await agent.ainvoke({"messages": state["messages"]})
-    return {"messages": result["messages"]}
+    return await _run_agent(Agents.RESEARCHER, state, config, Intent.KNOWLEDGE_QUERY.value)
 
 
-async def reasoner(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Math, logic, and step-by-step problem solving."""
-    agent = _build_agent(Agents.REASONER, config=config)
-    result = await agent.ainvoke({"messages": state["messages"]})
-    return {"messages": result["messages"]}
+    return await _run_agent(Agents.REASONER, state, config, Intent.REASONING_TASK.value)
 
 
-async def prompt_cacher(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """LLM-prompt-caching expert (large system prompt, demonstrates caching)."""
-    agent = _build_agent(Agents.PROMPT_CACHER, config=config)
-    result = await agent.ainvoke({"messages": state["messages"]})
-    return {"messages": result["messages"]}
+    return await _run_agent(Agents.PROMPT_CACHER, state, config, Intent.PROMPT_CACHING.value)
+
+
+async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Image Artist — Google image models behind a two-layer safety gate."""
+    last_human = next(
+        (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+        None,
+    )
+    prompt = str(last_human.content) if last_human is not None else ""
+    configurable = (config or {}).get("configurable") or {}
+    thread_id = str(configurable.get("thread_id") or "thread")
+
+    from cortex.imagegen import generate_image
+
+    result = await generate_image(prompt, thread_id)
+    if result.status == "ok":
+        caption = result.detail or "Here you go:"
+        content = f"{caption}\n\n![Generated image](/api/images/{result.filename})"
+        message = AIMessage(
+            content=content,
+            response_metadata={"model_name": result.model_used},
+        )
+    else:
+        message = AIMessage(content=result.detail)
+    return {"messages": [message]}
+
+
+_GAP_NOTE_PREFIX = "*I've logged this as a knowledge gap"
+
+_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> bool:
+    """Fact guard for the synthesizer: no invented numbers, and (without an
+    authoritative reference) every draft number must survive. With a
+    reference, the synthesizer corrects drifted values against it — so
+    numbers may come from either the draft or the reference, nowhere else."""
+    draft_nums = set(_NUMBER_RE.findall(draft))
+    allowed_extra = {str(n) for n in range(1, 21)}  # step numbers / list indices
+    synth_nums = set(_NUMBER_RE.findall(synthesized))
+    if reference:
+        allowed = draft_nums | set(_NUMBER_RE.findall(reference)) | allowed_extra
+        return synth_nums <= allowed
+    if len(draft_nums) < 4:
+        # Not a spec sheet (e.g. a short math result) — the synthesizer is
+        # allowed to expand working steps, which adds intermediate numbers.
+        return True
+    return draft_nums <= synth_nums and (synth_nums - draft_nums) <= allowed_extra
+
+
+async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Formatting pass over factual answers (tables, worked math, structure).
+
+    Rewrites the final AI message in place (same id) so the transcript keeps
+    the answering model's usage/name. Presentation only — the prompt forbids
+    fact changes — and ANY failure passes the original answer through.
+    """
+    msgs = state["messages"]
+    final = msgs[-1] if msgs else None
+    if not (
+        isinstance(final, AIMessage)
+        and isinstance(final.content, str)
+        and final.content.strip()
+    ):
+        return {}
+    last_human = _last_human(msgs)
+    question = _text_content(last_human) if last_human is not None else ""
+    try:
+        from cortex.db.services.auto_mode import FAST_TIER, resolve_auto_model
+
+        resolved = resolve_auto_model(FAST_TIER)
+        if resolved is None:
+            return {}
+        # Ground drifted numbers: authoritative specs for products named in
+        # the question (same YAMLs the specialist was trained on — no web).
+        reference = ""
+        try:
+            from cortex.facts import match_products, reference_block
+
+            reference = reference_block(match_products(question))
+        except Exception:  # noqa: BLE001 — facts mount optional
+            pass
+        prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
+        if reference:
+            prompt += (
+                "\n\nAuthoritative spec reference (ground truth — where the "
+                "draft's values for these products disagree, silently use "
+                f"these instead):\n{reference}"
+            )
+        spec = get_agent_spec(Agents.SYNTHESIZER)
+        model = build_client_from_resolved(resolved)
+        result = await model.ainvoke(
+            [
+                SystemMessage(
+                    spec.render_system_prompt(assistant_name=_assistant_name())
+                ),
+                HumanMessage(prompt),
+            ]
+        )
+        text = (
+            result.content
+            if isinstance(result.content, str)
+            else "".join(
+                b.get("text", "") for b in result.content if isinstance(b, dict)
+            )
+        ).strip()
+        if not text:
+            return {}
+        if not _numbers_preserved(final.content, text, reference):
+            _persist_logger.warning(
+                "Synthesizer altered numbers — keeping the raw answer"
+            )
+            return {}
+        if _GAP_NOTE_PREFIX in final.content and _GAP_NOTE_PREFIX not in text:
+            note = final.content[final.content.index(_GAP_NOTE_PREFIX):]
+            text = f"{text}\n\n{note}"
+        replacement = AIMessage(
+            id=final.id,
+            content=text,
+            additional_kwargs=final.additional_kwargs,
+            response_metadata=final.response_metadata,
+            usage_metadata=final.usage_metadata,
+        )
+        return {"messages": [replacement]}
+    except Exception:  # noqa: BLE001 — synthesis must never lose an answer
+        _persist_logger.exception("Synthesizer pass failed — keeping raw answer")
+        return {}
+
+
+async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Hardware expert — answers from the self-trained model's weights.
+
+    Always uses the fine-tuned model from the registry (model_id prefixed
+    `finetuned-` under the local provider), regardless of the model selected
+    in the chat dropdown. No tools: no RAG, no web search.
+    """
+    resolved = resolve_fine_tuned_model()
+    if resolved is None:
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "No fine-tuned hardware model is registered yet. "
+                        "Train one in Admin → Fine-Tuning, then click "
+                        "'Convert & Register'."
+                    )
+                )
+            ]
+        }
+
+    model = build_client_from_resolved(resolved)
+    # Spec recall wants exactness — greedy decoding so memorized numbers
+    # (prices, TFLOPS) come out digit-perfect every time.
+    model.temperature = 0.0
+    # NO system prompt: the LoRA training data is bare user/assistant pairs,
+    # and prepending one knocks the 1B model off its memorized answers
+    # (verified: it duplicates comparison columns with a system prompt).
+    agent = create_agent(model=model, tools=[], system_prompt=None)
+    # Send ONLY the latest user question, as plain text. Small fine-tuned
+    # models anchor hard on prior turns and will parrot an earlier answer
+    # instead of addressing the new question; they also reject tool-role
+    # remnants and image blocks. Spec lookup is stateless — one question in,
+    # one answer out.
+    last_human = _last_human(state["messages"])
+    question_text = _text_content(last_human) if last_human is not None else ""
+    chat_messages = [HumanMessage(question_text)] if question_text else []
+    try:
+        result = await agent.ainvoke({"messages": chat_messages})
+    except Exception:  # noqa: BLE001 — local service may be down/unloaded
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        f"The fine-tuned model '{resolved.model_id}' could not be "
+                        "reached on the local LLM service. Check that the ai "
+                        "service is running and the model is loaded "
+                        "(Admin → Local Models)."
+                    )
+                )
+            ]
+        }
+
+    # Self-improvement loop: if the model refused or silently ignored a
+    # product it wasn't trained on, log the question as a knowledge gap.
+    # Admin → Fine-Tuning researches gaps (web) and retrains — the model
+    # itself never uses the web at answer time.
+    messages = result["messages"]
+    final = messages[-1] if messages else None
+    if (
+        final is not None
+        and isinstance(final, AIMessage)
+        and isinstance(final.content, str)
+        and last_human is not None
+    ):
+        from cortex.db.services.knowledge_gaps import detect_gap, log_gap
+
+        reason = detect_gap(question_text, final.content)
+        if reason and log_gap(question_text, final.content, reason):
+            final.content += (
+                "\n\n*I've logged this as a knowledge gap — research & retrain "
+                "from Admin → Fine-Tuning to teach me this hardware.*"
+            )
+    return {"messages": messages}
 
 
 # ── Graph ────────────────────────────────────────────────────────────────────
@@ -186,21 +675,30 @@ def build_workflow() -> StateGraph:
     """Construct and compile the multi-agent Cortex workflow.
 
     Flow:
-        START → router → (conditional)
-                          → generalist
-                          → researcher
-                          → reasoner
-                          → prompt_cacher
-                        → END
+        START → (fine-tuned model selected/default? → specialist)
+              → router → (conditional)
+                          → generalist / prompt_cacher / imagegen  → END
+                          → researcher / reasoner / specialist     → synthesize → END
+
+    Auto mode: configurable.model_id == "auto" always goes through the router
+    and each node resolves its model per intent (declarative/auto_mode.yaml).
 
     Guardrails:
         - PIIMiddleware: redacts credit-card numbers and emails in model output.
 
+    Memory:
+        - Short-term: rolling conversation summary in state (``summary``),
+          refreshed as threads outgrow the message window.
+        - Long-term: LangGraph store (namespace ``memories``) with semantic
+          index (langgraph.json → cortex/memory.py); agents recall relevant
+          facts automatically and can save new ones via the save_memory tool.
+
     Persistence:
-        The LangGraph API runtime automatically provides a PostgreSQL
-        checkpointer — no manual checkpointer is needed.
+        The LangGraph runtime provides the checkpointer; under `langgraph dev`
+        the in-mem state is flushed to the volume-backed .langgraph_api dir
+        (see the SIGTERM shim at the top of this module).
     """
-    builder = StateGraph(MessagesState)
+    builder = StateGraph(ChatState)
 
     # Nodes
     builder.add_node("router", router)
@@ -208,14 +706,23 @@ def build_workflow() -> StateGraph:
     builder.add_node("researcher", researcher)
     builder.add_node("reasoner", reasoner)
     builder.add_node("prompt_cacher", prompt_cacher)
+    builder.add_node("specialist", specialist)
+    builder.add_node("imagegen", imagegen)
+    builder.add_node("synthesize", synthesize)
 
     # Edges
-    builder.add_edge(START, "router")
+    # Fine-tuned model selected in the chat dropdown → bypass the router
+    # (deterministic, no structured output on small local models).
+    builder.add_conditional_edges(START, route_from_start)
     builder.add_conditional_edges("router", route_by_intent)
     builder.add_edge("generalist", END)
-    builder.add_edge("researcher", END)
-    builder.add_edge("reasoner", END)
     builder.add_edge("prompt_cacher", END)
+    builder.add_edge("imagegen", END)
+    # Factual agents get a formatting pass (tables / worked math / structure).
+    builder.add_edge("researcher", "synthesize")
+    builder.add_edge("reasoner", "synthesize")
+    builder.add_edge("specialist", "synthesize")
+    builder.add_edge("synthesize", END)
 
     return builder.compile()
 

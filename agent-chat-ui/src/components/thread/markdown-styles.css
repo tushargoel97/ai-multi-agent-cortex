@@ -25,21 +25,10 @@
   overflow-x: auto;
 }
 
+/* Tables are fully styled (theme-aware spec-sheet grid) by the component
+   overrides in markdown-text.tsx — no hardcoded colors here, they painted
+   white bands in dark mode. */
 .markdown-content table {
   border-collapse: collapse;
   width: 100%;
-}
-
-.markdown-content th,
-.markdown-content td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-.markdown-content th {
-  background-color: #f2f2f2;
-}
-
-.markdown-content tr:nth-child(even) {
-  background-color: #f9f9f9;
 }

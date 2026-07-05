@@ -13,7 +13,7 @@ function ResetButton({ handleReset }: { handleReset: () => void }) {
     <Button
       onClick={handleReset}
       variant="ghost"
-      className="flex items-center justify-center gap-2 text-gray-500 hover:text-red-500"
+      className="flex items-center justify-center gap-2 text-muted-foreground hover:text-red-500"
     >
       <Undo2 className="h-4 w-4" />
       <span>Reset</span>
@@ -35,10 +35,10 @@ function ArgsRenderer({ args }: { args: Record<string, unknown> }) {
             key={`args-${key}`}
             className="flex flex-col items-start gap-1"
           >
-            <p className="text-sm leading-[18px] text-wrap text-gray-600">
+            <p className="text-sm leading-[18px] text-wrap text-muted-foreground">
               {prettifyText(key)}
             </p>
-            <span className="w-full max-w-full rounded-xl bg-zinc-100 p-3 text-[13px] leading-[18px] text-black">
+            <span className="w-full max-w-full rounded-xl bg-zinc-100 p-3 text-[13px] leading-[18px] text-foreground">
               <MarkdownText>{stringValue}</MarkdownText>
             </span>
           </div>
@@ -83,7 +83,7 @@ function ApproveOnly({
   ) => Promise<void> | void;
 }) {
   return (
-    <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-gray-300 p-6">
+    <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-border p-6">
       {Object.keys(actionRequestArgs).length > 0 && (
         <ArgsRenderer args={actionRequestArgs} />
       )}
@@ -183,9 +183,9 @@ function EditActionCard({
   };
 
   return (
-    <div className="flex w-full min-w-full flex-col items-start gap-4 rounded-lg border border-gray-300 p-6">
+    <div className="flex w-full min-w-full flex-col items-start gap-4 rounded-lg border border-border p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-black">{header}</p>
+        <p className="text-base font-semibold text-foreground">{header}</p>
         <ResetButton handleReset={handleReset} />
       </div>
 
@@ -274,9 +274,9 @@ function RejectActionCard({
   };
 
   return (
-    <div className="flex w-full max-w-full flex-col items-start gap-4 rounded-xl border border-gray-300 p-6">
+    <div className="flex w-full max-w-full flex-col items-start gap-4 rounded-xl border border-border p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-black">Reject</p>
+        <p className="text-base font-semibold text-foreground">Reject</p>
         <ResetButton handleReset={() => onChange("", rejectResponse)} />
       </div>
 
@@ -471,7 +471,7 @@ export function InboxItemInput({
         {supportsMultipleMethods ? (
           <div className="mx-auto mt-3 flex items-center gap-3">
             <Separator className="w-full" />
-            <p className="text-sm text-gray-500">Or</p>
+            <p className="text-sm text-muted-foreground">Or</p>
             <Separator className="w-full" />
           </div>
         ) : null}
@@ -486,10 +486,10 @@ export function InboxItemInput({
         />
 
         {isLoading && (
-          <p className="text-sm text-gray-600">Submitting decision...</p>
+          <p className="text-sm text-muted-foreground">Submitting decision...</p>
         )}
         {selectedSubmitType && supportsMultipleMethods && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Currently selected: {prettifyText(selectedSubmitType)}
           </p>
         )}

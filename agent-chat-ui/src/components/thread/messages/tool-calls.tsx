@@ -38,21 +38,21 @@ function ToolCallRow({
   const hasArgs = args && Object.keys(args).length > 0;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-border bg-background">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
       >
         {open ? (
-          <ChevronDown className="h-4 w-4 text-gray-400" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground/70" />
         )}
-        <Sparkles className="h-4 w-4 text-gray-400" />
-        <span className="text-gray-500">Thinking</span>
-        <span className="text-gray-400"></span>
-        <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
+        <Sparkles className="h-4 w-4 text-muted-foreground/70" />
+        <span className="text-muted-foreground">Thinking</span>
+        <span className="text-muted-foreground/70"></span>
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
           {name}
         </code>
       </button>
@@ -63,19 +63,19 @@ function ToolCallRow({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="overflow-hidden border-t border-gray-200 bg-gray-50"
+            className="overflow-hidden border-t border-border bg-muted/50"
           >
             {hasArgs ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <tbody className="divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-border">
+                <tbody className="divide-y divide-border">
                   {Object.entries(args).map(([key, value], argIdx) => (
                     <tr key={argIdx}>
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap text-gray-700">
+                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap text-foreground">
                         {key}
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-gray-600">
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
                         {isComplexValue(value) ? (
-                          <code className="rounded bg-white px-1.5 py-0.5 font-mono text-xs break-all">
+                          <code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs break-all">
                             {JSON.stringify(value, null, 2)}
                           </code>
                         ) : (
@@ -87,7 +87,7 @@ function ToolCallRow({
                 </tbody>
               </table>
             ) : (
-              <code className="block px-3 py-2 text-xs text-gray-500">
+              <code className="block px-3 py-2 text-xs text-muted-foreground">
                 {"{}"}
               </code>
             )}
@@ -119,20 +119,20 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
   return (
     <div className="mx-auto grid max-w-3xl gap-2">
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-border bg-background">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
         >
           {open ? (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-gray-400" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground/70" />
           )}
-          <Wrench className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-500">Result from</span>
-          <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
+          <Wrench className="h-4 w-4 text-muted-foreground/70" />
+          <span className="text-muted-foreground">Result from</span>
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
             {message.name ?? "tool"}
           </code>
         </button>
@@ -143,15 +143,15 @@ export function ToolResult({ message }: { message: ToolMessage }) {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="overflow-hidden border-t border-gray-200 bg-gray-50"
+              className="overflow-hidden border-t border-border bg-muted/50"
             >
               <div className="max-h-96 overflow-auto p-3">
                 {isJsonContent ? (
-                  <pre className="font-mono text-xs whitespace-pre-wrap text-gray-700">
+                  <pre className="font-mono text-xs whitespace-pre-wrap text-foreground">
                     {contentStr}
                   </pre>
                 ) : (
-                  <pre className="font-mono text-xs whitespace-pre-wrap text-gray-700">
+                  <pre className="font-mono text-xs whitespace-pre-wrap text-foreground">
                     {contentStr}
                   </pre>
                 )}

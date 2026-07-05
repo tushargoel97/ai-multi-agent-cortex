@@ -194,7 +194,7 @@ export default function ProvidersPanel({
         providers.filter(
           (p) => !p.api_key_set && p.kind !== "local" && p.kind !== "azure_openai",
         ).length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-md border border-amber-200 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
             <strong>API keys missing</strong> on{" "}
             {
               providers.filter(
@@ -290,7 +290,7 @@ export default function ProvidersPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-background">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
@@ -321,7 +321,7 @@ export default function ProvidersPanel({
               <tr key={p.id} className="border-t">
                 <td className="p-3 font-medium">{p.name}</td>
                 <td className="p-3">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
+                  <span className="rounded bg-muted px-2 py-0.5 text-xs">
                     {p.kind}
                   </span>
                 </td>

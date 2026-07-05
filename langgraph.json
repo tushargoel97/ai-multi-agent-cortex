@@ -3,5 +3,11 @@
   "graphs": {
     "cortex": "./cortex/workflow.py:graph"
   },
-  "env": ".env"
+  "env": ".env",
+  "store": {
+    "index": {
+      "embed": "./cortex/memory.py:aembed_texts",
+      "dims": 1536
+    }
+  }
 }

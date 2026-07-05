@@ -1,6 +1,7 @@
 """Local model catalog + HuggingFace discovery + download/load/delete."""
 
 import asyncio
+import json
 import logging
 import os
 import shutil
@@ -19,14 +20,14 @@ MODELS_DIR = settings.models_dir
 
 # Curated catalog (CPU-friendly, broadly capable)
 MODEL_CATALOG: dict[str, dict] = {
-    "qwen2.5-1.5b": {
-        "repo_id": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-        "filename": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        "description": "Qwen 2.5 1.5B — fastest, minimal RAM.",
-        "size_mb": 1024,
-        "context_length": 4096,
-        "parameters": "1.5B",
-        "tags": ["fast", "json"],
+    "gemma-3-1b": {
+        "repo_id": "ggml-org/gemma-3-1b-it-GGUF",
+        "filename": "gemma-3-1b-it-Q8_0.gguf",
+        "description": "Google Gemma 3 1B — fast, minimal RAM.",
+        "size_mb": 1020,
+        "context_length": 8192,
+        "parameters": "1B",
+        "tags": ["fast", "gemma"],
     },
     "llama-3.2-3b": {
         "repo_id": "bartowski/Llama-3.2-3B-Instruct-GGUF",
@@ -36,15 +37,6 @@ MODEL_CATALOG: dict[str, dict] = {
         "context_length": 4096,
         "parameters": "3B",
         "tags": ["general"],
-    },
-    "qwen2.5-3b": {
-        "repo_id": "Qwen/Qwen2.5-3B-Instruct-GGUF",
-        "filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
-        "description": "Qwen 2.5 3B — strong structured-output small model.",
-        "size_mb": 2048,
-        "context_length": 4096,
-        "parameters": "3B",
-        "tags": ["json", "coding"],
     },
     "phi-4-mini": {
         "repo_id": "bartowski/phi-4-mini-instruct-GGUF",
@@ -65,6 +57,82 @@ MODEL_CATALOG: dict[str, dict] = {
         "tags": ["general", "coding"],
     },
 }
+
+
+# Non-builtin entries (community downloads, fine-tuned imports) are persisted
+# to /models/catalog.json so they survive container restarts.
+_CUSTOM_CATALOG_PATH = os.path.join(MODELS_DIR, "catalog.json")
+
+
+def _load_custom_catalog() -> None:
+    if not os.path.exists(_CUSTOM_CATALOG_PATH):
+        return
+    try:
+        with open(_CUSTOM_CATALOG_PATH) as f:
+            MODEL_CATALOG.update(json.load(f))
+    except Exception:
+        logger.exception("Could not read %s — ignoring", _CUSTOM_CATALOG_PATH)
+
+
+def _persist_custom_entry(name: str, info: dict) -> None:
+    custom: dict = {}
+    if os.path.exists(_CUSTOM_CATALOG_PATH):
+        try:
+            with open(_CUSTOM_CATALOG_PATH) as f:
+                custom = json.load(f)
+        except Exception:
+            logger.exception("Could not read %s — rewriting", _CUSTOM_CATALOG_PATH)
+    custom[name] = info
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    with open(_CUSTOM_CATALOG_PATH, "w") as f:
+        json.dump(custom, f, indent=2)
+
+
+def _remove_custom_entry(name: str) -> None:
+    if not os.path.exists(_CUSTOM_CATALOG_PATH):
+        return
+    try:
+        with open(_CUSTOM_CATALOG_PATH) as f:
+            custom = json.load(f)
+        if name in custom:
+            del custom[name]
+            with open(_CUSTOM_CATALOG_PATH, "w") as f:
+                json.dump(custom, f, indent=2)
+    except Exception:
+        logger.exception("Could not update %s", _CUSTOM_CATALOG_PATH)
+
+
+_load_custom_catalog()
+
+
+def import_local_model(
+    name: str,
+    filename: str,
+    description: str | None = None,
+    context_length: int = 4096,
+) -> dict:
+    """Register a GGUF that is already on disk in MODELS_DIR (e.g. fine-tuned)."""
+    global _llm, _loaded_model_name
+    path = os.path.join(MODELS_DIR, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"No file {filename!r} in {MODELS_DIR}")
+    # The file may be a retrained replacement of an already-loaded model —
+    # drop the in-memory instance so the next load reads the new weights.
+    if _loaded_model_name == name:
+        _llm = None
+        _loaded_model_name = None
+    info = {
+        "repo_id": "",
+        "filename": filename,
+        "description": description or f"Locally imported GGUF ({filename})",
+        "size_mb": round(os.path.getsize(path) / (1024 * 1024), 1),
+        "context_length": context_length,
+        "parameters": "",
+        "tags": ["fine-tuned", "local-file"],
+    }
+    MODEL_CATALOG[name] = info
+    _persist_custom_entry(name, info)
+    return {"name": name, **info}
 
 
 def _model_path(name: str) -> str | None:
@@ -182,6 +250,7 @@ async def download_model(
             "parameters": "",
             "tags": ["community"],
         }
+        _persist_custom_entry(name, MODEL_CATALOG[name])
     info = MODEL_CATALOG[name]
 
     if is_downloaded(name):
@@ -248,6 +317,7 @@ async def delete_model(name: str) -> bool:
     if not p:
         return False
     os.remove(p)
+    _remove_custom_entry(name)
     cache = os.path.join(MODELS_DIR, ".cache")
     if os.path.exists(cache):
         shutil.rmtree(cache, ignore_errors=True)

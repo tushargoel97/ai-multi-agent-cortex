@@ -61,24 +61,31 @@ async function autoTitleThread(
   authScheme?: string,
   onTitled?: () => void,
 ): Promise<void> {
-  // Wait briefly for the thread to be persisted server-side.
-  await sleep(600);
   const client = createClient(apiUrl, apiKey ?? undefined, authScheme);
-  let thread: { metadata?: Record<string, unknown>; values?: unknown };
-  try {
-    thread = (await client.threads.get(threadId)) as typeof thread;
-  } catch {
-    return;
-  }
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
-  if (typeof meta.title === "string" && meta.title.trim()) return;
+  let meta: Record<string, unknown> = {};
+  let firstHuman: { content?: unknown } | undefined;
 
-  const values = thread.values as
-    | { messages?: { type?: string; content?: unknown }[] }
-    | undefined;
-  const firstHuman = values?.messages?.find(
-    (m) => (m as { type?: string }).type === "human",
-  );
+  // The first checkpoint may take a while to commit (model latency) — retry
+  // instead of giving up and leaving the thread as "Chat <uuid>".
+  for (const delay of [600, 2000, 5000, 10000]) {
+    await sleep(delay);
+    let thread: { metadata?: Record<string, unknown>; values?: unknown };
+    try {
+      thread = (await client.threads.get(threadId)) as typeof thread;
+    } catch {
+      continue;
+    }
+    meta = (thread.metadata ?? {}) as Record<string, unknown>;
+    if (typeof meta.title === "string" && meta.title.trim()) return;
+
+    const values = thread.values as
+      | { messages?: { type?: string; content?: unknown }[] }
+      | undefined;
+    firstHuman = values?.messages?.find(
+      (m) => (m as { type?: string }).type === "human",
+    );
+    if (firstHuman) break;
+  }
   if (!firstHuman) return;
   const content = firstHuman.content as
     | string

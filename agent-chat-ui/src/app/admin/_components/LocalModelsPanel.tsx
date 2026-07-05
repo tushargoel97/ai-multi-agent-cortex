@@ -191,12 +191,12 @@ export default function LocalModelsPanel({
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section className="rounded-xl border bg-background p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Search className="size-4" /> Search HuggingFace
         </h3>
@@ -219,7 +219,7 @@ export default function LocalModelsPanel({
         {hits.length > 0 && (
           <div className="mt-4 max-h-96 overflow-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left">Repo</th>
                   <th className="px-3 py-2 text-left">File</th>
@@ -236,20 +236,20 @@ export default function LocalModelsPanel({
                       <td className="px-3 py-2 font-mono text-xs">
                         {h.repo_id}
                         {h.in_catalog && (
-                          <span className="ml-2 rounded-sm bg-slate-200 px-1 text-[10px] uppercase">
+                          <span className="ml-2 rounded-sm bg-muted px-1 text-[10px] uppercase">
                             catalog
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-600">
+                      <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
                         {h.filename}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                         {h.downloads.toLocaleString()}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {dl ? (
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-muted-foreground">
                             {dl.status} {dl.progress}%
                           </span>
                         ) : (
@@ -275,7 +275,7 @@ export default function LocalModelsPanel({
         )}
       </section>
 
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section className="rounded-xl border bg-background p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Cpu className="size-4" /> Catalog
         </h3>
@@ -285,14 +285,14 @@ export default function LocalModelsPanel({
             return (
               <div
                 key={m.name}
-                className="flex flex-col gap-2 rounded-lg border bg-slate-50 p-4"
+                className="flex flex-col gap-2 rounded-lg border bg-muted/50 p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-medium">
                       {m.name}{" "}
                       {m.active && (
-                        <span className="ml-1 rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
+                        <span className="ml-1 rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">
                           active
                         </span>
                       )}
@@ -301,7 +301,7 @@ export default function LocalModelsPanel({
                       {m.description}
                     </div>
                   </div>
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-muted-foreground">
                     {m.parameters} · {m.size_mb}MB
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export default function LocalModelsPanel({
                   {m.tags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm bg-white px-1.5 py-0.5 text-[10px] text-slate-600"
+                      className="rounded-sm bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
                     >
                       {t}
                     </span>
@@ -319,12 +319,12 @@ export default function LocalModelsPanel({
                 {dl && dl.status !== "complete" ? (
                   <div className="flex flex-col gap-1 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">{dl.status}</span>
+                      <span className="text-muted-foreground">{dl.status}</span>
                       <span className="tabular-nums">
                         {dl.downloaded_mb}/{dl.total_mb}MB · {dl.progress}%
                       </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full bg-emerald-500 transition-all"
                         style={{ width: `${dl.progress}%` }}

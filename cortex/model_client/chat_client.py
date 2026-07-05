@@ -71,16 +71,37 @@ def get_chat_client(
     settings: Settings | None = None,
     *,
     config: dict[str, Any] | None = None,
+    auto_intent: str | None = None,
 ) -> BaseChatModel:
     """Build the chat model for a request.
 
-    Reads ``config["configurable"]`` for ``model_id`` (LLMModel UUID),
-    ``local_base_url``, ``local_api_key``, and ``local_model_name`` overrides.
-    Falls back to the DB default model, then to ``settings.yaml``.
+    Reads ``config["configurable"]`` for ``model_id`` (LLMModel UUID or the
+    ``"auto"`` sentinel), ``local_base_url``, ``local_api_key``, and
+    ``local_model_name`` overrides. In auto mode the model is picked per
+    ``auto_intent`` (fast tier when None). Falls back to the DB default
+    model, then to ``settings.yaml``.
     """
     settings = settings or load_settings()
     configurable: dict[str, Any] = (config or {}).get("configurable", {}) or {}
     model_uuid = configurable.get("model_id")
+
+    if not configurable.get("local_base_url"):
+        try:
+            from cortex.db.services.auto_mode import (
+                FAST_TIER,
+                is_auto,
+                resolve_auto_model,
+            )
+
+            if is_auto(model_uuid):
+                model_uuid = None  # from here on: auto resolves or DB default
+                from cortex.db.services.llm_registry import build_client_from_resolved
+
+                resolved = resolve_auto_model(auto_intent or FAST_TIER)
+                if resolved is not None:
+                    return build_client_from_resolved(resolved)
+        except Exception:  # noqa: BLE001 — auto mode must never kill a run
+            pass
     local_base_url = configurable.get("local_base_url")
     local_api_key = configurable.get("local_api_key")
     local_model_name = configurable.get("local_model_name")

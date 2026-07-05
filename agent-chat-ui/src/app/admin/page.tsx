@@ -2,17 +2,19 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Server, Boxes, Cpu } from "lucide-react";
+import { Server, Boxes, Cpu, FlaskConical } from "lucide-react";
 import ProvidersPanel from "./_components/ProvidersPanel";
 import ModelsPanel from "./_components/ModelsPanel";
 import LocalModelsPanel from "./_components/LocalModelsPanel";
+import FinetunePanel from "./_components/FinetunePanel";
 
-type Tab = "providers" | "models" | "local";
+type Tab = "providers" | "models" | "local" | "finetune";
 
 const TABS: { id: Tab; label: string; icon: typeof Server }[] = [
   { id: "providers", label: "Providers", icon: Server },
   { id: "models", label: "Models", icon: Boxes },
   { id: "local", label: "Local Models", icon: Cpu },
+  { id: "finetune", label: "Fine-Tuning", icon: FlaskConical },
 ];
 
 function AdminTabs() {
@@ -51,8 +53,8 @@ function AdminTabs() {
               onClick={() => select(id)}
               className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm transition ${
                 active
-                  ? "border-slate-900 font-semibold text-slate-900"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
+                  ? "border-foreground font-semibold text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon className="size-4" />
@@ -70,6 +72,9 @@ function AdminTabs() {
         {tab === "local" && (
           <LocalModelsPanel onChanged={() => setBump((n) => n + 1)} />
         )}
+        {tab === "finetune" && (
+          <FinetunePanel onChanged={() => setBump((n) => n + 1)} />
+        )}
       </div>
     </div>
   );
@@ -77,7 +82,7 @@ function AdminTabs() {
 
 export default function AdminHome() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-slate-500">Loading…</div>}>
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading…</div>}>
       <AdminTabs />
     </Suspense>
   );

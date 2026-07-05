@@ -45,13 +45,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   if (!authed) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-muted/40 to-muted p-4">
         <form
           onSubmit={onSubmit}
-          className="flex w-full max-w-sm flex-col gap-5 rounded-xl border bg-white p-8 shadow-lg"
+          className="flex w-full max-w-sm flex-col gap-5 rounded-xl border bg-background p-8 shadow-lg"
         >
           <div className="flex flex-col items-center gap-2">
-            <div className="flex size-10 items-center justify-center rounded-full bg-slate-900 text-white">
+            <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
               <Lock className="size-5" />
             </div>
             <h1 className="text-xl font-semibold">Cortex Admin</h1>
@@ -83,7 +83,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
 
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
           )}
@@ -104,13 +104,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center gap-6 border-b bg-white px-6 py-3 shadow-sm">
+    <div className="min-h-screen bg-muted/50">
+      <header className="flex items-center gap-6 border-b bg-background px-6 py-3 shadow-sm">
         <Link
           href="/admin"
           className="flex items-center gap-2 font-semibold tracking-tight"
         >
-          <div className="flex size-7 items-center justify-center rounded-md bg-slate-900 text-white">
+          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-white">
             <Lock className="size-4" />
           </div>
           Cortex Admin
@@ -129,7 +129,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               setUsername("");
               setPassword("");
             }}
-            className="flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted/50"
           >
             <LogOut className="size-4" />
             Sign out

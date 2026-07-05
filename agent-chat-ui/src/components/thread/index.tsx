@@ -6,7 +6,8 @@ import { useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
-import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
+import { AssistantMessage } from "./messages/ai";
+import { AgentActivity } from "./agent-activity";
 import { HumanMessage } from "./messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
@@ -144,7 +145,6 @@ export function Thread() {
     dragOver,
     handlePaste,
   } = useFileUpload();
-  const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
 
   const stream = useStreamContext();
@@ -190,25 +190,10 @@ export function Thread() {
     }
   }, [stream.error]);
 
-  // TODO: this should be part of the useStream hook
-  const prevMessageLength = useRef(0);
-  useEffect(() => {
-    if (
-      messages.length !== prevMessageLength.current &&
-      messages?.length &&
-      messages[messages.length - 1].type === "ai"
-    ) {
-      setFirstTokenReceived(true);
-    }
-
-    prevMessageLength.current = messages.length;
-  }, [messages]);
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
       return;
-    setFirstTokenReceived(false);
 
     const newHumanMessage: Message = {
       id: uuidv4(),
@@ -252,9 +237,6 @@ export function Thread() {
   const handleRegenerate = (
     parentCheckpoint: Checkpoint | null | undefined,
   ) => {
-    // Do this so the loading state is correct
-    prevMessageLength.current = prevMessageLength.current - 1;
-    setFirstTokenReceived(false);
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
       streamMode: ["values"],
@@ -273,7 +255,7 @@ export function Thread() {
     <div className="flex h-screen w-full overflow-hidden">
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-white"
+          className="absolute z-20 h-full overflow-hidden border-r bg-background"
           style={{ width: 300 }}
           animate={
             isLargeScreen
@@ -327,7 +309,7 @@ export function Thread() {
               <div>
                 {(!chatHistoryOpen || !isLargeScreen) && (
                   <Button
-                    className="hover:bg-gray-100"
+                    className="hover:bg-muted"
                     variant="ghost"
                     onClick={() => setChatHistoryOpen((p) => !p)}
                   >
@@ -350,7 +332,7 @@ export function Thread() {
                 <div className="absolute left-0 z-10">
                   {(!chatHistoryOpen || !isLargeScreen) && (
                     <Button
-                      className="hover:bg-gray-100"
+                      className="hover:bg-muted"
                       variant="ghost"
                       onClick={() => setChatHistoryOpen((p) => !p)}
                     >
@@ -407,7 +389,7 @@ export function Thread() {
           <StickToBottom className="relative flex-1 overflow-hidden">
             <StickyToBottomContent
               className={cn(
-                "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent",
+                "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent",
                 !chatStarted && "mt-[25vh] flex flex-col items-stretch",
                 chatStarted && "grid grid-rows-[1fr_auto]",
               )}
@@ -442,13 +424,11 @@ export function Thread() {
                       handleRegenerate={handleRegenerate}
                     />
                   )}
-                  {isLoading && !firstTokenReceived && (
-                    <AssistantMessageLoading />
-                  )}
+                  {isLoading && <AgentActivity messages={messages} />}
                 </>
               }
               footer={
-                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white">
+                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-background">
                   {!chatStarted && (
                     <div className="flex items-center gap-3">
                       <LangGraphLogoSVG className="h-8 flex-shrink-0" />
@@ -503,8 +483,8 @@ export function Thread() {
                           htmlFor="file-input"
                           className="flex cursor-pointer items-center gap-2"
                         >
-                          <Plus className="size-5 text-gray-600" />
-                          <span className="text-sm text-gray-600">
+                          <Plus className="size-5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
                             Upload PDF or Image
                           </span>
                         </Label>
@@ -528,7 +508,7 @@ export function Thread() {
                           />
                           <Label
                             htmlFor="render-tool-calls"
-                            className="text-sm text-gray-600"
+                            className="text-sm text-muted-foreground"
                           >
                             Hide Tool Calls
                           </Label>

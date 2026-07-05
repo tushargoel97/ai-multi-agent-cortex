@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Cpu, Server } from "lucide-react";
+import { ChevronDown, Cpu, Server } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,8 +35,11 @@ export interface ModelSelection {
 
 const STORAGE_KEY = "cortex:model-selection";
 
+/** Sentinel understood by the graph: pick the model per intent (auto mode). */
+export const AUTO_MODEL_ID = "auto";
+
 const DEFAULT_SELECTION: ModelSelection = {
-  model_id: null,
+  model_id: AUTO_MODEL_ID,
   use_local: false,
   local_base_url: "http://host.docker.internal:1234/v1",
   local_api_key: "",
@@ -102,9 +105,8 @@ export default function ModelSelector({
       .then((data) => {
         setModels(data);
         setLoaded(true);
-        if (!selection.model_id && data.length > 0) {
-          const def = data.find((m: AvailableModel) => m.is_default) ?? data[0];
-          onChange({ ...selection, model_id: def.id });
+        if (!selection.model_id) {
+          onChange({ ...selection, model_id: AUTO_MODEL_ID });
         }
       })
       .catch(() => setLoaded(true));
@@ -124,29 +126,34 @@ export default function ModelSelector({
 
   const activeLabel = selection.use_local
     ? `Local · ${selection.local_model_name || "model"}`
-    : (() => {
-        const m = models.find((x) => x.id === selection.model_id);
-        return m
-          ? `${m.display_name}`
-          : loaded && models.length === 0
-            ? "No models"
-            : "Select model";
-      })();
+    : selection.model_id === AUTO_MODEL_ID
+      ? "Auto"
+      : (() => {
+          const m = models.find((x) => x.id === selection.model_id);
+          return m
+            ? `${m.display_name}`
+            : loaded && models.length === 0
+              ? "No models"
+              : "Select model";
+        })();
 
   return (
     <>
       <div className="flex items-center gap-2">
         {!selection.use_local ? (
           <div className="relative inline-flex items-center">
-            <Cpu className="pointer-events-none absolute left-2 size-4 text-gray-500" />
+            <Cpu className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
             <select
               aria-label="Select model"
               value={selection.model_id ?? ""}
               onChange={(e) =>
                 onChange({ ...selection, model_id: e.target.value || null })
               }
-              className="h-8 max-w-[220px] truncate rounded-md border border-gray-200 bg-white pl-7 pr-7 text-xs text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-gray-300"
+              className="h-8 max-w-[220px] cursor-pointer appearance-none truncate rounded-full border border-border bg-muted/50 pl-8 pr-8 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
+              <option value={AUTO_MODEL_ID}>
+                ✨ Auto — best model per task
+              </option>
               {!loaded && <option value="">Loading…</option>}
               {loaded && models.length === 0 && (
                 <option value="">No models (see /admin)</option>
@@ -158,13 +165,14 @@ export default function ModelSelector({
                 </option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none absolute right-3 size-3.5 text-muted-foreground" />
           </div>
         ) : (
           <button
             type="button"
             onClick={() => setDialogOpen(true)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 shadow-sm hover:bg-emerald-100",
+              "inline-flex h-8 items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300",
             )}
             title={selection.local_base_url}
           >
@@ -184,7 +192,7 @@ export default function ModelSelector({
           />
           <Label
             htmlFor="use-local-llm"
-            className="cursor-pointer text-xs text-gray-600"
+            className="cursor-pointer text-xs text-muted-foreground"
           >
             Local LLM
           </Label>

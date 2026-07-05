@@ -51,7 +51,7 @@ function getThreadLabel(t: Thread): string {
     const text = getContentString(firstMessage.content as never);
     if (text) return text.length > 80 ? text.slice(0, 80) + "…" : text;
   }
-  return `Chat ${t.thread_id.slice(0, 8)}`;
+  return "New chat";
 }
 
 function ThreadRow({
@@ -84,7 +84,7 @@ function ThreadRow({
   return (
     <div
       className={`group relative flex w-full items-center gap-1 rounded-md px-1 ${
-        isActive ? "bg-gray-100" : ""
+        isActive ? "bg-muted" : ""
       }`}
     >
       {editing ? (
@@ -137,7 +137,7 @@ function ThreadRow({
             <Button
               size="icon"
               variant="ghost"
-              className="size-7 bg-white/70 hover:bg-white"
+              className="size-7 bg-background/70 hover:bg-background"
               onClick={(e) => {
                 e.stopPropagation();
                 setDraft(getThreadLabel(thread));
@@ -150,7 +150,7 @@ function ThreadRow({
             <Button
               size="icon"
               variant="ghost"
-              className="size-7 bg-white/70 text-red-600 hover:bg-white hover:text-red-700"
+              className="size-7 bg-background/70 text-destructive hover:bg-background hover:text-destructive"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
@@ -224,7 +224,7 @@ function ThreadList({
 
   return (
     <>
-      <div className="flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
+      <div className="flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
         <div className="w-full px-2 pb-2">
           <Button
             variant="outline"
@@ -299,7 +299,7 @@ function ThreadList({
 
 function ThreadHistoryLoading() {
   return (
-    <div className="flex h-full w-full flex-col items-start justify-start gap-2 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
+    <div className="flex h-full w-full flex-col items-start justify-start gap-2 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
       {Array.from({ length: 30 }).map((_, i) => (
         <Skeleton
           key={`skeleton-${i}`}
@@ -328,10 +328,10 @@ export default function ThreadHistory() {
 
   return (
     <>
-      <div className="shadow-inner-right hidden h-screen w-[300px] shrink-0 flex-col items-start justify-start gap-6 border-r-[1px] border-slate-300 lg:flex">
+      <div className="shadow-inner-right hidden h-screen w-[300px] shrink-0 flex-col items-start justify-start gap-6 border-r-[1px] border-border lg:flex">
         <div className="flex w-full items-center justify-between px-4 pt-1.5">
           <Button
-            className="hover:bg-gray-100"
+            className="hover:bg-muted"
             variant="ghost"
             onClick={() => setChatHistoryOpen((p) => !p)}
           >

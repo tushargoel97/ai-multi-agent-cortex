@@ -1,4 +1,11 @@
 import { parsePartialJson } from "@langchain/core/output_parsers";
+import {
+  cachedTokens,
+  formatTokens,
+  getRoutingIntent,
+  getUsage,
+  RoutingChip,
+} from "../agent-activity";
 import { useStreamContext } from "@/providers/Stream";
 import { AIMessage, Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { getContentString } from "../utils";
@@ -145,6 +152,13 @@ export function AssistantMessage({
     return null;
   }
 
+  // Router classification markers render as a subtle routing chip, not a
+  // bare chat bubble with the raw intent label.
+  const routingIntent = getRoutingIntent(message);
+  if (routingIntent) {
+    return <RoutingChip intent={routingIntent} />;
+  }
+
   return (
     <div className="group mr-auto flex w-full items-start gap-2">
       <div className="flex w-full flex-col gap-2">
@@ -164,6 +178,29 @@ export function AssistantMessage({
                 <MarkdownText>{contentString}</MarkdownText>
               </div>
             )}
+
+            {(() => {
+              const usage = getUsage(message);
+              if (!usage) return null;
+              const model = (
+                message as { response_metadata?: { model_name?: string } }
+              ).response_metadata?.model_name;
+              return (
+                <div className="flex items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/70">
+                  {model && <span>{model}</span>}
+                  {model && <span>·</span>}
+                  <span>
+                    {formatTokens(usage.input_tokens ?? 0)} in /{" "}
+                    {formatTokens(usage.output_tokens ?? 0)} out tokens
+                  </span>
+                  {cachedTokens(usage) > 0 && (
+                    <span title="Prompt-cache hits — these input tokens were served from cache">
+                      · ⚡{formatTokens(cachedTokens(usage))} cached
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {!hideToolCalls && (
               <>
@@ -216,14 +253,3 @@ export function AssistantMessage({
   );
 }
 
-export function AssistantMessageLoading() {
-  return (
-    <div className="mr-auto flex items-start gap-2">
-      <div className="bg-muted flex h-8 items-center gap-1 rounded-2xl px-4 py-2">
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_1s_infinite] rounded-full"></div>
-      </div>
-    </div>
-  );
-}

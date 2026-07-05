@@ -1,0 +1,530 @@
+# Curated product spec sheets for fine-tuning the hardware specialist.
+# Deterministic source of truth — trainer/generate_dataset.py expands these
+# into chat-format Q&A pairs (train.jsonl / valid.jsonl).
+#
+# Fields (omit when not applicable to the product type):
+#   name, brand, category, release_year, launch_price_usd, cpu, gpu,
+#   compute_tflops, memory, memory_bandwidth, storage, display,
+#   power_watts, key_features[], best_for[]
+
+consoles:
+  - name: Xbox Series X
+    aliases: ["Series X"]
+    brand: Microsoft
+    category: game console
+    release_year: 2020
+    launch_price_usd: 499
+    cpu: 8-core AMD Zen 2 @ 3.8 GHz
+    gpu: AMD RDNA 2, 52 CUs @ 1.825 GHz
+    compute_tflops: 12.15
+    memory: 16 GB GDDR6
+    memory_bandwidth: 560 GB/s (10 GB) / 336 GB/s (6 GB)
+    storage: 1 TB custom NVMe SSD
+    display: outputs up to 4K at 120 Hz, 8K capable
+    power_watts: 200
+    key_features:
+      - Hardware ray tracing
+      - Quick Resume
+      - Backward compatible with four Xbox generations
+      - Expandable via proprietary storage cards
+    best_for:
+      - 4K console gaming
+      - Game Pass
+
+  - name: Xbox Series S
+    aliases: ["Series S"]
+    brand: Microsoft
+    category: game console
+    release_year: 2020
+    launch_price_usd: 299
+    cpu: 8-core AMD Zen 2 @ 3.6 GHz
+    gpu: AMD RDNA 2, 20 CUs @ 1.565 GHz
+    compute_tflops: 4.0
+    memory: 10 GB GDDR6
+    memory_bandwidth: 224 GB/s (8 GB)
+    storage: 512 GB custom NVMe SSD
+    display: targets 1440p at up to 120 Hz, all-digital
+    power_watts: 100
+    key_features:
+      - Smallest Xbox ever made
+      - Digital-only (no disc drive)
+      - Quick Resume
+      - Same CPU family as Series X
+    best_for:
+      - budget console gaming
+      - Game Pass
+
+  - name: PlayStation 5
+    aliases: ["PS5"]
+    brand: Sony
+    category: game console
+    release_year: 2020
+    launch_price_usd: 499
+    cpu: 8-core AMD Zen 2 @ up to 3.5 GHz (variable)
+    gpu: AMD RDNA 2, 36 CUs @ up to 2.23 GHz
+    compute_tflops: 10.28
+    memory: 16 GB GDDR6
+    memory_bandwidth: 448 GB/s
+    storage: 825 GB custom NVMe SSD (5.5 GB/s raw)
+    display: outputs up to 4K at 120 Hz
+    power_watts: 200
+    key_features:
+      - DualSense haptic feedback and adaptive triggers
+      - Tempest 3D audio
+      - Ultra-fast custom SSD I/O
+      - Hardware ray tracing
+    best_for:
+      - 4K console gaming
+      - PlayStation exclusives
+
+  - name: PlayStation 5 Pro
+    aliases: ["PS5 Pro"]
+    brand: Sony
+    category: game console
+    release_year: 2024
+    launch_price_usd: 699
+    cpu: 8-core AMD Zen 2 @ up to 3.85 GHz (high-frequency mode)
+    gpu: AMD RDNA-based, 60 CUs @ up to 2.17 GHz
+    compute_tflops: 16.7
+    memory: 16 GB GDDR6 + 2 GB DDR5 for the OS
+    memory_bandwidth: 576 GB/s
+    storage: 2 TB custom NVMe SSD
+    display: outputs up to 4K at 120 Hz, 8K capable
+    power_watts: 220
+    key_features:
+      - PSSR AI upscaling
+      - Roughly 45% faster rendering than the base PS5
+      - 2-3x ray-tracing performance over base PS5
+      - No disc drive included (sold separately)
+    best_for:
+      - 4K console gaming
+      - PlayStation exclusives
+      - ray tracing on console
+
+  - name: Steam Deck LCD
+    brand: Valve
+    category: handheld gaming PC
+    release_year: 2022
+    launch_price_usd: 399
+    cpu: AMD "Aerith" APU, 4-core/8-thread Zen 2 @ 2.4-3.5 GHz
+    gpu: AMD RDNA 2, 8 CUs @ 1.0-1.6 GHz
+    compute_tflops: 1.6
+    memory: 16 GB LPDDR5-5500
+    memory_bandwidth: 88 GB/s
+    storage: 64 GB eMMC to 512 GB NVMe (model dependent)
+    display: 7-inch LCD, 1280x800, 60 Hz, 400 nits
+    power_watts: 15
+    key_features:
+      - Runs SteamOS (Linux) with Proton compatibility
+      - Full PC game library in handheld form
+      - Trackpads and gyro aiming
+      - 40 Wh battery
+    best_for:
+      - handheld PC gaming
+      - budget handheld
+
+  - name: Steam Deck OLED
+    brand: Valve
+    category: handheld gaming PC
+    release_year: 2023
+    launch_price_usd: 549
+    cpu: AMD "Sephiroth" 6nm APU, 4-core/8-thread Zen 2 @ 2.4-3.5 GHz
+    gpu: AMD RDNA 2, 8 CUs @ 1.0-1.6 GHz
+    compute_tflops: 1.6
+    memory: 16 GB LPDDR5-6400
+    memory_bandwidth: 102 GB/s
+    storage: 512 GB or 1 TB NVMe SSD
+    display: 7.4-inch HDR OLED, 1280x800, 90 Hz, 1000 nits peak
+    power_watts: 15
+    key_features:
+      - HDR OLED screen at 90 Hz
+      - Bigger 50 Wh battery (30-50% more battery life)
+      - Wi-Fi 6E
+      - Lighter than the LCD model (640 g vs 669 g)
+    best_for:
+      - handheld PC gaming
+      - best handheld screen
+
+  - name: Nintendo Switch 2
+    aliases: ["Switch 2"]
+    brand: Nintendo
+    category: game console
+    release_year: 2025
+    launch_price_usd: 450
+    cpu: custom NVIDIA T239 SoC, 8-core ARM Cortex-A78C
+    gpu: NVIDIA Ampere, 1536 CUDA cores
+    compute_tflops: 3.07
+    memory: 12 GB LPDDR5X
+    memory_bandwidth: 102 GB/s docked
+    storage: 256 GB UFS
+    display: 7.9-inch LCD, 1920x1080, 120 Hz, HDR10, VRR
+    power_watts: 40
+    key_features:
+      - DLSS upscaling, up to 4K60 docked
+      - Magnetic Joy-Con 2 controllers with mouse mode
+      - Backward compatible with Switch games
+      - GameChat built-in voice chat
+    best_for:
+      - hybrid handheld/docked gaming
+      - Nintendo exclusives
+
+gpus_consumer:
+  - name: GeForce RTX 4060
+    aliases: ["RTX 4060"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2023
+    launch_price_usd: 299
+    gpu: AD107 (Ada Lovelace), 3072 CUDA cores
+    compute_tflops: 15.1
+    memory: 8 GB GDDR6, 128-bit bus
+    memory_bandwidth: 272 GB/s
+    power_watts: 115
+    key_features:
+      - DLSS 3 frame generation
+      - 3rd-gen ray-tracing cores
+      - Very low 115 W power draw
+    best_for:
+      - budget 1080p gaming
+      - small form factor builds
+
+  - name: GeForce RTX 4070 Super
+    aliases: ["RTX 4070 Super"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2024
+    launch_price_usd: 599
+    gpu: AD104 (Ada Lovelace), 7168 CUDA cores
+    compute_tflops: 35.5
+    memory: 12 GB GDDR6X, 192-bit bus
+    memory_bandwidth: 504 GB/s
+    power_watts: 220
+    key_features:
+      - DLSS 3 frame generation
+      - Close to RTX 4070 Ti performance at lower price
+    best_for:
+      - 1440p gaming
+      - price-to-performance
+
+  - name: GeForce RTX 4080 Super
+    aliases: ["RTX 4080 Super"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2024
+    launch_price_usd: 999
+    gpu: AD103 (Ada Lovelace), 10240 CUDA cores
+    compute_tflops: 52.2
+    memory: 16 GB GDDR6X, 256-bit bus
+    memory_bandwidth: 736 GB/s
+    power_watts: 320
+    key_features:
+      - DLSS 3 frame generation
+      - Strong 4K performance under 4090 pricing
+    best_for:
+      - 4K gaming
+      - high-end gaming under $1000
+
+  - name: GeForce RTX 4090
+    aliases: ["RTX 4090"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2022
+    launch_price_usd: 1599
+    gpu: AD102 (Ada Lovelace), 16384 CUDA cores
+    compute_tflops: 82.6
+    memory: 24 GB GDDR6X, 384-bit bus
+    memory_bandwidth: 1008 GB/s
+    power_watts: 450
+    key_features:
+      - Flagship Ada Lovelace card
+      - DLSS 3 frame generation
+      - Popular for local AI workloads thanks to 24 GB VRAM
+    best_for:
+      - 4K gaming
+      - local AI and content creation
+
+  - name: GeForce RTX 5070
+    aliases: ["RTX 5070"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2025
+    launch_price_usd: 549
+    gpu: GB205 (Blackwell), 6144 CUDA cores
+    compute_tflops: 30.9
+    memory: 12 GB GDDR7, 192-bit bus
+    memory_bandwidth: 672 GB/s
+    power_watts: 250
+    key_features:
+      - DLSS 4 multi-frame generation
+      - GDDR7 memory
+    best_for:
+      - 1440p gaming
+      - mainstream Blackwell upgrade
+
+  - name: GeForce RTX 5080
+    aliases: ["RTX 5080"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2025
+    launch_price_usd: 999
+    gpu: GB203 (Blackwell), 10752 CUDA cores
+    compute_tflops: 56.3
+    memory: 16 GB GDDR7, 256-bit bus
+    memory_bandwidth: 960 GB/s
+    power_watts: 360
+    key_features:
+      - DLSS 4 multi-frame generation
+      - GDDR7 at 30 Gbps
+    best_for:
+      - 4K gaming
+      - high-end gaming under $1000
+
+  - name: GeForce RTX 5090
+    aliases: ["RTX 5090"]
+    brand: NVIDIA
+    category: consumer graphics card
+    release_year: 2025
+    launch_price_usd: 1999
+    gpu: GB202 (Blackwell), 21760 CUDA cores
+    compute_tflops: 104.8
+    memory: 32 GB GDDR7, 512-bit bus
+    memory_bandwidth: 1792 GB/s
+    power_watts: 575
+    key_features:
+      - Flagship Blackwell card
+      - DLSS 4 multi-frame generation
+      - 32 GB VRAM for AI and creator workloads
+    best_for:
+      - 4K and 8K gaming
+      - local AI and content creation
+
+gpus_datacenter:
+  - name: NVIDIA H100 SXM
+    aliases: ["H100"]
+    brand: NVIDIA
+    category: datacenter GPU
+    release_year: 2022
+    launch_price_usd: 30000
+    gpu: GH100 (Hopper), 16896 CUDA cores
+    compute_tflops: 989
+    memory: 80 GB HBM3
+    memory_bandwidth: 3350 GB/s
+    power_watts: 700
+    key_features:
+      - Transformer Engine with FP8 (up to ~3.96 PFLOPS sparse FP8)
+      - NVLink 900 GB/s
+      - The workhorse GPU of the 2023-2024 LLM boom
+    best_for:
+      - LLM training
+      - AI inference at scale
+
+  - name: NVIDIA B200
+    aliases: ["B200"]
+    brand: NVIDIA
+    category: datacenter GPU
+    release_year: 2024
+    launch_price_usd: 40000
+    gpu: Blackwell dual-die design
+    compute_tflops: 4500
+    memory: 192 GB HBM3e
+    memory_bandwidth: 8000 GB/s
+    power_watts: 1000
+    key_features:
+      - Second-gen Transformer Engine with FP4
+      - Dual-die design acting as one GPU
+      - NVLink 5 at 1.8 TB/s
+    best_for:
+      - LLM training
+      - frontier-scale AI clusters
+
+gpus_amd:
+  - name: Radeon RX 7800 XT
+    aliases: ["RX 7800 XT"]
+    brand: AMD
+    category: consumer graphics card
+    release_year: 2023
+    launch_price_usd: 499
+    gpu: Navi 32 (RDNA 3), 3840 stream processors
+    compute_tflops: 37.3
+    memory: 16 GB GDDR6, 256-bit bus
+    memory_bandwidth: 624 GB/s
+    power_watts: 263
+    key_features:
+      - 16 GB VRAM at a mid-range price
+      - FSR 3 frame generation
+    best_for:
+      - 1440p gaming
+      - price-to-performance
+
+  - name: Radeon RX 7900 XTX
+    aliases: ["RX 7900 XTX"]
+    brand: AMD
+    category: consumer graphics card
+    release_year: 2022
+    launch_price_usd: 999
+    gpu: Navi 31 (RDNA 3), 6144 stream processors
+    compute_tflops: 61.4
+    memory: 24 GB GDDR6, 384-bit bus
+    memory_bandwidth: 960 GB/s
+    power_watts: 355
+    key_features:
+      - Flagship RDNA 3 card
+      - Chiplet GPU design
+      - 24 GB VRAM
+    best_for:
+      - 4K gaming
+      - high-end gaming under $1000
+
+  - name: Radeon RX 9070
+    aliases: ["RX 9070"]
+    brand: AMD
+    category: consumer graphics card
+    release_year: 2025
+    launch_price_usd: 549
+    gpu: Navi 48 (RDNA 4), 3584 stream processors (56 CUs)
+    compute_tflops: 36.1
+    memory: 16 GB GDDR6, 256-bit bus
+    memory_bandwidth: 640 GB/s
+    power_watts: 220
+    key_features:
+      - RDNA 4 ray-tracing improvements
+      - FSR 4 AI upscaling
+      - Efficient 220 W board power
+    best_for:
+      - 1440p gaming
+      - efficiency-focused builds
+
+  - name: Radeon RX 9070 XT
+    aliases: ["RX 9070 XT"]
+    brand: AMD
+    category: consumer graphics card
+    release_year: 2025
+    launch_price_usd: 599
+    gpu: Navi 48 (RDNA 4), 4096 stream processors (64 CUs)
+    compute_tflops: 48.7
+    memory: 16 GB GDDR6, 256-bit bus
+    memory_bandwidth: 640 GB/s
+    power_watts: 304
+    key_features:
+      - FSR 4 AI upscaling
+      - Big ray-tracing uplift over RDNA 3
+      - Strong 4K value versus RTX 5070 Ti
+    best_for:
+      - 1440p and 4K gaming
+      - price-to-performance
+
+cpus:
+  - name: Ryzen 7 7800X3D
+    aliases: ["7800X3D"]
+    brand: AMD
+    category: desktop CPU
+    release_year: 2023
+    launch_price_usd: 449
+    cpu: 8 cores / 16 threads, Zen 4, 4.2-5.0 GHz
+    memory: 104 MB total cache (96 MB L3 with 3D V-Cache)
+    power_watts: 120
+    key_features:
+      - 3D V-Cache stacked L3 cache
+      - Was the top gaming CPU of 2023
+      - AM5 socket
+    best_for:
+      - gaming
+      - efficiency
+
+  - name: Ryzen 9 7950X
+    aliases: ["7950X"]
+    brand: AMD
+    category: desktop CPU
+    release_year: 2022
+    launch_price_usd: 699
+    cpu: 16 cores / 32 threads, Zen 4, 4.5-5.7 GHz
+    memory: 80 MB total cache (64 MB L3)
+    power_watts: 170
+    key_features:
+      - 16 full performance cores
+      - AM5 socket with DDR5 and PCIe 5.0
+    best_for:
+      - content creation
+      - heavy multithreaded workloads
+
+  - name: Ryzen 7 9800X3D
+    aliases: ["9800X3D"]
+    brand: AMD
+    category: desktop CPU
+    release_year: 2024
+    launch_price_usd: 479
+    cpu: 8 cores / 16 threads, Zen 5, 4.7-5.2 GHz
+    memory: 104 MB total cache (96 MB L3 with 2nd-gen 3D V-Cache)
+    power_watts: 120
+    key_features:
+      - 2nd-gen 3D V-Cache mounted under the cores (runs cooler, clocks higher)
+      - Widely reviewed as the best gaming CPU on release
+      - Fully overclockable unlike earlier X3D chips
+    best_for:
+      - gaming
+      - high-refresh esports
+
+  - name: Ryzen 9 9950X
+    aliases: ["9950X"]
+    brand: AMD
+    category: desktop CPU
+    release_year: 2024
+    launch_price_usd: 649
+    cpu: 16 cores / 32 threads, Zen 5, 4.3-5.7 GHz
+    memory: 80 MB total cache (64 MB L3)
+    power_watts: 170
+    key_features:
+      - Zen 5 flagship for AM5
+      - Strong AVX-512 throughput
+    best_for:
+      - content creation
+      - heavy multithreaded workloads
+
+  - name: Core i9-13900K
+    aliases: ["i9-13900K", "13900K"]
+    brand: Intel
+    category: desktop CPU
+    release_year: 2022
+    launch_price_usd: 589
+    cpu: 24 cores (8 P + 16 E) / 32 threads, Raptor Lake, up to 5.8 GHz
+    memory: 36 MB L3 cache
+    power_watts: 253
+    key_features:
+      - Hybrid P-core/E-core design
+      - LGA1700, supports DDR4 and DDR5
+    best_for:
+      - gaming plus streaming
+      - mixed workloads
+
+  - name: Core i9-14900K
+    aliases: ["i9-14900K", "14900K"]
+    brand: Intel
+    category: desktop CPU
+    release_year: 2023
+    launch_price_usd: 589
+    cpu: 24 cores (8 P + 16 E) / 32 threads, Raptor Lake Refresh, up to 6.0 GHz
+    memory: 36 MB L3 cache
+    power_watts: 253
+    key_features:
+      - 6.0 GHz boost out of the box
+      - Same LGA1700 platform as 13th gen
+    best_for:
+      - gaming plus streaming
+      - mixed workloads
+
+  - name: Core Ultra 9 285K
+    aliases: ["285K"]
+    brand: Intel
+    category: desktop CPU
+    release_year: 2024
+    launch_price_usd: 589
+    cpu: 24 cores (8 P + 16 E) / 24 threads, Arrow Lake, up to 5.7 GHz (no hyper-threading)
+    memory: 36 MB L3 cache
+    power_watts: 250
+    key_features:
+      - First desktop Core Ultra with a built-in NPU
+      - New LGA1851 socket
+      - Big efficiency gains, mixed gaming results versus 14900K
+    best_for:
+      - content creation
+      - efficiency

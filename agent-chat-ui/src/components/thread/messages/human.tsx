@@ -2,6 +2,7 @@ import { useStreamContext } from "@/providers/Stream";
 import { Message } from "@langchain/langgraph-sdk";
 import { useState } from "react";
 import { getContentString } from "../utils";
+import { estimateTokens } from "../agent-activity";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { BranchSwitcher, CommandBar } from "./shared";
@@ -111,9 +112,14 @@ export function HumanMessage({
             )}
             {/* Render text if present, otherwise fallback to file/image name */}
             {contentString ? (
-              <p className="bg-muted ml-auto w-fit rounded-3xl px-4 py-2 text-right whitespace-pre-wrap">
-                {contentString}
-              </p>
+              <div className="ml-auto flex flex-col items-end gap-1">
+                <p className="bg-muted w-fit rounded-3xl px-4 py-2 text-right whitespace-pre-wrap">
+                  {contentString}
+                </p>
+                <span className="pr-1 text-[11px] tabular-nums text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100">
+                  ≈{estimateTokens(contentString)} tokens
+                </span>
+              </div>
             ) : null}
           </div>
         )}

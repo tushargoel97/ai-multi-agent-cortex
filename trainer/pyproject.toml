@@ -1,0 +1,27 @@
+[project]
+name = "cortex-trainer"
+version = "0.1.0"
+description = "Host-side MLX LoRA fine-tuning service for ai-multi-agent-cortex (Apple Silicon only)"
+requires-python = ">=3.12"
+dependencies = [
+    "mlx-lm>=0.22.0",
+    "fastapi[standard]>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic-settings>=2.6.0",
+    "pyyaml>=6.0",
+    # Training-data source ingestion (PDF / Excel / web / prompts):
+    "pypdf>=5.0",
+    "openpyxl>=3.1",
+    "beautifulsoup4>=4.12",
+    "httpx>=0.27",
+    "python-multipart>=0.0.9",
+    # Only needed by llama.cpp's convert_hf_to_gguf.py (HF -> GGUF step):
+    "torch>=2.4",
+    "transformers>=4.45",
+    "sentencepiece>=0.2",
+    "gguf>=0.10",
+    "protobuf>=4.25",
+]
+
+[tool.uv]
+package = false

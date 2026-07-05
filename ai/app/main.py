@@ -107,6 +107,33 @@ async def admin_load(body: DownloadRequest):
         raise HTTPException(500, "Failed to load model")
 
 
+class ImportRequest(BaseModel):
+    name: str
+    filename: str
+    description: str | None = None
+    context_length: int = 4096
+
+
+@app.post("/admin/import-local")
+async def admin_import_local(body: ImportRequest):
+    """Register a GGUF already present in the models dir (e.g. host-trained),
+    then load it so it's immediately servable."""
+    try:
+        info = mm.import_local_model(
+            body.name,
+            body.filename,
+            description=body.description,
+            context_length=body.context_length,
+        )
+        await mm.load_model(body.name)
+        return {"status": "imported", "model": info}
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+    except Exception:
+        logger.exception("Import failed")
+        raise HTTPException(500, "Failed to import model")
+
+
 @app.delete("/admin/models/{name}")
 async def admin_delete(name: str):
     if not await mm.delete_model(name):

@@ -1,0 +1,37 @@
+# Auto mode: per-intent model candidates, tried in order — the first model
+# that is enabled in the registry (model + provider) wins. The keyword
+# `finetuned` resolves to the newest enabled `finetuned-*` local model.
+# `fast` is the utility tier (router classification, synthesizer, guardrails,
+# thread titles). `image_generation` lists Google image-capable model ids
+# used directly by the imagegen node (they are not registry chat models).
+
+profiles:
+  balanced:
+    # Haiku leads the cheap tier: the free Gemini key allows only ~20
+    # requests/day on flash models, which dies mid-conversation.
+    fast: [claude-haiku-4-5-20251001, gemini-3.5-flash, gpt-4o-mini, claude-sonnet-5]
+    general_chat: [claude-haiku-4-5-20251001, gemini-3.5-flash, claude-sonnet-5]
+    knowledge_query: [claude-sonnet-5, claude-opus-4-8, gpt-5.5-pro]
+    reasoning_task: [claude-opus-4-8, gpt-5.5-pro, claude-sonnet-5]
+    prompt_caching: [claude-sonnet-5, claude-opus-4-8]
+    product_specs: [finetuned]
+    # Google first (free when under quota), then OpenAI (reliable, paid).
+    image_generation: [gemini-3-pro-image, gpt-image-1.5, gemini-3.1-flash-image, gpt-image-1-mini]
+
+  quality:
+    fast: [claude-sonnet-5, gemini-3.5-flash]
+    general_chat: [claude-sonnet-5, claude-opus-4-8]
+    knowledge_query: [claude-opus-4-8, gpt-5.5-pro, claude-sonnet-5]
+    reasoning_task: [gpt-5.5-pro, claude-opus-4-8]
+    prompt_caching: [claude-opus-4-8, claude-sonnet-5]
+    product_specs: [finetuned]
+    image_generation: [gpt-image-2, gemini-3-pro-image, gpt-image-1.5]
+
+  cost:
+    fast: [claude-haiku-4-5-20251001, gemini-3.5-flash]
+    general_chat: [claude-haiku-4-5-20251001, gemini-3.5-flash]
+    knowledge_query: [claude-haiku-4-5-20251001, claude-sonnet-5]
+    reasoning_task: [claude-sonnet-5, claude-haiku-4-5-20251001]
+    prompt_caching: [claude-sonnet-5]
+    product_specs: [finetuned]
+    image_generation: [gemini-2.5-flash-image, gpt-image-1-mini, gemini-3.1-flash-image]
