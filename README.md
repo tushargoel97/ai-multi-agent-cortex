@@ -31,7 +31,7 @@ CLI steps are required for day-to-day use.
        │ LangGraph SDK over HTTP
        ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│  LangGraph runtime (port 2024) — cortex graph                         │
+│  Custom durable server (:2024) — cortex graph                         │
 │                                                                       │
 │  START ─▶ route ─┬─ specialist  (fine-tuned local model — bypass)     │
 │                  └─ router ─┬─ generalist     ───────────────▶ END    │
@@ -122,27 +122,15 @@ To use Azure OpenAI, set `LLM_PROVIDER=azure_openai` and fill in the
 ### 2. Start the stack
 
 ```bash
-# core services: Postgres, the graph runtime, the chat UI, and the local
-# model server
-docker compose up -d db langgraph ui ai
+# core services: Postgres, the custom LangGraph server, the chat UI, and
+# the local model server
+docker compose up -d --build db langgraph ui ai
 ```
 
-This brings up:
-
-| Service         | Port | What                                                       |
-| --------------- | ---- | ---------------------------------------------------------- |
-| `db`            | 5432 | pgvector PostgreSQL (registry, gaps, settings, KB)         |
-| `langgraph`     | 2024 | LangGraph runtime serving the `cortex` graph              |
-| `ui`            | 3000 | `agent-chat-ui` Next.js front-end + `/admin` console       |
-| `ai`            | 8100 | llama.cpp GGUF server for local / fine-tuned models        |
-| `thread-backup` | —    | mirrors chat threads to Postgres and restores them         |
-
-Optional stacks are behind compose profiles:
-
-```bash
-docker compose --profile observability up -d   # Langfuse (UI on :4000)
-docker compose --profile evals up              # run the eval suites
-```
+The chat UI comes up on <http://localhost:3000> and the LangGraph server on
+<http://localhost:2024>. See [Deployment](#deployment) for the full service
+breakdown, the persistence model, compose profiles, and rebuild/reset
+commands.
 
 ### 3. Configure providers and models
 
@@ -154,7 +142,80 @@ Open the admin console at <http://localhost:3000/admin> (log in with
 2. **Models** — register the models you want and pick the active auto-mode
    profile. Mark one model as the default.
 
-Alternatively, seed a starter registry and knowledge base:
+Prefer a starter registry and knowledge base instead? See
+[Deployment → Seed a starter registry](#seed-a-starter-registry--knowledge-base).
+
+### 4. Open the chat UI
+
+Visit <http://localhost:3000> and start a conversation. With **✨ Auto**
+selected, the router dispatches each turn to the right specialist and picks
+the best model for the job.
+
+---
+
+## Deployment
+
+The whole stack runs in **Docker Compose**. The only component that is *not*
+containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-specialist)
+— it needs Apple-Silicon MLX and runs on the host.
+
+### Services
+
+| Service     | Host port | Build                         | Role                                                               |
+| ----------- | --------- | ----------------------------- | ------------------------------------------------------------------ |
+| `db`        | 5432      | `pgvector/pgvector:pg16`      | Postgres — app registry/KB **and** durable graph state (see below) |
+| `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server ([`cortex/server`](cortex/server)) |
+| `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
+| `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models                |
+
+Optional stacks live behind compose profiles (off by default):
+
+```bash
+docker compose --profile observability up -d   # Langfuse tracing UI on :4000
+docker compose --profile evals up              # run the eval suites once
+```
+
+### Custom LangGraph server & persistence
+
+The `langgraph` service runs a compact, self-hosted FastAPI app
+([`cortex/server`](cortex/server)) that implements the subset of the LangGraph
+Platform REST + SSE API the chat UI's `useStream` client speaks. It replaces
+the licensed LangGraph Platform image and the earlier in-memory `langgraph
+dev` runtime — **no LangSmith license and no Redis required.**
+
+- **Durable state** — the graph is compiled with an `AsyncPostgresSaver`
+  checkpointer and an `AsyncPostgresStore`, so chat threads, checkpoints, and
+  long-term semantic memory all persist in Postgres (`db`). Conversations
+  survive container restarts, image rebuilds, and version upgrades.
+- **Ports** — the server binds `8000` inside the container and is published as
+  `2024:8000`. The UI container reaches it at `http://langgraph:8000` over the
+  compose network; host tooling and the eval suite use `http://localhost:2024`.
+- **Startup order** — the FastAPI lifespan opens a psycopg pool, runs the
+  checkpointer/store migrations, and compiles the graph before serving. It
+  waits for `db` to be healthy and exposes a `/ok` health check that `ui`
+  gates on (`depends_on: condition: service_healthy`).
+- **Schema** — the saver/store tables (`checkpoints`, `checkpoint_blobs`,
+  `checkpoint_writes`, `store`, `store_vectors`) plus a small `threads`
+  metadata table are created automatically in the same `cortex` database as
+  the app tables — no manual migration step.
+
+### Bring the stack up / rebuild
+
+```bash
+cp .env.example .env                          # set OPENAI_API_KEY first
+
+docker compose up -d --build db langgraph ui ai
+docker compose logs -f langgraph              # wait for "Cortex durable server ready"
+```
+
+`--build` is needed on first run and after changing Python or UI source:
+
+```bash
+docker compose up -d --build langgraph        # server / graph changes
+docker compose up -d --build ui               # UI changes
+```
+
+### Seed a starter registry + knowledge base
 
 ```bash
 # tables + a small curated knowledge corpus (no embeddings)
@@ -164,11 +225,37 @@ docker compose exec langgraph /app/.venv/bin/python -m cortex.db.seed
 docker compose exec langgraph /app/.venv/bin/python -m cortex.db.seed --embeddings
 ```
 
-### 4. Open the chat UI
+### Stop & reset
 
-Visit <http://localhost:3000> and start a conversation. With **✨ Auto**
-selected, the router dispatches each turn to the right specialist and picks
-the best model for the job.
+```bash
+docker compose down            # stop the stack (keeps all data)
+docker compose down -v         # also drop the pgdata volume — wipes the
+                               # registry, KB, AND all chat threads
+```
+
+To reset only the chat/graph state (keeping providers/models/KB), drop the
+LangGraph tables while `db` is up:
+
+```bash
+docker compose exec db psql -U cortex -d cortex -c \
+  "DROP TABLE IF EXISTS checkpoints, checkpoint_blobs, checkpoint_writes, checkpoint_migrations, store, store_vectors, store_migrations, threads CASCADE;"
+```
+
+### Environment
+
+Configuration is read from `.env` (see [`.env.example`](.env.example)). Key
+variables:
+
+| Variable                            | Purpose                                            |
+| ----------------------------------- | -------------------------------------------------- |
+| `OPENAI_API_KEY`                    | OpenAI key (default provider)                      |
+| `LLM_PROVIDER`                      | `openai` or `azure_openai`                         |
+| `DATABASE_URL`                      | Postgres DSN (app + durable server share it)       |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin console login                                |
+| `LANGFUSE_*`                        | Optional Langfuse tracing (observability profile)  |
+
+The `langgraph` container reads `DATABASE_URL` for both the app's SQLAlchemy
+code and the durable server (the server normalizes the driver suffix).
 
 ---
 
@@ -295,7 +382,8 @@ ai-multi-agent-cortex/
 │   │   └── agents/           # YAML agent specs (router, generalist, researcher,
 │   │                       #   reasoner, coder, prompt_cacher, specialist, synthesizer)
 │   ├── model_client/         # Chat + embedding client factories
-│   ├── scripts/              # thread_backup sidecar
+│   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
+│   ├── scripts/              # one-off maintenance scripts
 │   └── tools/                # registry + web / utility / shared / memory tools
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
 ├── trainer/                  # Host-side MLX LoRA fine-tuning service (port 8200)
@@ -310,7 +398,7 @@ ai-multi-agent-cortex/
 │   └── test_security.py
 ├── docker/                   # Dockerfiles for langgraph / ui / evals + init.sql
 ├── docker-compose.yml
-├── langgraph.json            # LangGraph runtime config (graphs.cortex, store index)
+├── langgraph.json            # Graph ref for optional `langgraph dev` debugging
 ├── settings.yaml             # Settings template (env-var substitution)
 └── pyproject.toml            # uv-managed Python project
 ```
