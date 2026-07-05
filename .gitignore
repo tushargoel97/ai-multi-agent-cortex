@@ -23,6 +23,12 @@ trainer/data/sources/
 # LangGraph
 .langgraph_api
 
+# Assistant context (kept local, not versioned)
+.claude/
+
+# Next.js build output
+.next/
+
 # Misc
 .deepeval
 project_context
