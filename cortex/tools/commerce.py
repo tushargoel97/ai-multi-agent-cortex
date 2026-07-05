@@ -1,22 +1,23 @@
-"""Shopping & booking tools — region-aware product prices and booking search.
+"""Shopping & booking tools — deterministic deep links to live results.
 
-Both build on the DuckDuckGo search helper in :mod:`cortex.tools.web` (no API
-keys). Queries are scoped to the retailers / booking platforms relevant to the
-user's region, and results come back as structured JSON that the shopping /
-booking agents turn into comparison tables with live source links.
+DuckDuckGo scraping is blocked (anti-bot 202) and there is no search-API key,
+so rather than return empty/stale snippets these tools build direct deep links
+into each platform's own live search/results page — region-aware, date-correct
+(using the current year), and instant (no network calls). The shopping and
+booking agents render them as cards; live prices, fares, seats, and times are
+shown on the destination page, never guessed here.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
-from typing import Any
+from datetime import date
+from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, Field
 
 from cortex.tools.registry import register_tool
-from cortex.tools.web import _ddg_search
 
 # ── Region → retailers ───────────────────────────────────────────────────────
 # currency label + ordered list of shopping domains searched for each region.
@@ -42,14 +43,28 @@ _REGION_ALIASES = {
     "UAE": "AE", "DUBAI": "AE", "SINGAPORE": "SG", "JAPAN": "JP",
 }
 
-# Price-looking tokens in snippets: $1,299.00 · ₹1,29,900 · £999 · AED 4,999 ·
-# INR 54,990 · 1299 USD (symbol/code before OR after the number).
-_PRICE_RE = re.compile(
-    r"(?:US\$|A\$|C\$|S\$|AED|Rs\.?|₹|\$|£|€|¥)\s?\d[\d.,]*\d"
-    r"|(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)\s?\d[\d.,]*\d"
-    r"|\d[\d.,]*\d\s?(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)",
-    re.IGNORECASE,
-)
+# Known-good product-search URL per retailer ({q} = url-encoded product). Any
+# retailer without an entry falls back to a Google search scoped to its domain,
+# which always resolves — so every card link works.
+_RETAILER_SEARCH: dict[str, str] = {
+    "amazon.com": "https://www.amazon.com/s?k={q}",
+    "amazon.in": "https://www.amazon.in/s?k={q}",
+    "amazon.co.uk": "https://www.amazon.co.uk/s?k={q}",
+    "amazon.ca": "https://www.amazon.ca/s?k={q}",
+    "amazon.com.au": "https://www.amazon.com.au/s?k={q}",
+    "amazon.de": "https://www.amazon.de/s?k={q}",
+    "amazon.fr": "https://www.amazon.fr/s?k={q}",
+    "amazon.ae": "https://www.amazon.ae/s?k={q}",
+    "amazon.sg": "https://www.amazon.sg/s?k={q}",
+    "amazon.co.jp": "https://www.amazon.co.jp/s?k={q}",
+    "flipkart.com": "https://www.flipkart.com/search?q={q}",
+    "walmart.com": "https://www.walmart.com/search?q={q}",
+    "walmart.ca": "https://www.walmart.ca/search?q={q}",
+    "bestbuy.com": "https://www.bestbuy.com/site/searchpage.jsp?st={q}",
+    "target.com": "https://www.target.com/s?searchTerm={q}",
+    "ebay.com": "https://www.ebay.com/sch/i.html?_nkw={q}",
+    "ebay.co.uk": "https://www.ebay.co.uk/sch/i.html?_nkw={q}",
+}
 
 
 def _norm_region(region: str | None) -> str:
@@ -60,47 +75,187 @@ def _norm_region(region: str | None) -> str:
     return r if r in _SHOPPING_SITES else _DEFAULT_REGION
 
 
-def _price_hint(*texts: str) -> str:
-    for text in texts:
-        m = _PRICE_RE.search(text or "")
+def _retailer_url(domain: str, product: str) -> str:
+    """A working product-search link for a retailer (Google-scoped fallback)."""
+    tmpl = _RETAILER_SEARCH.get(domain)
+    if tmpl:
+        return tmpl.format(q=quote(product))
+    return "https://www.google.com/search?q=" + quote_plus(f"{product} site:{domain}")
+
+
+# ── Booking: city→IATA, date parsing, and deep-link builders ───────────────
+_CITY_IATA: dict[str, str] = {
+    "mumbai": "BOM", "bombay": "BOM", "delhi": "DEL", "new delhi": "DEL",
+    "bangalore": "BLR", "bengaluru": "BLR", "hyderabad": "HYD", "chennai": "MAA",
+    "kolkata": "CCU", "calcutta": "CCU", "pune": "PNQ", "ahmedabad": "AMD",
+    "goa": "GOI", "jaipur": "JAI", "kochi": "COK", "cochin": "COK",
+    "lucknow": "LKO", "chandigarh": "IXC", "srinagar": "SXR",
+    "new york": "NYC", "nyc": "NYC", "los angeles": "LAX", "san francisco": "SFO",
+    "chicago": "ORD", "boston": "BOS", "seattle": "SEA", "miami": "MIA",
+    "washington": "WAS", "atlanta": "ATL", "dallas": "DFW", "houston": "IAH",
+    "london": "LON", "paris": "PAR", "amsterdam": "AMS", "frankfurt": "FRA",
+    "munich": "MUC", "berlin": "BER", "madrid": "MAD", "barcelona": "BCN",
+    "rome": "ROM", "milan": "MIL", "zurich": "ZRH", "dublin": "DUB",
+    "dubai": "DXB", "abu dhabi": "AUH", "doha": "DOH", "singapore": "SIN",
+    "bangkok": "BKK", "hong kong": "HKG", "tokyo": "TYO", "seoul": "SEL",
+    "sydney": "SYD", "melbourne": "MEL", "toronto": "YTO", "vancouver": "YVR",
+    "kuala lumpur": "KUL", "jakarta": "CGK", "istanbul": "IST",
+}
+
+_MONTHS: dict[str, int] = {}
+for _i, _m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july",
+     "august", "september", "october", "november", "december"], start=1
+):
+    _MONTHS[_m] = _i
+    _MONTHS[_m[:3]] = _i
+_MONTHS_RE = "|".join(sorted(_MONTHS, key=len, reverse=True))
+
+
+def _roll_year(d: date) -> date:
+    """Push a bare day/month into the future if it already passed this year."""
+    if d < date.today():
+        try:
+            return d.replace(year=d.year + 1)
+        except ValueError:
+            return d
+    return d
+
+
+def _parse_date(text: str) -> date | None:
+    """Extract a departure/check-in date; default the year to the current one."""
+    t = (text or "").lower()
+    today = date.today()
+    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", t)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    m = re.search(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({_MONTHS_RE})\.?\s*(\d{{4}})?", t)
+    if m:
+        day, month, yr = int(m.group(1)), _MONTHS[m.group(2)], m.group(3)
+        try:
+            d = date(int(yr) if yr else today.year, month, day)
+        except ValueError:
+            return None
+        return d if yr else _roll_year(d)
+    m = re.search(rf"\b({_MONTHS_RE})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s*(\d{{4}})?", t)
+    if m:
+        month, day, yr = _MONTHS[m.group(1)], int(m.group(2)), m.group(3)
+        try:
+            d = date(int(yr) if yr else today.year, month, day)
+        except ValueError:
+            return None
+        return d if yr else _roll_year(d)
+    m = re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b", t)
+    if m:
+        day, month, yr = int(m.group(1)), int(m.group(2)), m.group(3)
+        year = today.year
+        if yr:
+            year = int(yr) + 2000 if len(yr) == 2 else int(yr)
+        try:
+            d = date(year, month, day)
+        except ValueError:
+            return None
+        return d if yr else _roll_year(d)
+    return None
+
+
+def _clean_place(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip(" .,")).strip()
+
+
+def _parse_route(query: str, origin: str, destination: str) -> tuple[str, str]:
+    o, d = _clean_place(origin), _clean_place(destination)
+    if not (o and d):
+        m = re.search(
+            r"from\s+(.+?)\s+to\s+(.+?)(?:\s+on\b|\s+for\b|\s+in\b|[,.]|\d|$)",
+            query, re.I,
+        ) or re.search(
+            r"\b([a-z][a-z .]*?)\s+to\s+([a-z][a-z .]*?)(?:\s+on\b|\s+for\b|[,.]|\d|$)",
+            query, re.I,
+        )
         if m:
-            return m.group(0).strip()
-    return ""
+            o = o or _clean_place(m.group(1))
+            d = d or _clean_place(m.group(2))
+    return o, d
 
 
-def _price_value(price: str) -> float | None:
-    """Best-effort numeric value from a price string, for cheapest-first sorting.
+def _parse_city(query: str, destination: str) -> str:
+    if _clean_place(destination):
+        return _clean_place(destination)
+    m = re.search(
+        r"\b(?:in|at|near)\s+(.+?)(?:\s+on\b|\s+for\b|\s+this\b|\s+next\b|[,.]|\d|$)",
+        query, re.I,
+    )
+    return _clean_place(m.group(1)) if m else _clean_place(query)
 
-    Handles US ($1,299.00), Indian (₹1,29,900), European (€1.299,00 / 49,99),
-    and plain (999) formats — the last separator is treated as the decimal
-    point when both are present, and a lone ``,NN`` tail as a decimal comma.
-    """
-    m = re.search(r"\d[\d.,]*", price or "")
-    if not m:
-        return None
-    num = m.group(0).strip(".,")
-    if "," in num and "." in num:
-        if num.rfind(",") > num.rfind("."):
-            num = num.replace(".", "").replace(",", ".")  # European 1.299,00
+
+def _opt(platform: str, title: str, url: str, snippet: str = "") -> dict[str, str]:
+    return {"platform": platform, "title": title, "url": url, "snippet": snippet}
+
+
+def _flight_options(query: str, origin: str, destination: str, d: date | None, reg: str) -> list[dict[str, str]]:
+    o, dest = _parse_route(query, origin, destination)
+    oi, di = _CITY_IATA.get(o.lower(), ""), _CITY_IATA.get(dest.lower(), "")
+    frm, to = (o or "origin").title(), (dest or "destination").title()
+    gq = f"flights from {frm} to {to}" + (f" on {d.isoformat()}" if d else "")
+    opts = [
+        _opt("google.com/travel/flights", "Google Flights — compare every airline",
+             "https://www.google.com/travel/flights?q=" + quote_plus(gq))
+    ]
+    if oi and di:
+        arrow = f"{oi}→{di}"
+        if d:
+            opts.append(_opt("skyscanner.net", f"Skyscanner — {arrow}",
+                             f"https://www.skyscanner.net/transport/flights/{oi.lower()}/{di.lower()}/{d.strftime('%y%m%d')}/"))
+            opts.append(_opt("kayak.com", f"KAYAK — {arrow}",
+                             f"https://www.kayak.com/flights/{oi}-{di}/{d.isoformat()}"))
+            if reg == "IN":
+                opts.append(_opt("makemytrip.com", f"MakeMyTrip — {arrow}",
+                                 f"https://www.makemytrip.com/flight/search?itinerary={oi}-{di}-{d.strftime('%d/%m/%Y')}&tripType=O&paxType=A-1_C-0_I-0&cabinClass=E"))
+                opts.append(_opt("cleartrip.com", f"Cleartrip — {arrow}",
+                                 f"https://www.cleartrip.com/flights/results?adults=1&childs=0&infants=0&class=Economy&depart_date={d.strftime('%d/%m/%Y')}&from={oi}&to={di}"))
         else:
-            num = num.replace(",", "")  # US 1,299.00
-    elif "," in num:
-        if num.count(",") == 1 and re.search(r",\d{2}$", num):
-            num = num.replace(",", ".")  # European decimal 49,99
-        else:
-            num = num.replace(",", "")  # thousands 1,299 / 1,29,900
-    try:
-        return float(num)
-    except ValueError:
-        return None
+            opts.append(_opt("skyscanner.net", f"Skyscanner — {arrow}",
+                             f"https://www.skyscanner.net/transport/flights/{oi.lower()}/{di.lower()}/"))
+    return opts
 
 
-def _safe_ddg(query: str, max_results: int) -> list[dict[str, str]]:
-    """``_ddg_search`` that never raises — one site failing must not sink the tool."""
-    try:
-        return _ddg_search(query, max_results=max_results)
-    except Exception:  # noqa: BLE001
-        return []
+def _hotel_options(query: str, destination: str, d: date | None, reg: str) -> list[dict[str, str]]:
+    city = _parse_city(query, destination)
+    label = (city or "your destination").title()
+    bk = "https://www.booking.com/searchresults.html?ss=" + quote_plus(city)
+    if d:
+        bk += f"&checkin={d.isoformat()}"
+    opts = [
+        _opt("google.com/travel", f"Google Hotels — {label}",
+             "https://www.google.com/travel/search?q=" + quote_plus(f"hotels in {city}")),
+        _opt("booking.com", f"Booking.com — {label}", bk),
+    ]
+    third = "makemytrip.com" if reg == "IN" else "expedia.com"
+    name = "MakeMyTrip" if reg == "IN" else "Expedia"
+    opts.append(_opt(third, f"{name} — {label}",
+                     "https://www.google.com/search?q=" + quote_plus(f"hotels in {city} site:{third}")))
+    return opts
+
+
+def _event_options(query: str, cat: str, reg: str) -> list[dict[str, str]]:
+    q = quote_plus(query)
+    opts: list[dict[str, str]] = []
+    if reg == "IN":
+        opts.append(_opt("bookmyshow.com", "BookMyShow",
+                         "https://www.google.com/search?q=" + quote_plus(f"{query} bookmyshow")))
+        opts.append(_opt("insider.in", "Paytm Insider",
+                         "https://www.google.com/search?q=" + quote_plus(f"{query} insider.in")))
+    opts.append(_opt("ticketmaster.com", "Ticketmaster",
+                     f"https://www.ticketmaster.com/search?q={q}"))
+    opts.append(_opt("seatgeek.com", "SeatGeek",
+                     f"https://seatgeek.com/search?search={q}"))
+    opts.append(_opt("google.com", "Google — all ticket options",
+                     "https://www.google.com/search?q=" + quote_plus(f"{query} tickets")))
+    return opts
 
 
 class ProductPricesInput(BaseModel):
@@ -119,58 +274,29 @@ class ProductPricesInput(BaseModel):
 
 
 @register_tool(args_schema=ProductPricesInput)
-async def product_prices(product: str, region: str = "US") -> str:
-    """Fetch current prices for a product across the major online retailers for
+def product_prices(product: str, region: str = "US") -> str:
+    """Get working links to buy a product across the major online retailers for
     the user's region.
 
-    Searches each region-appropriate shopping site (e.g. Amazon / Walmart /
-    Best Buy for the US; Amazon.in / Flipkart / Croma for India) concurrently
-    and returns a JSON list of offers — retailer, page title, URL, and any
-    price found in the snippet — sorted cheapest-first. Use for "how much is
-    X", "cheapest X", "price of X in <country>", or shopping comparisons. The
-    offers are shown to the user as visual cards, so keep your own summary
-    short; always confirm prices change and to check the retailer page.
+    Returns a JSON list of retailer links that each open the store's LIVE
+    search results for the product (Amazon / Walmart / Best Buy for the US;
+    Amazon.in / Flipkart / Croma for India; …). Use for "how much is X",
+    "cheapest X", "where to buy X", or shopping comparisons. Live prices and
+    availability are shown on the retailer page — never guess them. The links
+    render to the user as cards, so keep your reply short (point them at the
+    cards and add any genuinely useful buying tip).
     """
     reg = _norm_region(region)
     currency, sites = _SHOPPING_SITES[reg]
-    domains = sites[:5]
-    # Search every retailer concurrently — sequential lookups were the main
-    # source of latency (5 blocking HTTP calls back-to-back).
-    batches = await asyncio.gather(
-        *(asyncio.to_thread(_safe_ddg, f"{product} price site:{d}", 3) for d in domains)
-    )
-    offers: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for domain, results in zip(domains, batches):
-        for r in results:
-            url = r.get("url", "")
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            title, snippet = r.get("title", ""), r.get("snippet", "")
-            price = _price_hint(snippet, title)
-            offers.append(
-                {
-                    "retailer": domain,
-                    "title": title,
-                    "url": url,
-                    "snippet": snippet,
-                    "price": price,
-                    "price_value": _price_value(price),
-                }
-            )
-    # Cheapest-first: priced offers ascending, unpriced ones last.
-    offers.sort(key=lambda o: (o["price_value"] is None, o["price_value"] or 0.0))
-    if not offers:
-        return json.dumps(
-            {
-                "product": product,
-                "region": reg,
-                "currency": currency,
-                "offers": [],
-                "note": "No retailer results — try a more specific product name.",
-            }
-        )
+    offers = [
+        {
+            "retailer": domain,
+            "title": product,
+            "url": _retailer_url(domain, product),
+            "price": "",
+        }
+        for domain in sites
+    ]
     return json.dumps(
         {
             "product": product,
@@ -178,8 +304,8 @@ async def product_prices(product: str, region: str = "US") -> str:
             "currency": currency,
             "offers": offers,
             "note": (
-                "Prices are from live search snippets and may be approximate — "
-                "confirm the current price on the retailer page."
+                "Each link opens the retailer's live search for this product — "
+                "compare current prices and availability there before buying."
             ),
         },
         ensure_ascii=False,
@@ -246,83 +372,82 @@ def _norm_category(category: str | None, query: str) -> str:
 
 
 class FindBookingsInput(BaseModel):
-    """Input for a booking-options search."""
+    """Input for building booking links."""
 
     query: str = Field(
         description=(
-            "What to book, including place/date/title if known, e.g. "
-            "'flights NYC to London 12 Dec' or 'Coldplay Mumbai'."
+            "What to book, e.g. 'flights Mumbai to Delhi 9 July' or "
+            "'Coldplay Mumbai'."
         )
     )
     category: str = Field(
         default="",
         description=(
-            "One of: flight, hotel, movie, concert, event, show. Leave blank "
-            "to auto-detect from the query."
+            "One of: flight, hotel, movie, concert, event, show. Blank = "
+            "auto-detect from the query."
         ),
     )
     region: str = Field(
         default="US",
         description="User region/country (US, IN, UK, CA, AU, DE, ...). Defaults to US.",
     )
+    origin: str = Field(
+        default="",
+        description="Flight origin city or airport (e.g. 'Mumbai' or 'BOM'). Flights only.",
+    )
+    destination: str = Field(
+        default="",
+        description="Flight destination, or the hotel city (e.g. 'Delhi' or 'DEL').",
+    )
+    date: str = Field(
+        default="",
+        description=(
+            "Departure / check-in date as ISO YYYY-MM-DD, using the CURRENT "
+            "year (see today's date in your context)."
+        ),
+    )
 
 
 @register_tool(args_schema=FindBookingsInput)
-async def find_bookings(query: str, category: str = "", region: str = "US") -> str:
-    """Find booking options for flights, hotels, movies, concerts, events, or
-    shows on the platforms relevant to the user's region.
+def find_bookings(
+    query: str,
+    category: str = "",
+    region: str = "US",
+    origin: str = "",
+    destination: str = "",
+    date: str = "",
+) -> str:
+    """Build direct booking links for flights, hotels, movies, concerts,
+    events, or shows on the platforms relevant to the user's region.
 
-    Auto-detects the category from the query when not given, searches the right
-    booking platforms concurrently (e.g. Ticketmaster / StubHub for US
-    concerts, BookMyShow / Insider for India, Booking.com / MakeMyTrip for
-    stays), and returns a JSON list of options with direct booking links. The
-    options are shown to the user as visual cards, so keep your summary short;
-    never invent prices, seats, times, availability, or confirmations — those
-    must be checked on the platform.
+    Returns a JSON list of options whose links open each platform's LIVE
+    search/results page, pre-filled with the route/city/date when known. For
+    flights pass `origin`, `destination`, and `date` (ISO YYYY-MM-DD, CURRENT
+    year); for hotels pass the `destination` city and `date` (check-in).
+    Fares, seats, times, and availability are shown on the platform — never
+    guess them. The links render as cards, so keep your reply short and make
+    clear you can't complete the purchase.
     """
     cat = _norm_category(category, query)
     reg = _norm_region(region)
-    by_region = _BOOKING_SITES[cat]
-    sites = (by_region.get(reg) or by_region["_"])[:4]
-    term = "tickets" if cat in ("concert", "event", "show", "movie") else "booking"
-    batches = await asyncio.gather(
-        *(asyncio.to_thread(_safe_ddg, f"{query} {term} site:{d}", 3) for d in sites)
-    )
-    options: list[dict[str, str]] = []
-    seen: set[str] = set()
-    for domain, results in zip(sites, batches):
-        for r in results:
-            url = r.get("url", "")
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            options.append(
-                {
-                    "platform": domain,
-                    "title": r.get("title", ""),
-                    "url": url,
-                    "snippet": r.get("snippet", ""),
-                }
-            )
-    if not options:
-        return json.dumps(
-            {
-                "query": query,
-                "category": cat,
-                "region": reg,
-                "options": [],
-                "note": "No results — try adding a city, date, or exact title.",
-            }
-        )
+    d = _parse_date(date) or _parse_date(query)
+    if cat == "flight":
+        options = _flight_options(query, origin, destination, d, reg)
+    elif cat == "hotel":
+        options = _hotel_options(query, destination, d, reg)
+    else:
+        options = _event_options(query, cat, reg)
     return json.dumps(
         {
             "query": query,
             "category": cat,
             "region": reg,
+            "date": d.isoformat() if d else "",
             "options": options,
             "note": (
-                "Options are from live search; availability, prices, seats, and "
-                "times must be confirmed on the platform."
+                "Each link opens the platform's live results — confirm fares, "
+                "seats, times, and availability there. I can't complete the "
+                "purchase for you."
             ),
         },
         ensure_ascii=False,

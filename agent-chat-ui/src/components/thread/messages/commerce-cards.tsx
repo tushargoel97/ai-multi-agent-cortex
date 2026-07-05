@@ -81,7 +81,7 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
     <div className="mx-auto w-full max-w-3xl">
       <CardHeader
         icon={<ShoppingBag className="h-4 w-4 text-muted-foreground" />}
-        title={data?.product ? `Prices for ${data.product}` : "Price results"}
+        title={data?.product ? `Where to buy ${data.product}` : "Shopping options"}
         region={data?.region}
       />
       {offers.length === 0 ? (

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 import logging
 import re
+from datetime import datetime
 
 from cortex.config import get_settings
 from cortex.db.services.llm_registry import (
@@ -425,10 +426,15 @@ def _build_agent(
         )
     model = get_chat_client(config=config, auto_intent=auto_intent)
     static = spec.render_system_prompt(assistant_name=_assistant_name())
+    # Inject today's date so agents resolve "9th July", "next Friday", etc. to
+    # the correct (current) year — kept in the dynamic (post-cache) segment.
+    now = datetime.now()
+    date_line = f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}."
+    dynamic = f"{date_line}\n\n{extra_system}" if extra_system else date_line
     return create_agent(
         model=model,
         tools=spec.get_tools(),
-        system_prompt=_system_prompt_for(model, static, extra_system),
+        system_prompt=_system_prompt_for(model, static, dynamic),
         middleware=middleware,
     )
 
