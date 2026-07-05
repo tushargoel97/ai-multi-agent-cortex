@@ -39,7 +39,7 @@ CLI steps are required for day-to-day use.
 │                            ├─ imagegen      ──────────────────▶ END   │
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┤                           │
-│                            ├─ specialist ─┼─▶ synthesize ──────▶ END  │
+│                            ├─ specialist ─┼─▶ synthesize ──────▶ END │
 │                            └─ coder      ─┘                           │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
