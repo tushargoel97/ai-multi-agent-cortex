@@ -3,6 +3,7 @@ import {
   cachedTokens,
   formatTokens,
   getRoutingIntent,
+  getRoutingModel,
   getUsage,
   RoutingChip,
 } from "../agent-activity";
@@ -156,7 +157,9 @@ export function AssistantMessage({
   // bare chat bubble with the raw intent label.
   const routingIntent = getRoutingIntent(message);
   if (routingIntent) {
-    return <RoutingChip intent={routingIntent} />;
+    return (
+      <RoutingChip intent={routingIntent} model={getRoutingModel(message)} />
+    );
   }
 
   return (

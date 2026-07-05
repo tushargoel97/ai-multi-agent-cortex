@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
+import AutoModeCandidatesEditor from "./AutoModeCandidatesEditor";
 
 interface Provider {
   id: string;
@@ -195,6 +196,8 @@ export default function ModelsPanel({
           </div>
         </div>
       </div>
+
+      <AutoModeCandidatesEditor refreshKey={refreshKey} />
 
       <div className="flex items-start justify-between gap-4">
         <div>

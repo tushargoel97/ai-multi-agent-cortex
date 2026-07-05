@@ -22,6 +22,7 @@ import {
   Lightbulb,
   Globe,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 
 interface LossPoint {
@@ -55,6 +56,12 @@ interface TrainerStatus {
   scrape_current?: string;
   scrape_saved?: string[];
   scrape_errors?: string[];
+  scrape_outcomes?: {
+    url: string;
+    status: string;
+    detail?: string;
+    products?: string[];
+  }[];
 }
 
 interface DatasetSplit {
@@ -85,6 +92,16 @@ const SOURCE_ICONS = {
   url: Link2,
   prompt: MessageSquarePlus,
 } as const;
+
+// Per-URL outcome badge colors for the intelligent scrape agent.
+const OUTCOME_STYLES: Record<string, string> = {
+  extracted: "bg-emerald-500/15 text-emerald-600",
+  index: "bg-sky-500/15 text-sky-600",
+  blocked: "bg-amber-500/15 text-amber-600",
+  skipped: "bg-amber-500/15 text-amber-600",
+  error: "bg-rose-500/15 text-rose-600",
+  empty: "bg-muted text-muted-foreground",
+};
 
 const BASE_MODELS = [
   {
@@ -151,7 +168,11 @@ export default function FinetunePanel({
   const [trainerUp, setTrainerUp] = useState<boolean | null>(null);
   const [status, setStatus] = useState<TrainerStatus>({ phase: "idle" });
   const [dataset, setDataset] = useState<
-    Record<string, DatasetSplit> & { custom_pairs?: number }
+    Record<string, DatasetSplit> & {
+      custom_pairs?: number;
+      sources_count?: number;
+      adapters_exist?: boolean;
+    }
   >({});
   const [sources, setSources] = useState<SourceEntry[]>([]);
   const [gaps, setGaps] = useState<GapEntry[]>([]);
@@ -400,6 +421,28 @@ export default function FinetunePanel({
     }
   };
 
+  // Quick top-up: warm-start from the current adapters (resume=true) and train
+  // fewer iters — teaches newly-added facts without a full retrain. The base
+  // is taken from the adapters' base_model.txt on the trainer side.
+  const startTopUp = async () => {
+    setBusy("train");
+    setError(null);
+    setRegistered(false);
+    try {
+      await post("train", {
+        iters,
+        batch_size: batchSize,
+        base_model: baseModel,
+        resume: true,
+      });
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const stopTraining = async () => {
     setError(null);
     try {
@@ -489,6 +532,7 @@ export default function FinetunePanel({
         : 0;
   const trainCount = dataset.train?.count ?? 0;
   const hasDataset = (dataset.train?.exists && dataset.valid?.exists) ?? false;
+  const hasAdapters = !!dataset.adapters_exist;
 
   if (trainerUp === false) {
     return (
@@ -653,7 +697,7 @@ export default function FinetunePanel({
           <button
             onClick={importSpecs}
             disabled={jobRunning || sources.length === 0}
-            title="Parse every URL / document above into structured spec facts (AMD DB and Intel chart parsers, LLM distillation for anything else; TechPowerUp only when it doesn't 403)"
+            title="Import specs from every URL/document above: deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL"
             className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
           >
             Import specs from sources
@@ -676,6 +720,31 @@ export default function FinetunePanel({
             {" — now Generate dataset."}
           </p>
         )}
+        {phase === "scrape_done" &&
+          (status.scrape_outcomes?.length ?? 0) > 0 && (
+            <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-xs">
+              {status.scrape_outcomes!.map((o, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span
+                    className={
+                      "mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-medium " +
+                      (OUTCOME_STYLES[o.status] ?? "bg-muted text-muted-foreground")
+                    }
+                  >
+                    {o.status}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="font-mono break-all text-muted-foreground">
+                      {o.url}
+                    </span>
+                    {o.detail ? (
+                      <span className="text-muted-foreground"> — {o.detail}</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
         {generating && (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -812,18 +881,38 @@ export default function FinetunePanel({
               <Square className="mr-1 size-4" /> Stop
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={startTraining}
-              disabled={jobRunning || !hasDataset}
-            >
-              {busy === "train" ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <PlayCircle className="mr-1 size-4" />
-              )}
-              Start training
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={startTopUp}
+                disabled={jobRunning || !hasDataset || !hasAdapters}
+                title={
+                  hasAdapters
+                    ? "Warm-start from the current adapters and train fewer iters (≈400 recommended) — teaches new facts without a full retrain"
+                    : "Run a full training once before a quick top-up"
+                }
+              >
+                {busy === "train" ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Zap className="mr-1 size-4" />
+                )}
+                Quick top-up
+              </Button>
+              <Button
+                size="sm"
+                onClick={startTraining}
+                disabled={jobRunning || !hasDataset}
+              >
+                {busy === "train" ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="mr-1 size-4" />
+                )}
+                Start training
+              </Button>
+            </div>
           )}
         </div>
 

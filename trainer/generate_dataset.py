@@ -549,29 +549,63 @@ def _three_way_answer(a: dict, b: dict, c: dict) -> str:
     return "\n".join(lines)
 
 
-def _three_way_examples(products: list[dict]) -> list[dict]:
-    """Triple comparisons for the consoles group (the demo family users
-    actually ask 3-way questions about, e.g. PS5 vs Slim vs Pro)."""
+def _trios_for_group(items: list[dict], group: str) -> list[tuple[dict, dict, dict]]:
+    """3-way combinations for a group, bounded for large scraped catalogs.
+
+    Consoles (and any small group) get every trio — that's the family users
+    actually ask 3-way questions about (PS5 vs Slim vs Pro). Bigger GPU/CPU
+    catalogs would explode cubically, so restrict to trios of near neighbors:
+    sort by brand/generation and only combine within a short sliding window
+    (mirrors the nearest-neighbor bounding in _comparison_examples).
+    """
     from itertools import combinations
 
-    consoles = [p for p in products if p.get("_group") == "consoles"]
-    examples = []
-    for a, b, c in combinations(consoles, 3):
-        answer = _three_way_answer(a, b, c)
-        va, vb, vc = _name_variants(a), _name_variants(b), _name_variants(c)
-        for k, tmpl in enumerate(THREE_WAY_QUESTIONS):
-            examples.append(
-                _example(
-                    tmpl.format(
-                        a=va[k % len(va)], b=vb[k % len(vb)], c=vc[k % len(vc)]
-                    ),
-                    answer,
+    if group == "consoles" or len(items) <= 6:
+        return list(combinations(items, 3))
+
+    ordered = sorted(
+        items,
+        key=lambda p: (p.get("brand", ""), p.get("release_year") or 0, p["name"]),
+    )
+    window = 4
+    seen: set[tuple[int, int, int]] = set()
+    trios: list[tuple[dict, dict, dict]] = []
+    for i in range(len(ordered) - 2):
+        for combo in combinations(range(i, min(i + window, len(ordered))), 3):
+            if combo in seen:
+                continue
+            seen.add(combo)
+            trios.append((ordered[combo[0]], ordered[combo[1]], ordered[combo[2]]))
+    return trios
+
+
+def _three_way_examples(products: list[dict]) -> list[dict]:
+    """Triple comparisons per group. Consoles get the full cross-product
+    (the family users actually ask 3-way about, e.g. PS5 vs Slim vs Pro);
+    GPU and CPU groups get near-neighbor trios only, so large scraped
+    catalogs don't explode."""
+    by_group: dict[str, list[dict]] = {}
+    for product in products:
+        by_group.setdefault(product["_group"], []).append(product)
+
+    examples: list[dict] = []
+    for group, items in by_group.items():
+        for a, b, c in _trios_for_group(items, group):
+            answer = _three_way_answer(a, b, c)
+            va, vb, vc = _name_variants(a), _name_variants(b), _name_variants(c)
+            for k, tmpl in enumerate(THREE_WAY_QUESTIONS):
+                examples.append(
+                    _example(
+                        tmpl.format(
+                            a=va[k % len(va)], b=vb[k % len(vb)], c=vc[k % len(vc)]
+                        ),
+                        answer,
+                    )
                 )
+            # One informal short-alias phrasing, the way users actually type it.
+            examples.append(
+                _example(f"compare {va[-1]} vs {vb[-1]} vs {vc[-1]}", answer)
             )
-        # One informal short-alias phrasing, the way users actually type it.
-        examples.append(
-            _example(f"compare {va[-1]} vs {vb[-1]} vs {vc[-1]}", answer)
-        )
     return examples
 
 

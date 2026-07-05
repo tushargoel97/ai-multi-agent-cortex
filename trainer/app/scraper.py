@@ -1,12 +1,14 @@
-"""Recursive spec scraper for TechPowerUp's CPU/GPU databases.
+"""Spec importers: deterministic fast paths + the intelligent scrape agent.
 
-Index pages (https://www.techpowerup.com/cpu-specs/, /gpu-specs/) list
-product links like `/gpu-specs/geforce-rtx-4090.c3889`; each product page
-carries a structured spec sheet (th/td and dt/dd pairs). We crawl the index,
-follow up to `max_products` product links politely (browser UA, delay between
-requests), map the spec sheet deterministically onto the dataset schema — no
-LLM in the loop — and store entries through research.save_learned_entry,
-which is alias-aware and never overrides the curated facts.yaml.
+Two deterministic paths stay because they beat generic crawling:
+  - AMD's official database (amd.com) embeds the whole processor catalog as
+    HTML-escaped JSON — one fetch, no anti-bot wall (scrape_amd).
+  - Uploaded documents (Intel comparison-chart PDFs, spreadsheets) via
+    import_document (deterministic chart parser first, LLM distillation next).
+Every other URL is delegated to app.scrape_agent, an LLM-driven index/leaf
+crawl. parse_product stays as a deterministic spec-sheet extractor the agent
+tries before falling back to distillation. All writes go through
+research.save_learned_entry (alias-aware; never overrides curated facts.yaml).
 """
 
 from __future__ import annotations
@@ -15,7 +17,6 @@ import html as html_lib
 import logging
 import re
 import time
-from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -33,7 +34,6 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-_PRODUCT_LINK_RE = re.compile(r'href="(/(?:cpu|gpu)-specs/[^"#?]+\.c\d+)"')
 _TAG_RE = re.compile(r"<[^>]+>")
 _PAIR_RES = (
     re.compile(r"<th[^>]*>(.*?)</th>\s*<td[^>]*>(.*?)</td>", re.DOTALL),
@@ -50,19 +50,6 @@ def _fetch(client: httpx.Client, url: str) -> str:
     resp = client.get(url, headers=_HEADERS, timeout=25, follow_redirects=True)
     resp.raise_for_status()
     return resp.text
-
-
-def discover_products(client: httpx.Client, index_url: str, limit: int) -> list[str]:
-    page = _fetch(client, index_url)
-    base = f"{urlparse(index_url).scheme}://{urlparse(index_url).netloc}"
-    seen: list[str] = []
-    for path in _PRODUCT_LINK_RE.findall(page):
-        url = urljoin(base, path)
-        if url not in seen:
-            seen.append(url)
-        if len(seen) >= limit:
-            break
-    return seen
 
 
 def _spec_pairs(page: str) -> dict[str, str]:
@@ -389,59 +376,35 @@ def import_document(path: str, name: str, limit: int, on_progress) -> list[dict]
     return distill_products_from_text(text, limit)
 
 
-def _scrape_techpowerup(
-    client: httpx.Client, index_url: str, limit: int, on_progress, errors: list[str]
-) -> list[dict]:
-    """Optional source: crawl only if the site answers (it often 403s bots)."""
-    try:
-        product_urls = discover_products(client, index_url, limit)
-    except httpx.HTTPError as e:
-        errors.append(f"techpowerup unavailable ({e}) — skipped")
-        return []
-    if not product_urls:
-        errors.append(
-            "techpowerup: no product links returned (anti-bot filter) — skipped"
-        )
-        return []
-    entries: list[dict] = []
-    total = len(product_urls)
-    for i, url in enumerate(product_urls):
-        on_progress(i, total, url.rsplit("/", 1)[-1])
-        try:
-            entry = parse_product(url, _fetch(client, url))
-            if entry:
-                entries.append(entry)
-        except httpx.HTTPError as e:
-            errors.append(f"{url}: {e}")
-        time.sleep(REQUEST_DELAY_S)
-    return entries
+def scrape(
+    sources: list[str],
+    max_products: int,
+    on_progress,
+    *,
+    max_pages: int = 20,
+    max_depth: int = 2,
+    delay_s: float = 2.5,
+    on_log=None,
+) -> dict:
+    """Dynamic spec import.
 
+    Deterministic fast paths handle the two sources that beat generic crawling:
+    uploaded documents (Intel chart PDFs, spreadsheets) and AMD's embedded-JSON
+    database. Every other URL is delegated to the LLM-driven scrape agent
+    (app.scrape_agent) with the given crawl budget.
 
-def _scrape_generic_url(
-    client: httpx.Client, url: str, limit: int, on_progress
-) -> list[dict]:
-    """Any other brand/site: fetch the page and LLM-distill product entries."""
-    from app.research import distill_products_from_text
-
-    on_progress(0, 0, f"fetching {url}…")
-    page = _fetch(client, url)
-    text = html_lib.unescape(re.sub(r"<script.*?</script>", " ", page, flags=re.DOTALL))
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
-    on_progress(0, 0, "distilling page (LLM)…")
-    return distill_products_from_text(text, limit)
-
-
-def scrape(sources: list[str], max_products: int, on_progress) -> dict:
-    """Dynamic spec import: each source is a URL (AMD database, TechPowerUp,
-    or any product page) or a local path of an uploaded document.
-
-    on_progress(done, total, label) keeps the pipeline status live.
+    on_progress(done, total, label) keeps the pipeline status live; on_log(msg)
+    appends per-URL detail lines. Returns {saved, skipped, errors, outcomes}.
     """
+    from app.scrape_agent import ScrapeBudget, run_scrape_agent
+
     saved: list[str] = []
     skipped: list[str] = []
     errors: list[str] = []
+    outcomes: list[dict] = []
+    agent_urls: list[str] = []
     per_source = max(1, max_products // max(1, len(sources)))
+
     with httpx.Client() as client:
         for source in sources:
             try:
@@ -454,20 +417,26 @@ def scrape(sources: list[str], max_products: int, on_progress) -> dict:
                     summary = scrape_amd(client, source, per_source, on_progress)
                     saved += summary["saved"]
                     skipped += summary["skipped"]
-                elif "techpowerup.com" in source:
-                    entries = _scrape_techpowerup(
-                        client, source, per_source, on_progress, errors
-                    )
-                    _save_entries(entries, saved, skipped)
                 else:
-                    entries = _scrape_generic_url(
-                        client, source, per_source, on_progress
-                    )
-                    _save_entries(entries, saved, skipped)
+                    agent_urls.append(source)  # generic URL → intelligent agent
             except FileNotFoundError as e:
                 errors.append(str(e))
             except httpx.HTTPError as e:
                 errors.append(f"{source}: {e}")
             time.sleep(REQUEST_DELAY_S)
+
+    if agent_urls:
+        budget = ScrapeBudget(
+            max_pages=max_pages,
+            max_depth=max_depth,
+            delay_s=delay_s,
+            max_products=max_products,
+        )
+        summary = run_scrape_agent(agent_urls, budget, on_progress, on_log=on_log)
+        saved += summary["saved"]
+        skipped += summary["skipped"]
+        errors += summary["errors"]
+        outcomes += summary["outcomes"]
+
     on_progress(len(sources), len(sources), "done")
-    return {"saved": saved, "skipped": skipped, "errors": errors}
+    return {"saved": saved, "skipped": skipped, "errors": errors, "outcomes": outcomes}

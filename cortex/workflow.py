@@ -340,6 +340,19 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         )
         routing = {"intent": fallback.value, "reasoning": f"heuristic fallback ({type(e).__name__})"}
         intent_value = fallback.value
+    # In auto mode, record which model this intent resolves to so the UI's
+    # routing chip can show it. The answering node picks the same model via
+    # the same auto_intent, so this stays accurate; it's cosmetic either way.
+    configurable = (config or {}).get("configurable") or {}
+    from cortex.db.services.auto_mode import is_auto, resolve_auto_model
+
+    if is_auto(configurable.get("model_id")):
+        try:
+            resolved = resolve_auto_model(intent_value)
+            if resolved is not None:
+                routing["model"] = resolved.model_id
+        except Exception:  # noqa: BLE001 — chip model is cosmetic, never fatal
+            _persist_logger.exception("auto-mode chip model resolution failed")
     return {
         "messages": [
             AIMessage(
@@ -723,6 +736,15 @@ def build_workflow() -> StateGraph:
     builder.add_edge("reasoner", "synthesize")
     builder.add_edge("specialist", "synthesize")
     builder.add_edge("synthesize", END)
+
+    # Mirror auto-mode defaults into app_settings so the admin editor (which
+    # talks only to Postgres) can show the shipped candidate lists. Best-effort.
+    try:
+        from cortex.db.services.auto_mode import publish_defaults
+
+        publish_defaults()
+    except Exception:  # noqa: BLE001 — UI convenience, never blocks graph build
+        _persist_logger.exception("publish_defaults at graph build failed")
 
     return builder.compile()
 

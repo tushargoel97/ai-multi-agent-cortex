@@ -12,6 +12,7 @@ import {
   NotebookPen,
   Palette,
   Search,
+  Sparkles,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +25,20 @@ export function getRoutingIntent(message: Message | undefined): string | null {
     .additional_kwargs;
   const routing = kwargs?.routing as { intent?: string } | undefined;
   return routing?.intent ?? null;
+}
+
+/** The model auto-mode resolved for this turn, when the router recorded it. */
+export function getRoutingModel(message: Message | undefined): string | null {
+  if (!message || message.type !== "ai") return null;
+  const kwargs = (message as { additional_kwargs?: Record<string, unknown> })
+    .additional_kwargs;
+  const routing = kwargs?.routing as { model?: string } | undefined;
+  return routing?.model ?? null;
+}
+
+/** Trim provider date suffixes so chips stay compact (keeps fine-tune ids). */
+function prettyModel(id: string): string {
+  return id.replace(/-\d{6,8}$/, "");
 }
 
 const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
@@ -52,7 +67,13 @@ export function agentForIntent(intent: string | null) {
 }
 
 /** Small transcript chip shown where the router classified the request. */
-export function RoutingChip({ intent }: { intent: string }) {
+export function RoutingChip({
+  intent,
+  model,
+}: {
+  intent: string;
+  model?: string | null;
+}) {
   const agent = agentForIntent(intent);
   const Icon = agent.icon;
   return (
@@ -62,6 +83,15 @@ export function RoutingChip({ intent }: { intent: string }) {
         routed to <span className="text-foreground">{agent.label}</span>
       </span>
       <Icon className="size-3" />
+      {model ? (
+        <span
+          className="flex items-center gap-1 border-l border-border pl-1.5 text-muted-foreground/80"
+          title={`Auto-selected model: ${model}`}
+        >
+          <Sparkles className="size-3 text-amber-500" />
+          <span className="text-foreground/80">{prettyModel(model)}</span>
+        </span>
+      ) : null}
     </div>
   );
 }

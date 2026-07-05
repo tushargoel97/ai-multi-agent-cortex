@@ -40,6 +40,9 @@ class TrainRequest(BaseModel):
     learning_rate: float = 1e-4
     # e.g. "Qwen/Qwen2.5-0.5B-Instruct" (default) or "google/gemma-4-e2b-it"
     base_model: str | None = None
+    # Quick top-up: warm-start from the existing adapters (fewer iters) instead
+    # of a full retrain. The base is taken from base_model.txt, not base_model.
+    resume: bool = False
 
 
 class DatasetRequest(BaseModel):
@@ -77,6 +80,10 @@ class ScrapeRequest(BaseModel):
         "https://www.amd.com/en/products/specifications/processors.html",
     ]
     max_products: int = 30
+    # Intelligent scrape-agent crawl budget (applies to generic, non-AMD URLs).
+    max_pages: int = 20
+    max_depth: int = 2
+    delay_s: float = 2.5
 
 
 @app.get("/health")
@@ -120,6 +127,8 @@ def dataset_status() -> dict:
     custom = settings.data_dir / "custom.jsonl"
     out["custom_pairs"] = sum(1 for _ in open(custom)) if custom.exists() else 0
     out["sources_count"] = len(src.list_sources())
+    # Whether a prior full train left adapters to warm-start a quick top-up.
+    out["adapters_exist"] = (settings.adapters_dir / "adapters.safetensors").exists()
     return out
 
 
@@ -179,7 +188,13 @@ def scrape_specs(req: ScrapeRequest) -> dict:
         else:
             resolved.append(item)
     try:
-        pipeline.start_scrape(resolved, req.max_products)
+        pipeline.start_scrape(
+            resolved,
+            req.max_products,
+            max_pages=req.max_pages,
+            max_depth=req.max_depth,
+            delay_s=req.delay_s,
+        )
     except pipeline.JobConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
@@ -217,13 +232,20 @@ def train(req: TrainRequest) -> dict:
         raise HTTPException(status_code=400, detail="dataset missing — generate it first")
     try:
         pipeline.start_training(
-            req.iters, req.batch_size, req.learning_rate, base_model=req.base_model
+            req.iters,
+            req.batch_size,
+            req.learning_rate,
+            base_model=req.base_model,
+            resume=req.resume,
         )
     except pipeline.JobConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {
         "status": "started",
         "iters": req.iters,
+        "resume": req.resume,
         "base_model": req.base_model or settings.base_model,
     }
 

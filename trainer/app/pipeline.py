@@ -87,9 +87,28 @@ def start_training(
     batch_size: int = 4,
     learning_rate: float = 1e-4,
     base_model: str | None = None,
+    resume: bool = False,
 ) -> None:
     global _proc
-    base = base_model or settings.base_model
+    adapter_file = settings.adapters_dir / "adapters.safetensors"
+    if resume:
+        # Quick top-up: continue from the existing adapters instead of starting
+        # fresh. Resuming against a different base than the adapters were
+        # trained on silently produces a broken model, so always reuse the
+        # base recorded in base_model.txt and ignore any requested override.
+        if not adapter_file.exists():
+            raise FileNotFoundError(
+                f"no existing adapters at {adapter_file} — run a full train "
+                "before a quick top-up"
+            )
+        marker = _base_model_marker()
+        base = (
+            marker.read_text().strip()
+            if marker.exists()
+            else (base_model or settings.base_model)
+        )
+    else:
+        base = base_model or settings.base_model
     with _lock:
         if _busy():
             raise JobConflictError(f"a job is already running (phase={_status['phase']})")
@@ -102,6 +121,7 @@ def start_training(
             val_loss=None,
             history=[],
             base_model=base,
+            resume=resume,
         )
 
     cmd = [
@@ -118,6 +138,9 @@ def start_training(
         "--steps-per-eval", "50",
         "--save-every", "100",
     ]
+    if resume:
+        # Warm-start from the current adapters (saved back to the same path).
+        cmd += ["--resume-adapter-file", str(adapter_file)]
 
     settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
     # Remember which base these adapters belong to — fusing against a
@@ -288,8 +311,18 @@ def _run_dataset_generation(
             _status["error"] = f"dataset generation failed: {e}"
 
 
-def start_scrape(index_urls: list[str], max_products: int) -> None:
-    """Recursive spec scrape (TechPowerUp) → learned_facts.yaml (background)."""
+def start_scrape(
+    index_urls: list[str],
+    max_products: int,
+    max_pages: int = 20,
+    max_depth: int = 2,
+    delay_s: float = 2.5,
+) -> None:
+    """Dynamic spec import → learned_facts.yaml (background).
+
+    AMD's DB and uploaded documents use deterministic parsers; every other URL
+    is crawled by the intelligent scrape agent within the given budget.
+    """
     with _lock:
         if _busy():
             raise JobConflictError(f"a job is already running (phase={_status['phase']})")
@@ -300,15 +333,23 @@ def start_scrape(index_urls: list[str], max_products: int) -> None:
             job="scrape",
             scrape_total=0,
             scrape_done=0,
-            scrape_current="discovering products…",
+            scrape_current="starting…",
             products_learned=0,
         )
     threading.Thread(
-        target=_run_scrape, args=(index_urls, max_products), daemon=True
+        target=_run_scrape,
+        args=(index_urls, max_products, max_pages, max_depth, delay_s),
+        daemon=True,
     ).start()
 
 
-def _run_scrape(index_urls: list[str], max_products: int) -> None:
+def _run_scrape(
+    index_urls: list[str],
+    max_products: int,
+    max_pages: int = 20,
+    max_depth: int = 2,
+    delay_s: float = 2.5,
+) -> None:
     from . import scraper
 
     def on_progress(done: int, total: int, label: str) -> None:
@@ -318,13 +359,26 @@ def _run_scrape(index_urls: list[str], max_products: int) -> None:
             _status["scrape_current"] = label
             _log(f"[{done}/{total}] {label}")
 
+    def on_log(msg: str) -> None:
+        with _lock:
+            _log(msg)
+
     try:
-        summary = scraper.scrape(index_urls, max_products, on_progress)
+        summary = scraper.scrape(
+            index_urls,
+            max_products,
+            on_progress,
+            max_pages=max_pages,
+            max_depth=max_depth,
+            delay_s=delay_s,
+            on_log=on_log,
+        )
         with _lock:
             _status["products_learned"] = len(summary["saved"])
             _status["scrape_saved"] = summary["saved"]
             _status["scrape_skipped"] = summary["skipped"][:20]
             _status["scrape_errors"] = summary["errors"][:10]
+            _status["scrape_outcomes"] = summary.get("outcomes", [])[:40]
             _snapshot_logs()
             _status["phase"] = "scrape_done"
     except Exception as e:  # noqa: BLE001
