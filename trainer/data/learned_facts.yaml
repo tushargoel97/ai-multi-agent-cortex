@@ -793,3 +793,455 @@ learned:
   - Core Ultra 5 225F
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
+- name: AMD Ryzen AI 9 HX 375
+  brand: AMD
+  category: Processor
+  release_year: 2025
+  launch_price_usd: 1779
+  cpu: 12 cores, 24 threads, up to 5.1 GHz
+  gpu: AMD Radeon 890M
+  compute_tflops: null
+  memory: DDR5-5600, LPDDR5x-8000, up to 256 GB
+  memory_bandwidth: null
+  storage: null
+  display: null
+  power_watts: 28
+  key_features:
+  - 4x Zen 5, 8x Zen 5c architecture
+  - TSMC 4nm FinFET technology
+  - Precision Boost Overdrive
+  - AMD EXPO Memory Overclocking Technology
+  best_for:
+  - Premium AI PCs
+  - Laptops
+  - Desktops
+  aliases: []
+  exists: true
+  notes: ''
+- name: AMD Ryzen AI 9 HX 370
+  brand: AMD
+  category: Processor
+  release_year: 2025
+  launch_price_usd: null
+  cpu: 12 Cores, 24 Threads, 4x Zen 5, 8x Zen 5c
+  gpu: AMD Radeon 890M
+  compute_tflops: null
+  memory: DDR5, LPDDR5X
+  memory_bandwidth: null
+  storage: null
+  display: null
+  power_watts: 28
+  key_features:
+  - Up to 5.1 GHz Boost Clock
+  - TSMC 4nm FinFET
+  - Precision Boost Overdrive
+  - AMD EXPO Memory Overclocking Technology
+  best_for:
+  - Gaming
+  - AI PCs
+  aliases:
+  - AMD Ryzen AI 9 HX 370 w/ Radeon 890M
+  exists: true
+  notes: ''
+- name: Apple A18 Pro
+  brand: Apple
+  category: SoC
+  release_year: 2024
+  launch_price_usd: null
+  cpu: Hexa Core (4.05 GHz, Dual Core, Everest + 2.42 GHz, Quad core, Sawtooth)
+  gpu: Apple A18 Pro GPU
+  compute_tflops: 2.289
+  memory: 8 GB LPDDR5X
+  memory_bandwidth: 60 Gb/s
+  storage: NVMe
+  display: null
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - Neural Engine
+  - Snapdragon X71 5G modem
+  best_for:
+  - Flagship SoC Processors
+  aliases:
+  - APL1V07
+  exists: true
+  notes: Achieves a total AnTuTu score of 1,774,620 as tested by 91Mobiles.
+- name: Qualcomm Snapdragon 8 Elite Gen 5
+  brand: Qualcomm
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Octa core (4.61 GHz, Dual Core, Oryon + 3.63 GHz, Hexa Core, Oryon)
+  gpu: Adreno 840
+  compute_tflops: 3.6864
+  memory: LPDDR5X
+  memory_bandwidth: 84.8 Gb/s
+  storage: UFS 4.1
+  display: UHD @ 240 Hz
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - ARMv9.2-A instruction set
+  - Hexagon NPU
+  - Qualcomm Spectra ISP
+  best_for:
+  - Flagship smartphones
+  - High-performance computing
+  - Gaming
+  aliases:
+  - SM8850-AC
+  exists: true
+  notes: Achieves a total AnTuTu score of 4,033,382.
+- name: MediaTek Dimensity 9500
+  brand: MediaTek
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Octa core (4.21 GHz, Single Core, C1 Ultra + 3.5 GHz, Tri core, C1 Premium
+    + 2.7 GHz, Quad core, C1 Pro)
+  gpu: Mali-G1 Ultra MP12
+  compute_tflops: 5.2715
+  memory: LPDDR5X
+  memory_bandwidth: 85.3 Gb/s
+  storage: UFS 4.1
+  display: null
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - ARMv9.3-A instruction set
+  - 8K video capture
+  - 5G support
+  best_for:
+  - Flagship smartphones
+  aliases:
+  - MT6993
+  exists: true
+  notes: Achieves a total AnTuTu score of 3,568,720
+- name: Samsung Exynos 2600
+  brand: Samsung
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Deca Core (3.8 GHz, Single Core, C1 Ultra + 3.25 GHz, Tri core, C1 Pro + 2.75
+    GHz, Hexa Core, C1 Pro)
+  gpu: Xclipse 960
+  compute_tflops: 4.0141
+  memory: LPDDR5X
+  memory_bandwidth: 85.3 Gb/s
+  storage: UFS 4.1
+  display: UHD @ 120 Hz
+  power_watts: null
+  key_features:
+  - 2 nm process technology
+  - AI Engine
+  - 5G Support
+  - Max Camera Sensor Supported 320 MP
+  best_for:
+  - Flagship SoC Processors
+  aliases:
+  - S5E9965
+  exists: true
+  notes: Achieves a total AnTuTu score of 3,113,347
+- name: Qualcomm Snapdragon 8 Gen 5
+  brand: Qualcomm
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Octa core (3.8 GHz, Dual Core, Oryon + 3.32 GHz, Hexa Core, Oryon)
+  gpu: Adreno 829
+  compute_tflops: 2.5088
+  memory: LPDDR5X, 24 GB
+  memory_bandwidth: 76.8 Gb/s
+  storage: UFS 4.1
+  display: Max On-Device Display Resolution 3840x2540, Max External Display Resolution
+    8K @ 30 Hz, Max Refresh Rate 240 Hz
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - ARMv9.2-A instruction set
+  - Hexagon NPU
+  - Qualcomm Spectra ISP
+  best_for:
+  - High-performance mobile devices
+  - Gaming
+  - Multimedia
+  aliases:
+  - SM8845
+  exists: true
+  notes: Sub Flagship 8 core chipset
+- name: Apple A19
+  brand: Apple
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Hexa Core (4.26 GHz, Dual Core, Everest + 2.6 GHz, Quad core, Sawtooth)
+  gpu: Apple A19 GPU
+  compute_tflops: 2.0736
+  memory: LPDDR5X, 12 GB
+  memory_bandwidth: 68.2 Gb/s
+  storage: NVMe
+  display: null
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - ARMv9.4-A instruction set
+  - Neural Engine NPU
+  - Snapdragon X80 modem
+  best_for:
+  - High performance mobile devices
+  aliases:
+  - T8150a
+  exists: true
+  notes: Sub Flagship 6 core chipset
+- name: Qualcomm Snapdragon 8s Gen 4
+  brand: Qualcomm
+  category: SoC
+  release_year: 2024
+  launch_price_usd: null
+  cpu: Octa core (3.21 GHz, Single Core, Cortex X4 + 3 GHz, Tri core, Cortex A720
+    + 2.8 GHz, Dual core, Cortex A720 + 2.02 GHz, Dual core, Cortex A720)
+  gpu: Adreno 825
+  compute_tflops: 2.3552
+  memory: LPDDR5X, 24 GB
+  memory_bandwidth: 76.8 Gb/s
+  storage: UFS 4.0
+  display: UHD @ 144 Hz
+  power_watts: null
+  key_features:
+  - 4 nm process technology
+  - Hexagon NPU
+  - Spectra ISP
+  - 5G support
+  best_for:
+  - High-performance mobile devices
+  - Gaming
+  - AI applications
+  aliases:
+  - SM8735
+  exists: true
+  notes: Sub Flagship 8 core chipset
+- name: MediaTek Dimensity 9400
+  brand: MediaTek
+  category: SoC
+  release_year: 2024
+  launch_price_usd: null
+  cpu: Octa core (3.62 GHz, Single Core, Cortex X925 + 3.3 GHz, Tri core, Cortex X4
+    + 2.4 GHz, Quad core, Cortex A720)
+  gpu: Immortalis-G925 MC12
+  compute_tflops: 4.9521
+  memory: LPDDR5X, 24 GB
+  memory_bandwidth: 85.3 Gb/s
+  storage: UFS 4.0
+  display: UHD, 180 Hz, 10 bit
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - 5G support
+  - 8K video capture
+  best_for:
+  - Flagship smartphones
+  - High-performance applications
+  aliases:
+  - MT6991
+  exists: true
+  notes: Achieves a total AnTuTu score of 2,537,181.
+- name: Qualcomm Snapdragon 8 Gen 3
+  brand: Qualcomm
+  category: SoC
+  release_year: 2023
+  launch_price_usd: null
+  cpu: Octa core (3.3 GHz, Single Core, Cortex X4 + 3.15 GHz, Tri core, Cortex A720
+    + 2.96 GHz, Dual core, Cortex A720 + 2.27 GHz, Dual core, Cortex A520)
+  gpu: Adreno 750
+  compute_tflops: 2.774
+  memory: LPDDR5X
+  memory_bandwidth: 76.8 Gb/s
+  storage: UFS 4.1
+  display: UHD
+  power_watts: null
+  key_features:
+  - 4 nm process technology
+  - 64 bit architecture
+  - ARMv9.2-A instruction set
+  - Hexagon NPU
+  best_for:
+  - Flagship smartphones
+  - High-performance applications
+  aliases:
+  - SM8650-AB
+  exists: true
+  notes: Achieves a total AnTuTu score of 2,186,467 as tested by 91Mobiles.
+- name: Apple A18
+  brand: Apple
+  category: SoC
+  release_year: 2024
+  launch_price_usd: null
+  cpu: Hexa Core (4.05 GHz, Dual Core, Everest + 2.42 GHz, Quad core, Sawtooth)
+  gpu: Apple A18 GPU
+  compute_tflops: 1.907
+  memory: 8 GB LPDDR5X
+  memory_bandwidth: 60 Gb/s
+  storage: NVMe
+  display: null
+  power_watts: null
+  key_features:
+  - 3 nm process
+  - ARMv9.2-A instruction set
+  - Neural Engine NPU
+  - Snapdragon X71 5G modem
+  best_for:
+  - Sub Flagship SoC Processors
+  aliases:
+  - APL1V08
+  exists: true
+  notes: Achieves a total AnTuTu score of 1,764,170.
+- name: Qualcomm Snapdragon 8 Gen 2
+  brand: Qualcomm
+  category: SoC
+  release_year: 2022
+  launch_price_usd: null
+  cpu: Octa core (3.2 GHz, Single Core, Cortex X3 + 2.8 GHz, Dual core, Cortex A715
+    + 2.8 GHz, Dual core, Cortex A710 + 2 GHz, Tri core, Cortex A510)
+  gpu: Adreno 740
+  compute_tflops: 2.089
+  memory: LPDDR5X, Max size 24 GB
+  memory_bandwidth: 67.2 Gb/s
+  storage: UFS 4.0
+  display: Max On-Device Display Resolution QHD, Max External Display Resolution UHD,
+    Max Refresh Rate 144 Hz
+  power_watts: null
+  key_features:
+  - 5G Support
+  - Wi-Fi Version 7
+  - Bluetooth Version 5.3
+  - Max Video Capture Resolution 8K @ 30 FPS
+  best_for:
+  - Flagship smartphones
+  - High-performance mobile devices
+  aliases:
+  - SM8550-AB
+  exists: true
+  notes: Manufactured using a 4 nm process technology by TSMC.
+- name: Apple A17 Pro
+  brand: Apple
+  category: SoC
+  release_year: 2023
+  launch_price_usd: null
+  cpu: Hexa Core (3.78 GHz, Dual Core, Everest + 2.11 GHz, Quad core, Sawtooth)
+  gpu: Apple A17
+  compute_tflops: 2.1472
+  memory: LPDDR5, 8 GB
+  memory_bandwidth: 51.2 Gb/s
+  storage: NVMe
+  display: 1290x2796
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - Neural Engine
+  - Snapdragon X70 modem
+  best_for:
+  - Flagship SoC
+  - High-performance mobile devices
+  aliases:
+  - APL1V02
+  exists: true
+  notes: Achieves a total AnTuTu score of 1,545,034
+- name: Qualcomm Snapdragon 7 Plus Gen 3
+  brand: Qualcomm
+  category: SoC
+  release_year: 2024
+  launch_price_usd: null
+  cpu: Octa core (2.8 GHz, Single Core, Cortex X4 + 2.6 GHz, Quad core, Cortex A720
+    + 1.9 GHz, Tri core, Cortex A520)
+  gpu: Adreno 732
+  compute_tflops: 1.4592
+  memory: LPDDR5X
+  memory_bandwidth: 67.2 Gb/s
+  storage: UFS 4.0
+  display: Max On-Device Display Resolution 2560x1600, Max External Display Resolution
+    UHD @ 60 Hz, Max Refresh Rate 144 Hz
+  power_watts: null
+  key_features:
+  - 4 nm process technology
+  - ARMv9.2-A instruction set
+  - Hexagon NPU
+  - Spectra ISP
+  best_for:
+  - Mid Range SoC Processors
+  aliases:
+  - SM7675-AB
+  exists: true
+  notes: Achieves a total AnTuTu score of 1,450,949 as tested by 91Mobiles.
+- name: Qualcomm Snapdragon 7 Gen 4
+  brand: Qualcomm
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Octa core (2.8 GHz, Single Core, Cortex A720 + 2.4 GHz, Quad core, Cortex A720
+    + 1.84 GHz, Tri core, Cortex A520)
+  gpu: Adreno 722
+  compute_tflops: 1.1776
+  memory: LPDDR5X
+  memory_bandwidth: 33.6 Gb/s
+  storage: UFS 4.0
+  display: Max On-Device Display Resolution 2880x1800, Max External Display Resolution
+    UHD @ 60 Hz, Max Refresh Rate 144 Hz
+  power_watts: null
+  key_features:
+  - 5G Support
+  - Peak Download Speed Up to 4200 Mbps
+  - Wi-Fi Version 7
+  - Bluetooth Version 6.0
+  best_for:
+  - Mid Range SoC Processors
+  aliases:
+  - SM7750-AB
+  exists: true
+  notes: Manufactured by TSMC using 4 nm process technology.
+- name: Apple A19 Pro
+  brand: Apple
+  category: SoC
+  release_year: 2025
+  launch_price_usd: null
+  cpu: Hexa Core (4.26 GHz, Dual Core, Everest + 2.6 GHz, Quad core, Sawtooth)
+  gpu: Apple A19 Pro GPU
+  compute_tflops: 2.4883
+  memory: LPDDR5X, 12 GB
+  memory_bandwidth: 75.8 Gb/s
+  storage: NVMe
+  display: null
+  power_watts: null
+  key_features:
+  - 3 nm process technology
+  - ARMv9.4-A instruction set
+  - Neural Engine NPU
+  - Snapdragon X80 modem
+  best_for:
+  - Flagship SoC Processors
+  aliases:
+  - T8150
+  exists: true
+  notes: Achieves a total AnTuTu score of 2,521,699 as tested by 91Mobiles.
+- name: Apple A16 Bionic
+  brand: Apple
+  category: SoC
+  release_year: 2022
+  launch_price_usd: null
+  cpu: Hexa Core (3.46 GHz, Dual Core, Everest + 2.02 GHz, Quad core, Sawtooth)
+  gpu: Apple A16 GPU
+  compute_tflops: 1.7894
+  memory: 6 GB LPDDR5
+  memory_bandwidth: 51.2 Gb/s
+  storage: NVMe
+  display: null
+  power_watts: null
+  key_features:
+  - 5G Support
+  - Neural Engine
+  - 4 nm process technology
+  best_for:
+  - Flagship SoC Processors
+  aliases:
+  - APL1W10
+  exists: true
+  notes: Achieves a total AnTuTu score of 1,302,867 as tested by 91Mobiles.
