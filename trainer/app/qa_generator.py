@@ -76,7 +76,10 @@ def transcribe_image(image_bytes: bytes, mime: str) -> str:
                             {"type": "text", "text": _VISION_PROMPT},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:{mime};base64,{b64}"},
+                                "image_url": {
+                                    "url": f"data:{mime};base64,{b64}",
+                                    "detail": "high",  # dense spec tables need fine text
+                                },
                             },
                         ],
                     }
