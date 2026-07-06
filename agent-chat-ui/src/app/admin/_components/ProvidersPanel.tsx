@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
@@ -39,6 +41,7 @@ export default function ProvidersPanel({
 }: {
   onChanged?: () => void;
 }) {
+  const confirm = useConfirm();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
@@ -123,7 +126,13 @@ export default function ProvidersPanel({
   }
 
   async function deleteProvider(id: string) {
-    if (!confirm("Delete this provider and all its models?")) return;
+    if (
+      !(await confirm({
+        title: "Delete this provider?",
+        description: "All of its models will be deleted too.",
+      }))
+    )
+      return;
     const r = await adminFetch(`/api/admin/providers/${id}`, {
       method: "DELETE",
     });
@@ -355,12 +364,10 @@ export default function ProvidersPanel({
                         Sync models
                       </Button>
                     )}
-                    <button
+                    <DeleteButton
                       onClick={() => deleteProvider(p.id)}
-                      className="text-xs text-rose-500 hover:underline"
-                    >
-                      Delete
-                    </button>
+                      title="Delete provider"
+                    />
                   </div>
                 </td>
               </tr>

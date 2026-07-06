@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
 import {
   Download,
   Search,
-  Trash2,
   Cpu,
   Loader2,
   CheckCircle2,
@@ -47,6 +48,7 @@ export default function LocalModelsPanel({
 }: {
   onChanged?: () => void;
 }) {
+  const confirm = useConfirm();
   const [catalog, setCatalog] = useState<CatalogModel[]>([]);
   const [loaded, setLoaded] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, ProgressEntry>>({});
@@ -164,7 +166,7 @@ export default function LocalModelsPanel({
   };
 
   const remove = async (name: string) => {
-    if (!confirm(`Delete model ${name}?`)) return;
+    if (!(await confirm({ title: `Delete model "${name}"?` }))) return;
     setBusy(name);
     try {
       await fetch(`/api/admin/local/models/${encodeURIComponent(name)}`, {
@@ -358,15 +360,11 @@ export default function LocalModelsPanel({
                         )}
                         {m.active ? "Loaded" : "Load & enable"}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <DeleteButton
                         disabled={busy === m.name}
                         onClick={() => remove(m.name)}
-                      >
-                        <Trash2 className="mr-1 size-3.5" />
-                        Delete
-                      </Button>
+                        title="Delete model"
+                      />
                     </>
                   )}
                 </div>

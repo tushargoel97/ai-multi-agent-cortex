@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
@@ -46,6 +48,7 @@ export default function ModelsPanel({
 }: {
   refreshKey?: number;
 }) {
+  const confirm = useConfirm();
   const [models, setModels] = useState<Model[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [autoProfile, setAutoProfile] = useState("balanced");
@@ -102,7 +105,7 @@ export default function ModelsPanel({
   }
 
   async function del(id: string) {
-    if (!confirm("Delete this model?")) return;
+    if (!(await confirm({ title: "Delete this model?" }))) return;
     const r = await adminFetch(`/api/admin/models/${id}`, {
       method: "DELETE",
     });
@@ -310,12 +313,7 @@ export default function ModelsPanel({
                   />
                 </td>
                 <td className="p-3 text-right">
-                  <button
-                    onClick={() => del(m.id)}
-                    className="text-xs text-rose-500 hover:underline"
-                  >
-                    Delete
-                  </button>
+                  <DeleteButton onClick={() => del(m.id)} title="Delete model" />
                 </td>
               </tr>
             ))}

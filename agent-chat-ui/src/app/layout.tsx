@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import React from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ThemeProvider } from "next-themes";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,7 +31,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <NuqsAdapter>{children}</NuqsAdapter>
+          <NuqsAdapter>
+            <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+          </NuqsAdapter>
         </ThemeProvider>
       </body>
     </html>

@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
 import {
   Database,
@@ -181,6 +183,7 @@ export default function FinetunePanel({
 }: {
   onChanged?: () => void;
 }) {
+  const confirm = useConfirm();
   const [trainerUp, setTrainerUp] = useState<boolean | null>(null);
   const [status, setStatus] = useState<TrainerStatus>({ phase: "idle" });
   const [dataset, setDataset] = useState<
@@ -614,9 +617,10 @@ export default function FinetunePanel({
     display_name: string;
   }) => {
     if (
-      !window.confirm(
-        `Delete "${m.display_name}" (${m.model_id})?\n\nRemoves it from the model registry and deletes the .gguf file.`,
-      )
+      !(await confirm({
+        title: `Delete "${m.display_name}"?`,
+        description: `${m.model_id}\n\nRemoves it from the model registry and deletes the .gguf file.`,
+      }))
     )
       return;
     setBusy(`del-${m.id}`);
@@ -646,9 +650,12 @@ export default function FinetunePanel({
 
   const clearArtifacts = async () => {
     if (
-      !window.confirm(
-        "Clear the LoRA adapters + fused working files?\n\nThey're tied to the current base model and can't be reused for a different one. The next full training recreates them.",
-      )
+      !(await confirm({
+        title: "Clear the LoRA adapters + fused working files?",
+        description:
+          "They're tied to the current base model and can't be reused for a different one. The next full training recreates them.",
+        confirmText: "Clear",
+      }))
     )
       return;
     setBusy("clear-artifacts");
@@ -761,13 +768,10 @@ export default function FinetunePanel({
                         {s.size_kb} KB
                       </span>
                     )}
-                    <button
+                    <DeleteButton
                       onClick={() => deleteSource(s.id)}
-                      className="text-muted-foreground/70 transition hover:text-destructive"
                       title="Remove source"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                    />
                   </li>
                 );
               })}
@@ -996,13 +1000,10 @@ export default function FinetunePanel({
                     </p>
                   )}
                 </div>
-                <button
+                <DeleteButton
                   onClick={() => dismissGap(g.id)}
-                  className="text-muted-foreground/70 transition hover:text-destructive"
                   title="Dismiss gap"
-                >
-                  <Trash2 className="size-4" />
-                </button>
+                />
               </li>
             ))}
           </ul>
@@ -1332,19 +1333,12 @@ export default function FinetunePanel({
                     {m.model_id}
                   </code>
                 </div>
-                <button
+                <DeleteButton
                   onClick={() => deleteFinetuned(m)}
                   disabled={jobRunning}
-                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  busy={busy === `del-${m.id}`}
                   title="Delete from the registry and remove the .gguf file"
-                >
-                  {busy === `del-${m.id}` ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3.5" />
-                  )}
-                  Delete
-                </button>
+                />
               </li>
             ))}
           </ul>

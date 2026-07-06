@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
 import {
   Wrench,
@@ -58,6 +60,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default function ToolsPanel() {
+  const confirm = useConfirm();
   const [tools, setTools] = useState<ToolRow[]>([]);
   const [mcpServers, setMcpServers] = useState<McpRow[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
@@ -130,9 +133,11 @@ export default function ToolsPanel() {
 
   const deleteTool = async (t: ToolRow) => {
     if (
-      !confirm(
-        `Delete "${t.name}"? It won't be re-added on restart — you can Restore it later.`,
-      )
+      !(await confirm({
+        title: `Delete "${t.name}"?`,
+        description:
+          "It won't be re-added on restart — you can Restore it later.",
+      }))
     )
       return;
     setBusy(t.id);
@@ -251,7 +256,12 @@ export default function ToolsPanel() {
   };
 
   const deleteMcp = async (s: McpRow) => {
-    if (!confirm(`Remove MCP server "${s.name}"? Its tools will be removed.`))
+    if (
+      !(await confirm({
+        title: `Remove MCP server "${s.name}"?`,
+        description: "Its discovered tools will be removed.",
+      }))
+    )
       return;
     setBusy(s.id);
     try {
@@ -370,9 +380,7 @@ export default function ToolsPanel() {
                   />
                   Enabled
                 </label>
-                <Button
-                  size="icon"
-                  variant="ghost"
+                <DeleteButton
                   disabled={busy === t.id || t.enabled}
                   title={
                     t.enabled
@@ -380,9 +388,7 @@ export default function ToolsPanel() {
                       : "Delete tool"
                   }
                   onClick={() => void deleteTool(t)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                />
               </div>
             </li>
           ))}
@@ -513,14 +519,11 @@ export default function ToolsPanel() {
                   />
                   Enabled
                 </label>
-                <Button
-                  size="icon"
-                  variant="ghost"
+                <DeleteButton
                   disabled={busy === s.id}
                   onClick={() => void deleteMcp(s)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                  title="Remove MCP server"
+                />
               </div>
             </li>
           ))}
