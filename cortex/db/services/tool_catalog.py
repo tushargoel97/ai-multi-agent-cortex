@@ -31,6 +31,26 @@ def _ensure_tables() -> None:
     _tables_ready = True
 
 
+def _suppressed_names() -> set[str]:
+    """Tool names the admin deleted — never re-seed, bind, or grant these.
+
+    Persisted in app_settings so a deleted built-in stays gone across restarts
+    (built-ins are otherwise re-seeded from the code registry every startup).
+    """
+    try:
+        import json
+
+        from cortex.db.services.app_settings import get_setting
+
+        raw = get_setting("suppressed_tools", "")
+        if not raw:
+            return set()
+        data = json.loads(raw)
+        return {str(x) for x in data} if isinstance(data, list) else set()
+    except Exception:  # noqa: BLE001 — suppression is best-effort
+        return set()
+
+
 def publish_tool_catalog() -> None:
     """Mirror built-in tools into the tools table (once per process).
 
@@ -41,10 +61,11 @@ def publish_tool_catalog() -> None:
         import cortex.tools  # noqa: F401 — ensure @register_tool decorators ran
         from cortex.tools.registry import registry
 
+        suppressed = _suppressed_names()
         with get_session() as s:
             known = {row[0] for row in s.query(Tool.name).all()}
             for name, tool in registry.items():
-                if name in known:
+                if name in known or name in suppressed:
                     continue
                 s.add(
                     Tool(
@@ -101,8 +122,9 @@ def effective_tool_names(agent_name: str, yaml_default: list[str]) -> list[str]:
         disabled = {
             row[0] for row in s.query(Tool.name).filter(Tool.enabled.is_(False)).all()
         }
+    excluded = disabled | _suppressed_names()
     names = grants if grants else list(yaml_default)
-    return [n for n in names if n not in disabled]
+    return [n for n in names if n not in excluded]
 
 
 def resolve_tool_instances(names: list[str]) -> list[BaseTool]:
@@ -115,6 +137,21 @@ def resolve_tool_instances(names: list[str]) -> list[BaseTool]:
         if tool is not None:
             out.append(tool)
     return out
+
+
+def filter_enabled(names: list[str]) -> list[str]:
+    """Drop globally-disabled and suppressed tools from a name list.
+
+    Lets any ad-hoc tool consumer (e.g. the spec fallback) honor the admin's
+    enable/delete controls, not just the per-agent binding.
+    """
+    _ensure_tables()
+    with get_session() as s:
+        disabled = {
+            row[0] for row in s.query(Tool.name).filter(Tool.enabled.is_(False)).all()
+        }
+    excluded = disabled | _suppressed_names()
+    return [n for n in names if n not in excluded]
 
 
 def dynamic_pool() -> dict[str, BaseTool]:
@@ -195,8 +232,9 @@ def _sync_mcp_tool_rows(tools: list[BaseTool]) -> None:
                 .filter(Tool.kind == ToolKind.MCP.value)
                 .all()
             }
+            suppressed = _suppressed_names()
             for t in tools:
-                if t.name in known:
+                if t.name in known or t.name in suppressed:
                     continue
                 s.add(
                     Tool(
@@ -224,5 +262,6 @@ async def refresh_dynamic_tools() -> None:
         _sync_mcp_tool_rows(mcp_tools)
         for t in mcp_tools:
             pool[t.name] = t
-    _dynamic_pool = pool
-    logger.info("Dynamic tool pool refreshed: %d external tool(s)", len(pool))
+    suppressed = _suppressed_names()
+    _dynamic_pool = {k: v for k, v in pool.items() if k not in suppressed}
+    logger.info("Dynamic tool pool refreshed: %d external tool(s)", len(_dynamic_pool))

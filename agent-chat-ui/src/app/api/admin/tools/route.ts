@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import { ensureToolTables } from "@/lib/tool-tables";
+import {
+  ensureToolTables,
+  getSuppressedTools,
+  setSuppressedTools,
+} from "@/lib/tool-tables";
 
 interface ToolRow {
   id: string;
@@ -85,7 +89,8 @@ export async function GET(req: Request) {
     customized: name in grantsByAgent,
   }));
 
-  return NextResponse.json({ tools, mcpServers, catalog, agents });
+  const suppressed = await getSuppressedTools();
+  return NextResponse.json({ tools, mcpServers, catalog, agents, suppressed });
 }
 
 /** Add (or re-enable) a prebuilt LangChain catalog tool. */
@@ -112,6 +117,10 @@ export async function POST(req: Request) {
        RETURNING id`,
       [name, String(body.description ?? ""), JSON.stringify(config)],
     );
+    const suppressed = await getSuppressedTools();
+    if (suppressed.includes(name)) {
+      await setSuppressedTools(suppressed.filter((n) => n !== name));
+    }
     return NextResponse.json({ ok: true, id: rows[0]?.id });
   } catch (e) {
     return NextResponse.json(

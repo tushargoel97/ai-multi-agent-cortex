@@ -848,10 +848,22 @@ async def _frontier_spec_answer(
         "Give accurate specs with brief source attribution; if you still cannot "
         "verify after searching, say so plainly."
     )
+    # Honor admin tool controls: a disabled/removed tool (e.g. a rate-limited
+    # techpowerup_specs) drops out here, so the fallback degrades to the
+    # remaining enabled web tools instead of calling it.
+    try:
+        from cortex.db.services.tool_catalog import (
+            filter_enabled,
+            resolve_tool_instances,
+        )
+
+        fallback_tools = resolve_tool_instances(filter_enabled(list(_FALLBACK_TOOLS)))
+    except Exception:  # noqa: BLE001 — tool controls optional; use the raw set
+        fallback_tools = get_tools(list(_FALLBACK_TOOLS))
     try:
         agent = create_agent(
             model=model,
-            tools=get_tools(list(_FALLBACK_TOOLS)),
+            tools=fallback_tools,
             system_prompt=system_prompt,
         )
         result = await agent.ainvoke({"messages": [HumanMessage(question)]})

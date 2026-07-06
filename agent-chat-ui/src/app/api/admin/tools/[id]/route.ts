@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import { ensureToolTables } from "@/lib/tool-tables";
+import {
+  ensureToolTables,
+  getSuppressedTools,
+  setSuppressedTools,
+} from "@/lib/tool-tables";
 
 /** Enable/disable a tool or update a LangChain tool's config. */
 export async function PATCH(
@@ -33,7 +37,8 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-/** Remove a LangChain/MCP tool (built-ins can only be disabled). */
+/** Remove any tool and suppress it (built-ins won't be re-seeded, MCP tools
+ * won't be re-synced), cleaning up every agent that granted it. */
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -50,13 +55,12 @@ export async function DELETE(
   if (!rows.length) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  if (rows[0].kind === "builtin") {
-    return NextResponse.json(
-      { error: "built-in tools can't be deleted — disable it instead" },
-      { status: 400 },
-    );
-  }
+  const name = rows[0].name;
   await query(`DELETE FROM tools WHERE id = $1`, [id]);
-  await query(`DELETE FROM agent_tools WHERE tool_name = $1`, [rows[0].name]);
+  await query(`DELETE FROM agent_tools WHERE tool_name = $1`, [name]);
+  const suppressed = await getSuppressedTools();
+  if (!suppressed.includes(name)) {
+    await setSuppressedTools([...suppressed, name]);
+  }
   return NextResponse.json({ ok: true });
 }

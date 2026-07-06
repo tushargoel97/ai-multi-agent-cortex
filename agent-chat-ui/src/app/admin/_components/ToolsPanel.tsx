@@ -63,6 +63,7 @@ export default function ToolsPanel() {
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [agentEdits, setAgentEdits] = useState<Record<string, string[]>>({});
+  const [suppressed, setSuppressed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +94,7 @@ export default function ToolsPanel() {
       setMcpServers(data.mcpServers ?? []);
       setCatalog(data.catalog ?? []);
       setAgents(data.agents ?? []);
+      setSuppressed(data.suppressed ?? []);
       const edits: Record<string, string[]> = {};
       for (const a of data.agents ?? []) edits[a.name] = [...a.tools];
       setAgentEdits(edits);
@@ -127,7 +129,12 @@ export default function ToolsPanel() {
   };
 
   const deleteTool = async (t: ToolRow) => {
-    if (!confirm(`Remove tool "${t.name}"?`)) return;
+    if (
+      !confirm(
+        `Delete "${t.name}"? It won't be re-added on restart — you can Restore it later.`,
+      )
+    )
+      return;
     setBusy(t.id);
     setError(null);
     try {
@@ -136,6 +143,24 @@ export default function ToolsPanel() {
         headers: headers(),
       });
       if (!r.ok) throw new Error((await r.json()).error || `delete ${r.status}`);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const restoreTool = async (name: string) => {
+    setBusy(`restore-${name}`);
+    setError(null);
+    try {
+      const r = await fetch("/api/admin/tools/restore", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ name }),
+      });
+      if (!r.ok) throw new Error(`restore ${r.status}`);
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -345,16 +370,19 @@ export default function ToolsPanel() {
                   />
                   Enabled
                 </label>
-                {t.kind !== "builtin" && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={busy === t.id}
-                    onClick={() => void deleteTool(t)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={busy === t.id || t.enabled}
+                  title={
+                    t.enabled
+                      ? "Disable this tool first (uncheck Enabled) to remove it from all agents, then delete"
+                      : "Delete tool"
+                  }
+                  onClick={() => void deleteTool(t)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
             </li>
           ))}
@@ -365,6 +393,35 @@ export default function ToolsPanel() {
           )}
         </ul>
       </section>
+
+      {/* Removed tools */}
+      {suppressed.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Trash2 className="size-4" /> Removed tools ({suppressed.length})
+          </h3>
+          <ul className="flex flex-wrap gap-2">
+            {suppressed.map((name) => (
+              <li
+                key={name}
+                className="flex items-center gap-1 rounded border bg-muted/40 px-2 py-1"
+              >
+                <span className="font-mono text-xs text-muted-foreground">
+                  {name}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === `restore-${name}`}
+                  onClick={() => void restoreTool(name)}
+                >
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Add LangChain tool */}
       <section className="space-y-2 rounded-md border border-dashed p-3">
