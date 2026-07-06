@@ -348,32 +348,25 @@ def _save_entries(entries: list[dict], saved: list[str], skipped: list[str]) -> 
             skipped.append(f"{entry['name']} (curated built-in)")
 
 
-def _document_text(path: str) -> str:
-    if path.lower().endswith(".pdf"):
-        from pypdf import PdfReader
+def import_document(entry: dict, limit: int, on_progress, on_log=None) -> list[dict]:
+    """Uploaded source (pdf / excel / image / prompt) → spec entries.
 
-        return "\n".join(
-            (page.extract_text() or "").replace("\n", " ")
-            for page in PdfReader(path).pages
-        )
-    from pathlib import Path
-
-    return Path(path).read_text(errors="replace")
-
-
-def import_document(path: str, name: str, limit: int, on_progress) -> list[dict]:
-    """Uploaded document → entries. Deterministic chart parsers first (Intel's
-    comparison chart today), LLM distillation for everything else."""
-    from app import intel_pdf
+    Text extraction is delegated to sources.extract_source so every source
+    type is handled correctly (images are OCR'd by the vision model, sheets
+    parsed, PDFs read). Then a deterministic chart parser (Intel today) tries
+    first, with LLM distillation as the fallback for anything else.
+    """
+    from app import intel_pdf, sources as src
     from app.research import distill_products_from_text
 
-    on_progress(0, 0, f"parsing {name}…")
-    text = _document_text(path)
+    name = entry.get("name", entry.get("id", "source"))
+    on_progress(0, 0, f"extracting {name}…")
+    text = src.extract_source(entry, on_log=on_log)
     entries = intel_pdf.parse_chart_text(text, limit)
     if len(entries) >= 3:
         return entries
     on_progress(0, 0, f"distilling {name} (LLM)…")
-    return distill_products_from_text(text, limit)
+    return distill_products_from_text(text, limit, on_log=on_log)
 
 
 def scrape(
@@ -408,12 +401,18 @@ def scrape(
     with httpx.Client() as client:
         for source in sources:
             try:
-                if not source.startswith(("http://", "https://")):
-                    entries = import_document(
-                        source, source.rsplit("/", 1)[-1], per_source, on_progress
-                    )
-                    _save_entries(entries, saved, skipped)
-                elif "amd.com" in source:
+                # dict = uploaded source entry (pdf/excel/image/prompt);
+                # str  = a URL. Uploaded URL-type sources carry their url.
+                if isinstance(source, dict):
+                    if source.get("type") == "url":
+                        agent_urls.append(source["url"])
+                    else:
+                        entries = import_document(
+                            source, per_source, on_progress, on_log=on_log
+                        )
+                        _save_entries(entries, saved, skipped)
+                    continue
+                if "amd.com" in source:
                     summary = scrape_amd(client, source, per_source, on_progress)
                     saved += summary["saved"]
                     skipped += summary["skipped"]

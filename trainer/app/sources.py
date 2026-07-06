@@ -24,8 +24,6 @@ _IMAGE_MIME = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".webp": "image/webp",
 }
-CHUNK_CHARS = 1500
-MIN_CHUNK_CHARS = 200
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -265,32 +263,3 @@ def extract_source(entry: dict, on_log=None) -> str:
     raise ValueError(f"Unknown source type {kind!r}")
 
 
-def chunk_text(text: str) -> list[str]:
-    """~CHUNK_CHARS chunks. Splits on blank lines first, then on single lines
-    for line-based content — stripped web pages and spreadsheets have no blank
-    lines, so without the line split the whole source would collapse into one
-    giant chunk that overflows the QA model and yields too few Q&A pairs."""
-    units: list[str] = []
-    for para in re.split(r"\n\s*\n", text):
-        para = para.strip()
-        if not para:
-            continue
-        if len(para) <= CHUNK_CHARS:
-            units.append(para)
-        else:  # a spreadsheet dump or stripped web page — split it by line
-            units.extend(ln.strip() for ln in para.splitlines() if ln.strip())
-
-    chunks: list[str] = []
-    current = ""
-    for unit in units:
-        if current and len(current) + len(unit) + 1 > CHUNK_CHARS:
-            chunks.append(current)
-            current = unit
-        else:
-            current = f"{current}\n{unit}" if current else unit
-    if current:
-        chunks.append(current)
-
-    sized = [c for c in chunks if len(c) >= MIN_CHUNK_CHARS]
-    # Never drop a whole (small) source to nothing.
-    return sized or ([text.strip()] if text.strip() else [])

@@ -46,9 +46,9 @@ class TrainRequest(BaseModel):
 
 
 class DatasetRequest(BaseModel):
+    # Kept for request compatibility; dataset generation is always the
+    # deterministic facts.yaml + learned_facts.yaml expansion.
     include_builtin: bool = True
-    use_sources: bool = True
-    max_pairs: int = 500
 
 
 class UrlSourceRequest(BaseModel):
@@ -99,18 +99,17 @@ def health() -> dict:
 
 @app.post("/admin/dataset/generate")
 def dataset_generate(req: DatasetRequest | None = None) -> dict:
+    """Expand facts.yaml + learned_facts.yaml into spec / overview /
+    comparison / buying / refusal training examples.
+
+    This is deterministic and instant. Sources (URLs/PDFs/images) become
+    structured spec sheets in learned_facts.yaml via the scrape agent
+    (POST /admin/scrape) BEFORE this step — not by inventing Q&A from raw
+    text. Run 'Import specs from sources' first, then 'Generate dataset'.
+    """
     req = req or DatasetRequest()
     # Pick up edits to generate_dataset.py without a service restart.
     importlib.reload(generate_dataset)
-    if req.use_sources and src.list_sources():
-        # Source-backed generation is a background job (LLM per chunk) —
-        # progress arrives via GET /admin/progress.
-        try:
-            pipeline.start_dataset_generation(req.include_builtin, req.max_pairs)
-        except pipeline.JobConflictError as e:
-            raise HTTPException(status_code=409, detail=str(e))
-        return {"status": "started"}
-    # Built-in facts.yaml expansion is instant — keep the synchronous shape.
     return generate_dataset.generate()
 
 
@@ -124,8 +123,6 @@ def dataset_status() -> dict:
             "count": sum(1 for _ in open(path)) if path.exists() else 0,
             "modified_at": path.stat().st_mtime if path.exists() else None,
         }
-    custom = settings.data_dir / "custom.jsonl"
-    out["custom_pairs"] = sum(1 for _ in open(custom)) if custom.exists() else 0
     out["sources_count"] = len(src.list_sources())
     # Whether a prior full train left adapters to warm-start a quick top-up.
     out["adapters_exist"] = (settings.adapters_dir / "adapters.safetensors").exists()
@@ -133,19 +130,16 @@ def dataset_status() -> dict:
 
 
 @app.get("/admin/dataset/preview")
-def dataset_preview(split: str = "custom", limit: int = 300) -> dict:
-    """Return the generated Q&A pairs for a split so the admin can eyeball
-    validity before training. ``split`` ∈ {custom, train, valid} — `custom`
-    is just the pairs distilled from the admin's own sources (the ones worth
-    checking), `train`/`valid` include the built-in hardware dataset.
+def dataset_preview(split: str = "train", limit: int = 300) -> dict:
+    """Return the generated training examples for a split so the admin can
+    eyeball validity before training. ``split`` ∈ {train, valid}.
     """
     import json as _json
 
     fname = {
-        "custom": "custom.jsonl",
         "train": "train.jsonl",
         "valid": "valid.jsonl",
-    }.get(split, "custom.jsonl")
+    }.get(split, "train.jsonl")
     path = settings.data_dir / fname
     if not path.exists():
         return {
@@ -235,15 +229,14 @@ def sources_delete(source_id: str) -> dict:
 def scrape_specs(req: ScrapeRequest) -> dict:
     """Dynamic spec import: URLs (any brand) and/or uploaded source ids."""
     from app.sources import list_sources
-    from app.config import settings as cfg
 
     by_id = {s["id"]: s for s in list_sources()}
-    resolved: list[str] = []
+    resolved: list = []
     for item in req.sources:
-        if item in by_id:  # uploaded document — resolve to its stored path
-            resolved.append(str(cfg.data_dir / "sources" / by_id[item]["path"]))
+        if item in by_id:  # uploaded source — pass its (type-aware) entry dict
+            resolved.append(by_id[item])
         else:
-            resolved.append(item)
+            resolved.append(item)  # a raw URL string
     try:
         pipeline.start_scrape(
             resolved,

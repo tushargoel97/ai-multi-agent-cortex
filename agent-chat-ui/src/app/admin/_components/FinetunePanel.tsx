@@ -135,8 +135,6 @@ const BUSY_PHASES = [
   "training",
   "fusing",
   "converting",
-  "extracting",
-  "generating_dataset",
   "researching",
   "scraping",
 ];
@@ -198,7 +196,6 @@ export default function FinetunePanel({
   const [status, setStatus] = useState<TrainerStatus>({ phase: "idle" });
   const [dataset, setDataset] = useState<
     Record<string, DatasetSplit> & {
-      custom_pairs?: number;
       sources_count?: number;
       adapters_exist?: boolean;
     }
@@ -208,7 +205,6 @@ export default function FinetunePanel({
   const [urlInput, setUrlInput] = useState("");
   const [promptInput, setPromptInput] = useState("");
   const [includeBuiltin, setIncludeBuiltin] = useState(true);
-  const [useSources, setUseSources] = useState(true);
   const [baseModel, setBaseModel] = useState(BASE_MODELS[0].id);
   const [iters, setIters] = useState(600);
   const [batchSize, setBatchSize] = useState(4);
@@ -233,7 +229,7 @@ export default function FinetunePanel({
     { id: string; model_id: string; display_name: string }[]
   >([]);
   const [preview, setPreview] = useState<DatasetPreview | null>(null);
-  const [previewSplit, setPreviewSplit] = useState("custom");
+  const [previewSplit, setPreviewSplit] = useState("train");
   const [showPreview, setShowPreview] = useState(false);
 
   const headers = useCallback(() => {
@@ -348,11 +344,8 @@ export default function FinetunePanel({
     try {
       await post("dataset/generate", {
         include_builtin: includeBuiltin,
-        use_sources: useSources,
-        max_pairs: 500,
       });
-      // Source-backed generation runs as a background job — progress arrives
-      // via the polling; the built-in path returns counts instantly.
+      // Deterministic facts → examples expansion; returns counts instantly.
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -717,7 +710,6 @@ export default function FinetunePanel({
   const phase = status.phase ?? "idle";
   const training = phase === "training";
   const converting = phase === "fusing" || phase === "converting";
-  const generating = phase === "extracting" || phase === "generating_dataset";
   const jobRunning = BUSY_PHASES.includes(phase) || busy !== null;
   const trainPct =
     training && status.total_iters
@@ -894,22 +886,13 @@ export default function FinetunePanel({
             />
             Include built-in hardware dataset
           </label>
-          <label className="inline-flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={useSources}
-              disabled={jobRunning || sources.length === 0}
-              onChange={(e) => setUseSources(e.target.checked)}
-            />
-            Use uploaded sources ({sources.length})
-          </label>
           <button
             onClick={importSpecs}
             disabled={jobRunning || sources.length === 0}
-            title="Import specs from every URL/document above: deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL"
+            title="Import specs from every URL/document above into structured spec sheets (learned_facts.yaml): deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL. Run this BEFORE Generate dataset."
             className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
           >
-            Import specs from sources
+            Import specs from sources ({sources.length})
           </button>
         </div>
 
@@ -955,29 +938,12 @@ export default function FinetunePanel({
             </ul>
           )}
 
-        {generating && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            <Loader2 className="mr-1 inline size-4 animate-spin" />
-            {phase === "extracting"
-              ? `Extracting sources… ${status.sources_done ?? 0}/${status.sources_total ?? 0}`
-              : `Generating Q&A pairs… ${status.pairs_generated ?? 0} pairs from ${status.chunks_done ?? 0}/${status.chunks_total ?? 0} chunks`}
-          </p>
-        )}
-        {phase === "dataset_ready" && (
-          <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="mr-1 inline size-4" />
-            Dataset built: {status.train_count} train / {status.valid_count}{" "}
-            valid ({status.pairs_generated ?? 0} pairs from your sources)
-          </p>
-        )}
         <p className="mt-2 text-sm">
           {hasDataset ? (
             <span className="text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="mr-1 inline size-4" />
               {trainCount} train / {dataset.valid?.count ?? 0} validation
               examples ready
-              {(dataset.custom_pairs ?? 0) > 0 &&
-                ` (incl. ${dataset.custom_pairs} from your sources)`}
             </span>
           ) : (
             <span className="text-muted-foreground">No dataset generated yet.</span>
@@ -988,7 +954,7 @@ export default function FinetunePanel({
           <div className="mt-3 rounded-md border">
             <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-sm">
               <span className="font-medium">Generated dataset</span>
-              {(["custom", "train", "valid"] as const).map((s) => (
+              {(["train", "valid"] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => void loadPreview(s)}

@@ -48,8 +48,6 @@ def _busy() -> bool:
         "training",
         "fusing",
         "converting",
-        "extracting",
-        "generating_dataset",
         "researching",
         "scraping",
     }
@@ -192,124 +190,6 @@ def stop() -> bool:
         _stop_requested = True
     _proc.terminate()
     return True
-
-
-def start_dataset_generation(include_builtin: bool, max_pairs: int) -> None:
-    """Extract admin-provided sources, LLM-generate Q&A pairs, write splits.
-
-    Runs as a background job through the same single-job state machine as
-    training/conversion (phases: extracting → generating_dataset →
-    dataset_ready | error).
-    """
-    from . import sources as src
-
-    with _lock:
-        if _busy():
-            raise JobConflictError(f"a job is already running (phase={_status['phase']})")
-        entries = src.list_sources()
-        if not entries:
-            raise FileNotFoundError("no sources registered — upload/add some first")
-        _reset(
-            "extracting",
-            job="dataset",
-            sources_total=len(entries),
-            sources_done=0,
-            chunks_total=0,
-            pairs_generated=0,
-        )
-    threading.Thread(
-        target=_run_dataset_generation,
-        args=(entries, include_builtin, max_pairs),
-        daemon=True,
-    ).start()
-
-
-def _run_dataset_generation(
-    entries: list[dict], include_builtin: bool, max_pairs: int
-) -> None:
-    import json as _json
-    import sys as _sys
-    from pathlib import Path as _Path
-
-    from . import qa_generator, sources as src
-
-    _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
-    import importlib as _importlib
-
-    import generate_dataset  # noqa: PLC0415
-
-    generate_dataset = _importlib.reload(generate_dataset)
-
-    def log(msg: str) -> None:
-        with _lock:
-            _log(msg)
-
-    try:
-        chunks: list[str] = []
-        for i, entry in enumerate(entries):
-            log(f"Extracting {entry['type']}: {entry['name']}")
-            try:
-                text = src.extract_source(entry, on_log=log)
-                got = src.chunk_text(text)
-                chunks.extend(got)
-                log(f"  → {len(got)} chunk(s)")
-            except Exception as e:  # noqa: BLE001 — skip bad source, keep going
-                log(f"  !! extraction failed: {e}")
-            with _lock:
-                _status["sources_done"] = i + 1
-                _status["chunks_total"] = len(chunks)
-
-        if not chunks:
-            raise RuntimeError("no usable text extracted from any source")
-
-        with _lock:
-            _status["phase"] = "generating_dataset"
-            _log(f"Generating Q&A pairs from {len(chunks)} chunks…")
-
-        def _on_progress(chunk_index: int, pairs_total: int) -> None:
-            with _lock:
-                _status["chunks_done"] = chunk_index + 1
-                _status["pairs_generated"] = pairs_total
-
-        pairs = qa_generator.generate_pairs_for_chunks(
-            chunks, max_pairs=max_pairs, on_progress=_on_progress
-        )
-        if not pairs:
-            raise RuntimeError(
-                "the QA model produced no parseable pairs — check the "
-                "TRAINER_QA_* endpoint/model configuration"
-            )
-
-        custom = [
-            {
-                "messages": [
-                    {"role": "user", "content": p["q"]},
-                    {"role": "assistant", "content": p["a"]},
-                ]
-            }
-            for p in pairs
-        ]
-        with open(settings.data_dir / "custom.jsonl", "w") as f:
-            for row in custom:
-                f.write(_json.dumps(row, ensure_ascii=False) + "\n")
-
-        examples = custom + (generate_dataset.builtin_examples() if include_builtin else [])
-        counts = generate_dataset.write_splits(examples)
-
-        with _lock:
-            _snapshot_logs()
-            _status.update(
-                {
-                    "phase": "dataset_ready",
-                    "pairs_generated": len(pairs),
-                    **counts,
-                }
-            )
-    except Exception as e:  # noqa: BLE001
-        with _lock:
-            _snapshot_logs()
-            _status["phase"] = "error"
-            _status["error"] = f"dataset generation failed: {e}"
 
 
 def start_scrape(

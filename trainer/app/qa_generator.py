@@ -1,42 +1,24 @@
-"""Q&A pair generation from source text chunks via an OpenAI-compatible LLM.
+"""Shared LLM helpers for the trainer's OpenAI-compatible endpoint.
 
 Defaults to the local llama.cpp service (ai/, port 8100) so no API key is
 required; point TRAINER_QA_BASE_URL / TRAINER_QA_API_KEY / TRAINER_QA_MODEL at
 OpenAI (or any compatible endpoint) for higher-quality generation.
+
+Used by the scrape agent / gap research (``_chat`` in research.py) and by image
+source transcription (``transcribe_image``). The old raw-chunk Q&A-pair
+generator was removed — sources now become structured spec sheets in
+learned_facts.yaml via the scrape agent, not invented Q&A pairs.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 
 import httpx
 
 from .config import settings
 
 logger = logging.getLogger(__name__)
-
-_PROMPT = """From the source text below, write factual question-answer pairs to
-fine-tune a hardware-specs assistant.
-
-Rules:
-- Ground every answer ONLY in the source text — no outside knowledge, no guessing.
-- Every question must be self-contained and use the FULL product name
-  (e.g. "Apple M4 Pro", never "it" or "the chip").
-- For EACH distinct product/model named in the text, include one pair whose
-  question asks for its full specifications (e.g. "What are the full specs of
-  the Apple M4 Pro?") and whose answer lists ALL of that product's specs found
-  in the text — CPU/GPU cores, process node, memory, bandwidth, TFLOPS/TOPS,
-  launch price, year, etc. This spec-sheet answer may be several lines long.
-- Then add up to {n} shorter pairs about individual specs or comparisons.
-- Copy every number, unit, and name EXACTLY as written.
-- Output STRICT JSON only: [{{"q": "...", "a": "..."}}, ...] — no commentary.
-
-Source text:
----
-{chunk}
----"""
 
 
 def _resolve_model(client: httpx.Client, base_url: str) -> str:
@@ -102,65 +84,3 @@ def transcribe_image(image_bytes: bytes, mime: str) -> str:
             "accepts images (e.g. OpenAI gpt-4o)."
         )
     return text
-
-
-def _parse_pairs(text: str) -> list[dict]:
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if not match:
-        return []
-    try:
-        raw = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return []
-    pairs = []
-    for item in raw if isinstance(raw, list) else []:
-        q, a = str(item.get("q", "")).strip(), str(item.get("a", "")).strip()
-        if q and a:
-            pairs.append({"q": q, "a": a})
-    return pairs
-
-
-def generate_pairs_for_chunks(
-    chunks: list[str],
-    *,
-    pairs_per_chunk: int = 4,
-    max_pairs: int = 500,
-    on_progress=None,
-) -> list[dict]:
-    """Generate Q&A pairs chunk by chunk. Returns [{"q","a"}, ...].
-
-    Parse failures skip the chunk (logged); a dead endpoint raises so the
-    caller can surface a clear job error.
-    """
-    base_url = settings.qa_base_url.rstrip("/")
-    headers = {"Authorization": f"Bearer {settings.qa_api_key}"}
-    pairs: list[dict] = []
-
-    with httpx.Client(timeout=180.0, headers=headers) as client:
-        model = _resolve_model(client, base_url)
-        logger.info("QA generation via %s model=%s", base_url, model)
-        for i, chunk in enumerate(chunks):
-            if len(pairs) >= max_pairs:
-                break
-            resp = client.post(
-                f"{base_url}/chat/completions",
-                json={
-                    "model": model,
-                    "temperature": 0.3,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": _PROMPT.format(n=pairs_per_chunk, chunk=chunk),
-                        }
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
-            got = _parse_pairs(content)
-            if not got:
-                logger.warning("Chunk %d: no parseable Q&A pairs — skipped", i)
-            pairs.extend(got)
-            if on_progress:
-                on_progress(chunk_index=i, pairs_total=len(pairs))
-    return pairs[:max_pairs]
