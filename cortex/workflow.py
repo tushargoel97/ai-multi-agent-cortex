@@ -56,6 +56,14 @@ class RouterIntent(BaseModel):
 
     intent: Intent = Field(description="Classified capability needed for the user's message.")
     reasoning: str = Field(description="One-sentence justification for the chosen intent.")
+    agent: str | None = Field(
+        default=None,
+        description=(
+            "Exact name of a custom specialized agent to handle this message, "
+            "if one clearly fits better than the standard capabilities; "
+            "otherwise null."
+        ),
+    )
 
 
 # ── Intent → Node mapping ───────────────────────────────────────────────────
@@ -305,17 +313,32 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         if isinstance(m, (HumanMessage, AIMessage))
         and not getattr(m, "tool_calls", None)
     ]
+    # Teach the router about admin-created custom agents so it can route to
+    # them by description (they register live — no restart / graph rebuild).
+    custom = _custom_agents_for_routing()
+    system_prompt = _agent_static_prompt(Agents.ROUTER.value, spec)
+    if custom:
+        listing = "\n".join(f"- {a['name']}: {a['description']}" for a in custom)
+        system_prompt += (
+            "\n\n## Custom specialized agents\n"
+            "If one of these user-defined agents is clearly the best fit for "
+            "the latest message, set `agent` to its EXACT name (still pick the "
+            "closest `intent` too). Otherwise leave `agent` null.\n" + listing
+        )
+    valid_agents = {a["name"] for a in custom}
     try:
         agent = create_agent(
             model=get_chat_client(config=config),
             tools=[],
-            system_prompt=spec.render_system_prompt(assistant_name=_assistant_name()),
+            system_prompt=system_prompt,
             response_format=ProviderStrategy(RouterIntent),
         )
         result = await agent.ainvoke({"messages": chat_messages})
         intent: RouterIntent = result["structured_response"]
         routing = intent.model_dump()
         intent_value = intent.intent.value
+        picked = (routing.get("agent") or "").strip()
+        routing["agent"] = picked if picked in valid_agents else None
     except Exception as e:  # noqa: BLE001
         fallback = _heuristic_intent(chat_messages)
         _persist_logger.warning(
@@ -324,7 +347,11 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             e,
             fallback.value,
         )
-        routing = {"intent": fallback.value, "reasoning": f"heuristic fallback ({type(e).__name__})"}
+        routing = {
+            "intent": fallback.value,
+            "reasoning": f"heuristic fallback ({type(e).__name__})",
+            "agent": None,
+        }
         intent_value = fallback.value
     # In auto mode, record which model this intent resolves to so the UI's
     # routing chip can show it. Skip image_generation: its real model is only
@@ -365,10 +392,13 @@ def route_by_intent(
     "imagegen",
     "shopping",
     "booking",
+    "custom_agent",
 ]:
     """Read the router's structured classification and pick the next node."""
     last_msg = state["messages"][-1]
     routing = last_msg.additional_kwargs.get("routing", {})
+    if routing.get("agent"):
+        return "custom_agent"
     intent_value = routing.get("intent", last_msg.content.strip().lower())
 
     try:
@@ -408,6 +438,33 @@ def _system_prompt_for(model: Any, static: str, dynamic: str | None):
     except Exception:  # noqa: BLE001 — caching is an optimization, never a blocker
         pass
     return f"{static}\n\n{dynamic}" if dynamic else static
+
+
+def _agent_static_prompt(name: str, spec: Any) -> str:
+    """Rendered system prompt, honoring an Admin → Agents edit (DB) over YAML."""
+    try:
+        from cortex.db.services.agents import agent_prompt
+
+        override = agent_prompt(name)
+    except Exception:  # noqa: BLE001
+        override = None
+    if override:
+        from jinja2 import Template
+
+        try:
+            return Template(override).render(assistant_name=_assistant_name())
+        except Exception:  # noqa: BLE001 — bad template: fall back to YAML
+            _persist_logger.exception("Agent prompt override render failed")
+    return spec.render_system_prompt(assistant_name=_assistant_name())
+
+
+def _custom_agents_for_routing() -> list[dict]:
+    try:
+        from cortex.db.services.agents import custom_agents_for_routing
+
+        return custom_agents_for_routing()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _effective_agent_tools(spec: Any) -> list[Any]:
@@ -450,7 +507,7 @@ def _build_agent(
             PIIMiddleware("email", strategy="redact", apply_to_output=True)
         )
     model = get_chat_client(config=config, auto_intent=auto_intent)
-    static = spec.render_system_prompt(assistant_name=_assistant_name())
+    static = _agent_static_prompt(agent_id.value, spec)
     # Inject today's date + the user's browser region so agents resolve
     # "9th July" to the right year and default shopping/booking to the user's
     # country — kept in the dynamic (post-cache) segment.
@@ -522,6 +579,66 @@ async def shopping(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 async def booking(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Booking specialist — flights, hotels, movies, concerts, events, and shows."""
     return await _run_agent(Agents.BOOKING, state, config, Intent.BOOKING.value)
+
+
+async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Run an admin-created custom agent the router selected by name.
+
+    Custom agents are defined entirely in Admin → Agents (system prompt +
+    granted tools) and route live via the router — no graph rebuild needed.
+    """
+    routing: dict | None = None
+    for m in reversed(state["messages"]):
+        if _is_router_marker(m):
+            routing = m.additional_kwargs.get("routing") or {}
+            break
+    name = (routing or {}).get("agent")
+
+    from cortex.db.services.agents import load_custom_agent
+
+    spec = load_custom_agent(name) if name else None
+    if spec is None:
+        # Selected agent vanished / was disabled mid-turn — answer generally.
+        return await generalist(state, config)
+
+    memory_suffix, updates = await _memory_context(state, config)
+    model = get_chat_client(config=config)
+
+    from jinja2 import Template
+
+    try:
+        static = Template(spec["system_prompt"]).render(
+            assistant_name=_assistant_name()
+        )
+    except Exception:  # noqa: BLE001 — bad template: use it raw
+        static = spec["system_prompt"]
+
+    now = datetime.now()
+    context_line = f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}."
+    dynamic = f"{context_line}\n\n{memory_suffix}" if memory_suffix else context_line
+
+    from cortex.db.services.tool_catalog import (
+        effective_tool_names,
+        resolve_tool_instances,
+    )
+
+    try:
+        tools = resolve_tool_instances(effective_tool_names(name, []))
+    except Exception:  # noqa: BLE001
+        tools = []
+
+    middleware: list[Any] = [
+        PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),
+        PIIMiddleware("email", strategy="redact", apply_to_output=True),
+    ]
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=_system_prompt_for(model, static, dynamic),
+        middleware=middleware,
+    )
+    result = await agent.ainvoke({"messages": _window(state["messages"])})
+    return {"messages": result["messages"], **updates}
 
 
 async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
@@ -1012,6 +1129,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_node("specialist", specialist)
     builder.add_node("spec_review", spec_review)
     builder.add_node("imagegen", imagegen)
+    builder.add_node("custom_agent", custom_agent)
     builder.add_node("synthesize", synthesize)
 
     # Edges
@@ -1024,6 +1142,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_edge("imagegen", END)
     builder.add_edge("shopping", END)
     builder.add_edge("booking", END)
+    builder.add_edge("custom_agent", END)
     # Factual agents get a formatting pass (tables / worked math / structure).
     # The coder shares this node too, but synthesize handles code
     # deterministically (a parse-only syntax check) — it never lets the fast

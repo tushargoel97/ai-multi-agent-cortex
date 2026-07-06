@@ -1,4 +1,5 @@
 from cortex.db.models.app_setting import AppSetting
+from cortex.db.models.agent import Agent, AgentKind
 from cortex.db.models.base import Base
 from cortex.db.models.knowledge_article import KnowledgeArticle
 from cortex.db.models.knowledge_gap import KnowledgeGap
@@ -8,6 +9,8 @@ from cortex.db.models.tool import AgentTool, MCPServer, Tool, ToolKind
 
 __all__ = [
     "AppSetting",
+    "Agent",
+    "AgentKind",
     "AgentTool",
     "Base",
     "KnowledgeArticle",

@@ -84,6 +84,13 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001 — tool catalog is additive, never fatal
         logger.exception("Tool catalog init failed")
 
+    try:
+        from cortex.db.services.agents import publish_agents
+
+        publish_agents()
+    except Exception:  # noqa: BLE001 — agent mirror is additive, never fatal
+        logger.exception("Agent init failed")
+
     logger.info("Cortex durable server ready — Postgres persistence, no license/Redis.")
     try:
         yield
