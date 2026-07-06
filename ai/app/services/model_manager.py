@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 
 import httpx
@@ -171,20 +172,31 @@ def list_downloaded() -> list[dict]:
 
 _HF_API = "https://huggingface.co/api"
 _QUANT_PREFERENCE = ["Q4_K_M", "Q4_K_S", "Q5_K_M", "Q3_K_M", "Q8_0", "Q6_K", "Q5_K_S"]
+_SHARD_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.IGNORECASE)
+
+
+def _is_primary_shard(f: str) -> bool:
+    """True for single-file GGUFs and the first shard of a multi-part set."""
+    m = _SHARD_RE.search(f)
+    return m is None or m.group(1) == "00001"
 
 
 def _pick_best_gguf(filenames: list[str]) -> str | None:
+    # Modern repos keep quants in sub-folders and split large models into
+    # multi-part shards — accept both (only the first shard is the entry point).
     gguf = [
         f for f in filenames
-        if f.endswith(".gguf") and "/" not in f and "mmproj" not in f.lower()
+        if f.endswith(".gguf") and "mmproj" not in f.lower()
     ]
     if not gguf:
         return None
+    pool = [f for f in gguf if _is_primary_shard(f)] or gguf
+    pool.sort(key=lambda f: ("/" in f, f))  # prefer flat files, then stable order
     for q in _QUANT_PREFERENCE:
-        for f in gguf:
+        for f in pool:
             if q in f:
                 return f
-    return gguf[0]
+    return pool[0]
 
 
 async def search_huggingface(query: str, limit: int = 20) -> list[dict]:
@@ -283,9 +295,28 @@ async def download_model(
                 if self.total:
                     _update(self.n, self.total)
 
+        fname = info["filename"]
+        shard = _SHARD_RE.search(fname)
+        if shard:
+            # Multi-part GGUF: fetch every shard into the same directory so
+            # llama.cpp can load the set from the first shard.
+            total_parts = int(shard.group(2))
+            prefix = fname[: shard.start()]
+            first_path = None
+            for i in range(1, total_parts + 1):
+                part = f"{prefix}-{i:05d}-of-{total_parts:05d}.gguf"
+                path = hf_hub_download(
+                    repo_id=info["repo_id"],
+                    filename=part,
+                    local_dir=MODELS_DIR,
+                    tqdm_class=_Tqdm,
+                )
+                if i == 1:
+                    first_path = path
+            return first_path
         return hf_hub_download(
             repo_id=info["repo_id"],
-            filename=info["filename"],
+            filename=fname,
             local_dir=MODELS_DIR,
             tqdm_class=_Tqdm,
         )
@@ -317,6 +348,16 @@ async def delete_model(name: str) -> bool:
     if not p:
         return False
     os.remove(p)
+    # Multi-part GGUFs sit next to their sibling shards — remove the whole set.
+    shard = _SHARD_RE.search(p)
+    if shard:
+        import glob
+
+        for f in glob.glob(f"{p[: shard.start()]}-*-of-*.gguf"):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
     _remove_custom_entry(name)
     cache = os.path.join(MODELS_DIR, ".cache")
     if os.path.exists(cache):
