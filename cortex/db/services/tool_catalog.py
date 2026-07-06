@@ -76,6 +76,22 @@ def publish_tool_catalog() -> None:
                         config={},
                     )
                 )
+            # Prune built-in rows (and their grants) for tools that were
+            # removed from the code registry, so deleting a built-in in code
+            # leaves no dangling entry.
+            registry_names = set(registry)
+            stale = [
+                row[0]
+                for row in s.query(Tool.name)
+                .filter(Tool.kind == ToolKind.BUILTIN.value)
+                .all()
+                if row[0] not in registry_names
+            ]
+            for name in stale:
+                s.query(AgentTool).filter(AgentTool.tool_name == name).delete()
+                s.query(Tool).filter(
+                    Tool.name == name, Tool.kind == ToolKind.BUILTIN.value
+                ).delete()
         _publish_ui_mirror()
     except Exception:  # noqa: BLE001 — catalog mirror is best-effort
         logger.exception("publish_tool_catalog failed")

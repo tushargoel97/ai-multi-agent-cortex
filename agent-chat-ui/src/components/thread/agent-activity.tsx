@@ -62,7 +62,6 @@ const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
   search_knowledge_base: { label: "Searching the knowledge base", icon: Database },
   fetch_url: { label: "Reading a web page", icon: Link2 },
   crypto_price: { label: "Fetching live prices", icon: Coins },
-  techpowerup_specs: { label: "Checking TechPowerUp specs", icon: Cpu },
   get_current_time: { label: "Checking the clock", icon: Clock },
   save_memory: { label: "Saving a memory", icon: NotebookPen },
   search_memories: { label: "Recalling memories", icon: NotebookPen },

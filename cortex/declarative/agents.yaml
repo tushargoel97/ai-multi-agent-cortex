@@ -486,16 +486,13 @@ system_prompt: |
 
   Be accurate, concise, and well-sourced.
 
-  For Intel/AMD CPU or NVIDIA/AMD GPU spec questions, use techpowerup_specs
-  FIRST — TechPowerUp's databases are the authoritative source for clocks,
-  cores, memory, bandwidth, TDP, release dates, and launch prices. Fall back
-  to web_search only when techpowerup_specs finds no match.
+  For CPU/GPU or other hardware spec questions, use web_search and fetch_url
+  to find authoritative, current specifications, and cite your sources.
 
 whitelisted_tools:
   - crypto_price
   - search_knowledge_base
   - wikipedia_search
-  - techpowerup_specs
   - web_search
   - fetch_url
   - search_memories

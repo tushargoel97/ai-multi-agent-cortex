@@ -62,7 +62,7 @@ CLI steps are required for day-to-day use.
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `router`        | Classifies user intent into one of nine capability types        | none (structured output only)                                             |
 | `generalist`    | Default chat agent — greetings, opinions, creative tasks         | `get_current_time`, memory                                                |
-| `researcher`    | Factual questions, grounded answers with citations               | `search_knowledge_base`, `wikipedia_search`, `web_search`, `fetch_url`, `techpowerup_specs`, `crypto_price`, memory |
+| `researcher`    | Factual questions, grounded answers with citations               | `search_knowledge_base`, `wikipedia_search`, `web_search`, `fetch_url`, `crypto_price`, memory |
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |

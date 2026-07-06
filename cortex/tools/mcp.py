@@ -12,8 +12,8 @@ context the graph provides:
 * ``save_memory`` / ``search_memories`` — require the LangGraph runtime store.
 * ``search_knowledge_base`` — requires the Postgres/pgvector session + embeddings.
 
-Everything else (web search, page fetch, Wikipedia, crypto, TechPowerUp specs,
-product prices, booking search, time, calculator) is pure network/compute and is
+Everything else (web search, page fetch, Wikipedia, crypto, product prices,
+booking search, time, calculator) is pure network/compute and is
 bridged to MCP via ``to_fastmcp``.
 
 Run it:  ``python -m cortex.tools.mcp``  (streamable-HTTP on ``$MCP_PORT``)

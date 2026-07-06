@@ -792,7 +792,7 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
 
 
 # Web tools the frontier fallback uses to ground an answer (researcher's set).
-_FALLBACK_TOOLS = ("web_search", "fetch_url", "techpowerup_specs", "search_knowledge_base")
+_FALLBACK_TOOLS = ("web_search", "fetch_url", "search_knowledge_base")
 
 
 def _untrained_product_reason(question: str) -> str | None:
@@ -843,14 +843,14 @@ async def _frontier_spec_answer(
     system_prompt = (
         "You are a hardware specifications expert. The product in the user's "
         "question is NOT in any local knowledge base, so you MUST call the "
-        "web_search and fetch_url (or techpowerup_specs) tools to find "
+        "web_search and fetch_url tools to find "
         "authoritative, current specifications before answering — never guess. "
         "Give accurate specs with brief source attribution; if you still cannot "
         "verify after searching, say so plainly."
     )
-    # Honor admin tool controls: a disabled/removed tool (e.g. a rate-limited
-    # techpowerup_specs) drops out here, so the fallback degrades to the
-    # remaining enabled web tools instead of calling it.
+    # Honor admin tool controls: a disabled/removed tool drops out here, so
+    # the fallback degrades to the remaining enabled web tools instead of
+    # calling it.
     try:
         from cortex.db.services.tool_catalog import (
             filter_enabled,
