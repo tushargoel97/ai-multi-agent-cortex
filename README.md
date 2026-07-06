@@ -42,9 +42,9 @@ editing (system prompts, tool access, and custom agents)** all live in the
 │                            ├─ booking       ──────────────────▶ END   │
 │                            ├─ custom_agent  ──────────────────▶ END   │
 │                            ├─ researcher ─┐                           │
-│                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END  │
+│                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ─▶ spec_review ─▶ synthesize │
+│                            └─ specialist ─▶ spec_review ─▶ synthesize│
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -68,11 +68,11 @@ editing (system prompts, tool access, and custom agents)** all live in the
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none at answer time; a `spec_review` pass self-critiques and, for untrained hardware, answers via a frontier model + web RAG (and logs a knowledge gap) |
+| `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none at answer time; a `spec_review` pass self-critiques (heuristics + an LLM fact-check for wrong brand/architecture/figures) then corrects via a frontier model + web RAG, logging a knowledge gap |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
 | `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
 | `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
-| `synthesizer`   | Formatting pass over factual answers (tables, worked math) + fact grounding | none                                                           |
+| `synthesizer`   | Deterministic spec/comparison tables (via `render_spec_table`) + formatting pass over factual answers (worked math, grounding) | none (renders in-node) |
 
 > Every agent's **system prompt and tool access** is editable from **Admin →
 > Agents**, and you can create **custom agents** there — they auto-route via the
@@ -101,19 +101,26 @@ fits the message, the turn routes to the generic `custom_agent` node that runs
 it — custom agents register live, with no graph rebuild.
 
 The `specialist` answer first passes through a `spec_review` step that
-self-critiques the draft: when the fine-tuned model wasn't trained on the
-product (it refused, answered about the wrong product, or the product isn't in
-its training facts), it **logs a knowledge gap** and re-answers with a capable
-frontier model grounded on **live web search**, so the user still gets an
-accurate answer.
+**self-critiques** the draft. Cheap heuristics catch refusals and products the
+model wasn't trained on; then a real **LLM fact-check** (a strict frontier
+critic) flags confidently-wrong answers the heuristics miss — wrong
+manufacturer, an impossible architecture (e.g. "CUDA cores" on an Apple chip),
+or an implausible figure. On any of these it **logs a knowledge gap** and
+re-answers with a capable frontier model — grounded on **live web search** when
+available, the model's own knowledge otherwise — so the user always gets a
+corrected answer, never the wrong one with a note.
 
 The `researcher`, `reasoner`, `specialist`, and `coder` answers then pass
-through the `synthesize` node. For factual answers it is a presentation-only
-pass (spec tables, worked math, structured research) that grounds drifted
-numbers against the authoritative spec YAMLs and rewrites the final message in
-place — and **skips the reformat when the answer is already a table** so
-spec-sheet answers appear without a second round-trip. For `coder` answers it
-never lets the fast model touch the code — instead it runs a deterministic,
+through the `synthesize` node. For **product, hardware, or software spec and
+comparison** answers it renders the table **deterministically**: a model only
+*extracts* the structured data (columns + rows, copied verbatim) and code
+renders the markdown through the `render_spec_table` tool — so the answer always
+comes out as a valid table instead of relying on the model to format one (a
+guard blocks any invented number, and it falls back to prose only if nothing
+tabular could be extracted). Other factual answers get a lighter presentation
+pass that grounds drifted numbers against the authoritative spec YAMLs, and it
+**skips the reformat when the answer is already a table**. For `coder` answers
+it never lets the fast model touch the code — instead it runs a deterministic,
 parse-only syntax check (Python via `ast`, JSON via `json`) and appends a
 heads-up when a complete code block is broken.
 
@@ -141,7 +148,11 @@ The agent layer itself is configurable from the console — no code, no restart:
   **tool access**, reset built-ins to their packaged defaults, and create
   **custom agents** (name + description + prompt + tools) that **auto-route via
   the router** by their description. Custom agents can use built-in, LangChain,
-  and MCP tools.
+  and MCP tools. Any agent can also be given **subagents** — other agents it
+  delegates focused subtasks to on demand (agent-as-tool). A subagent runs in
+  isolated context, shares the parent's long-term memory **read-only** (it can
+  recall but never `save_memory`), and uses its own granted built-in/LangChain/
+  MCP tools; delegation is one level deep (no recursion).
 
 DB-backed prompt and tool overrides win over the packaged YAML per agent and
 apply on the next message; transient provider errors (e.g. Anthropic
@@ -479,8 +490,8 @@ ai-multi-agent-cortex/
 │   ├── config.py             # Settings (Pydantic) + settings.yaml/.env loader
 │   ├── db/
 │   │   ├── engine.py         # SQLAlchemy session factory
-│   │   ├── models/           # LLMProvider, LLMModel, KnowledgeGap, AppSetting, KnowledgeArticle, Tool/MCPServer/AgentTool, Agent
-│   │   ├── services/         # llm_registry, auto_mode, knowledge_gaps, app_settings, tool_catalog, agents
+│   │   ├── models/           # LLMProvider, LLMModel, KnowledgeGap, AppSetting, KnowledgeArticle, Tool/MCPServer/AgentTool, Agent/AgentSubagent
+│   │   ├── services/         # llm_registry, auto_mode, knowledge_gaps, app_settings, tool_catalog, agents (+ subagents)
 │   │   └── seed.py           # Registry + knowledge-base seeder
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
@@ -489,6 +500,7 @@ ai-multi-agent-cortex/
 │   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
 │   ├── scripts/              # one-off maintenance scripts
 │   └── tools/                # registry + web/commerce/utility/shared/memory tools;
+│                             #   spec_table.py (deterministic spec/comparison tables),
 │                             #   catalog.py (prebuilt LangChain tools); mcp.py exposes
 │                             #   the stateless ones over FastMCP
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
