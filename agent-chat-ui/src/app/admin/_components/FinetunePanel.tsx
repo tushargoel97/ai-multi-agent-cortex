@@ -1110,6 +1110,12 @@ export default function FinetunePanel({
           </label>
         </div>
 
+        <p className="mt-2 text-xs text-muted-foreground/70">
+          {hasAdapters
+            ? "Only change the base / search Hugging Face to SWITCH base models. Retraining the existing model on the same base — a full “Start training” (fresh adapters) or a “Quick top-up” (warm-start) — needs no change here."
+            : "Choose the base model to train from — a preset, or “Search Hugging Face…” for any text-generation repo."}
+        </p>
+
         {showHf && (
           <div className="mt-3 rounded-md border bg-muted/30 p-3">
             <div className="flex items-center gap-2">
