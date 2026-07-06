@@ -1014,6 +1014,74 @@ async def _frontier_spec_answer(
     return None
 
 
+class _SpecCritique(BaseModel):
+    """Structured verdict from the specialist fact-checker."""
+
+    has_error: bool = Field(
+        description="True only if the draft has a clear, objective factual error."
+    )
+    reason: str = Field(
+        description="Short description of the worst error, or 'ok' when correct."
+    )
+
+
+async def _critique_spec_draft(question: str, draft: str) -> str | None:
+    """The real self-critique: an LLM fact-check of the specialist's draft.
+
+    The keyword heuristics can't tell a confidently-wrong answer (an Apple
+    A-series chip labelled 'NVIDIA', a Snapdragon described with AMD 'Zen 4'
+    cores, a $40,000 phone SoC) from a good one — the products ARE named, so
+    they pass. This asks a capable non-fine-tuned model to judge the draft's
+    facts and figures, returning a gap reason on a clear error, else None.
+    Best-effort: needs a frontier critic; skips silently otherwise.
+    """
+    from cortex.db.services.auto_mode import resolve_auto_model
+
+    try:
+        resolved = resolve_auto_model(Intent.KNOWLEDGE_QUERY.value)
+    except Exception:  # noqa: BLE001
+        resolved = None
+    if resolved is None or resolved.model_id.startswith(FINE_TUNED_PREFIX):
+        return None  # no capable critic available — keep the heuristics' verdict
+
+    system = (
+        "You are a strict hardware fact-checker. You receive a user question "
+        "and a DRAFT answer written by a small, error-prone model. Set "
+        "has_error=true when the draft has ANY clear, objective error:\n"
+        "- a product attributed to the wrong maker/brand (e.g. Apple's A-series "
+        "or M-series called 'NVIDIA'; Qualcomm's Snapdragon called 'AMD');\n"
+        "- an architecture or feature that cannot belong to the named product "
+        "(e.g. 'CUDA cores' on a non-NVIDIA chip; AMD 'Zen' / 'Radeon' on a "
+        "Snapdragon; an Apple Neural Engine on an Intel CPU);\n"
+        "- a physically implausible figure (e.g. a phone/laptop SoC priced at "
+        "$40000, drawing 10000 W, or with an absurd memory bandwidth).\n"
+        "Do NOT flag rounding, minor spec drift, or wording. Judge only the "
+        "draft you are given; do not rewrite it."
+    )
+    try:
+        model = build_client_from_resolved(resolved)
+        agent = create_agent(
+            model=model,
+            tools=[],
+            system_prompt=system,
+            response_format=ProviderStrategy(_SpecCritique),
+        )
+        result = await agent.ainvoke(
+            {
+                "messages": [
+                    HumanMessage(f"Question:\n{question}\n\nDraft answer:\n{draft}")
+                ]
+            }
+        )
+        critique: _SpecCritique = result["structured_response"]
+    except Exception:  # noqa: BLE001 — critic is best-effort, never fatal
+        _persist_logger.exception("Spec draft critique failed")
+        return None
+    if critique.has_error:
+        return f"fact_error: {critique.reason[:200]}".strip()
+    return None
+
+
 async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Self-critique the specialist's draft; on a knowledge gap, answer
     accurately via a frontier model + web RAG.
@@ -1038,7 +1106,13 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
 
     from cortex.db.services.knowledge_gaps import detect_gap, log_gap
 
+    # Cheap heuristics first: refusal phrases, a named product missing from the
+    # answer, or a product not in the training facts. Then the real
+    # self-critique — an LLM fact-check that catches confidently-wrong answers
+    # the heuristics can't (wrong brand, impossible architecture, absurd specs).
     reason = detect_gap(question, draft) or _untrained_product_reason(question)
+    if reason is None:
+        reason = await _critique_spec_draft(question, draft)
     if reason is None:
         return {}  # specialist answer looks grounded → synthesize formats it
 
@@ -1046,10 +1120,17 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
 
     fallback = await _frontier_spec_answer(question, config)
     if fallback is not None:
-        note = (
-            "\n\n*Answered from live web sources — this hardware isn't in my "
-            "fine-tuned knowledge yet, so I've logged it for future training.*"
-        )
+        if reason.startswith("fact_error"):
+            note = (
+                "\n\n*Answered from live web sources — my fine-tuned model had "
+                "some of these specs wrong, so I've corrected them and logged "
+                "it for retraining.*"
+            )
+        else:
+            note = (
+                "\n\n*Answered from live web sources — this hardware isn't in my "
+                "fine-tuned knowledge yet, so I've logged it for future training.*"
+            )
         return {
             "messages": [
                 AIMessage(
