@@ -4,13 +4,18 @@ from cortex.db.models.knowledge_article import KnowledgeArticle
 from cortex.db.models.knowledge_gap import KnowledgeGap
 from cortex.db.models.llm_model import LLMModel
 from cortex.db.models.llm_provider import LLMProvider, ProviderKind
+from cortex.db.models.tool import AgentTool, MCPServer, Tool, ToolKind
 
 __all__ = [
     "AppSetting",
+    "AgentTool",
     "Base",
     "KnowledgeArticle",
     "KnowledgeGap",
     "LLMModel",
     "LLMProvider",
+    "MCPServer",
     "ProviderKind",
+    "Tool",
+    "ToolKind",
 ]

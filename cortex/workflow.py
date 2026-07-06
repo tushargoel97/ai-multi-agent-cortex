@@ -406,6 +406,27 @@ def _system_prompt_for(model: Any, static: str, dynamic: str | None):
     return f"{static}\n\n{dynamic}" if dynamic else static
 
 
+def _effective_agent_tools(spec: Any) -> list[Any]:
+    """Agent tools with admin overrides applied.
+
+    DB grants (Admin → Tools) replace the YAML whitelist when present and
+    globally-disabled tools are dropped; names resolve to built-in, LangChain
+    catalog, and MCP instances. Falls back to the YAML/registry tools on any
+    error so a bad tool config never breaks a run.
+    """
+    try:
+        from cortex.db.services.tool_catalog import (
+            effective_tool_names,
+            resolve_tool_instances,
+        )
+
+        names = effective_tool_names(spec.name, spec.whitelisted_tools)
+        return resolve_tool_instances(names)
+    except Exception:  # noqa: BLE001 — never break a run over tool config
+        _persist_logger.exception("Agent tool resolution fell back to YAML")
+        return spec.get_tools()
+
+
 def _build_agent(
     agent_id: Agents,
     *,
@@ -445,7 +466,7 @@ def _build_agent(
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     return create_agent(
         model=model,
-        tools=spec.get_tools(),
+        tools=_effective_agent_tools(spec),
         system_prompt=_system_prompt_for(model, static, dynamic),
         middleware=middleware,
     )

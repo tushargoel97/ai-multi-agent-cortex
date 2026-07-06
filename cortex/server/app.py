@@ -71,6 +71,19 @@ async def lifespan(app: FastAPI):
     runtime.store = store
     runtime.graph = build_workflow(checkpointer=checkpointer, store=store)
 
+    # Tool control: mirror built-in tools into the DB and load external tools
+    # (LangChain catalog + MCP servers) so admin-granted tools are available.
+    try:
+        from cortex.db.services.tool_catalog import (
+            publish_tool_catalog,
+            refresh_dynamic_tools,
+        )
+
+        publish_tool_catalog()
+        await refresh_dynamic_tools()
+    except Exception:  # noqa: BLE001 — tool catalog is additive, never fatal
+        logger.exception("Tool catalog init failed")
+
     logger.info("Cortex durable server ready — Postgres persistence, no license/Redis.")
     try:
         yield
