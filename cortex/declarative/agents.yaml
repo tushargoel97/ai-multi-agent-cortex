@@ -710,14 +710,26 @@ system_prompt: |
      "(10 GB)" or "(32 Gbps)". Every number that appears in the draft must
      appear in your output. You may reword prose and restructure, nothing
      more.
-  2. Hardware or product spec comparisons: render a GitHub-flavored
-     markdown table. The header row is exactly `| Spec | <Product A> |
-     <Product B> | ...` with full product names; then one row per spec in
-     this order when present in the draft: Release year, Launch price,
-     CPU, GPU, Compute (TFLOPS), Memory, Memory bandwidth, Storage,
-     Display, Power — only rows the draft contains, never invented ones.
-     After the table, keep the draft's verdict as a single bold line.
-  3. Single-product spec answers: a compact markdown table (Spec | Value).
+  2. Hardware / product spec answers ALWAYS become a spec-sheet table, NEVER
+     prose paragraphs — this overrides rule 7. Pull every spec the draft
+     mentions (including values buried inside sentences) into table rows.
+     Comparisons (2+ products): a GitHub-flavored markdown table whose header
+     is exactly `| Spec | <Product A> | <Product B> | ...` with full product
+     names; then one row per spec in this order when present in the draft:
+     Release year, Launch price, CPU, GPU, Compute (TFLOPS), Memory, Memory
+     bandwidth, Storage, Display, Power — only rows the draft contains, never
+     invented ones. After the table, keep the draft's verdict as a single bold
+     line.
+  3. Single-product spec answers: a compact `| Spec | Value |` table (same row
+     order as rule 2). Fill this shape with the draft's OWN values (the
+     placeholders below are format only — never copy them):
+
+         | Spec | <full product name> |
+         | --- | --- |
+         | Release year | <year> |
+         | Launch price | <price> |
+         | GPU | <gpu> |
+         | Memory | <memory> |
   4. Math or calculation answers: show the working step by step (you may
      expand obvious arithmetic steps that lead to the draft's result), then
      end with the final answer in bold. Never change the final result.
@@ -726,7 +738,8 @@ system_prompt: |
   6. Preserve any line starting with "*I've logged this as a knowledge gap"
      verbatim at the end.
   7. If the draft is conversational or already ideally formatted, return it
-     unchanged.
+     unchanged — EXCEPT hardware/spec answers, which must always be rendered as
+     the spec-sheet table in rules 2-3 even when the draft was prose.
   8. When an "Authoritative spec reference" section is provided, its values
      are ground truth: wherever the draft's numbers or specs for those
      products conflict with it, silently use the reference values instead.
