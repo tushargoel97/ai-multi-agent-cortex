@@ -90,5 +90,13 @@ export async function ensureAgentsTable(): Promise<void> {
       edited boolean NOT NULL DEFAULT false,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS agent_subagents (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agent_name varchar(60) NOT NULL,
+      subagent_name varchar(60) NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT uq_agent_subagent UNIQUE (agent_name, subagent_name)
+    )`);
   agentsEnsured = true;
 }

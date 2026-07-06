@@ -46,6 +46,10 @@ export async function GET(req: Request) {
   const { rows: grants } = await query<{ agent_name: string; tool_name: string }>(
     `SELECT agent_name, tool_name FROM agent_tools`,
   );
+  const { rows: subRows } = await query<{
+    agent_name: string;
+    subagent_name: string;
+  }>(`SELECT agent_name, subagent_name FROM agent_subagents`);
   const { rows: toolRows } = await query<{ name: string; enabled: boolean }>(
     `SELECT name, enabled FROM tools ORDER BY kind, name`,
   );
@@ -67,6 +71,10 @@ export async function GET(req: Request) {
   const grantsByAgent: Record<string, string[]> = {};
   for (const g of grants) (grantsByAgent[g.agent_name] ??= []).push(g.tool_name);
 
+  const subsByAgent: Record<string, string[]> = {};
+  for (const s of subRows)
+    (subsByAgent[s.agent_name] ??= []).push(s.subagent_name);
+
   const out = agents.map((a) => ({
     id: a.id,
     name: a.name,
@@ -77,6 +85,7 @@ export async function GET(req: Request) {
     edited: a.edited,
     tools: grantsByAgent[a.name] ?? toolDefaults[a.name] ?? [],
     hasGrants: a.name in grantsByAgent,
+    subagents: subsByAgent[a.name] ?? [],
     defaultPrompt: agentDefaults[a.name]?.system_prompt ?? "",
   }));
 

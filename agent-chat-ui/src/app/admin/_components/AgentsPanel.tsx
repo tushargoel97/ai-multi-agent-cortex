@@ -26,6 +26,7 @@ interface AgentRow {
   edited: boolean;
   tools: string[];
   hasGrants: boolean;
+  subagents: string[];
   defaultPrompt: string;
 }
 
@@ -33,6 +34,7 @@ interface Edit {
   system_prompt: string;
   description: string;
   tools: string[];
+  subagents: string[];
 }
 
 export default function AgentsPanel() {
@@ -72,6 +74,7 @@ export default function AgentsPanel() {
           system_prompt: a.system_prompt,
           description: a.description,
           tools: [...a.tools],
+          subagents: [...(a.subagents ?? [])],
         };
       }
       setEdits(e);
@@ -90,7 +93,9 @@ export default function AgentsPanel() {
     return (
       e.system_prompt !== a.system_prompt ||
       e.description !== a.description ||
-      [...e.tools].sort().join(",") !== [...a.tools].sort().join(",")
+      [...e.tools].sort().join(",") !== [...a.tools].sort().join(",") ||
+      [...e.subagents].sort().join(",") !==
+        [...(a.subagents ?? [])].sort().join(",")
     );
   };
 
@@ -118,6 +123,7 @@ export default function AgentsPanel() {
       system_prompt: e.system_prompt,
       description: e.description,
       tools: e.tools,
+      subagents: e.subagents,
     });
   };
 
@@ -198,6 +204,14 @@ export default function AgentsPanel() {
       return { ...prev, [name]: { ...prev[name], tools: [...cur] } };
     });
 
+  const toggleEditSubagent = (name: string, sub: string) =>
+    setEdits((prev) => {
+      const cur = new Set(prev[name]?.subagents ?? []);
+      if (cur.has(sub)) cur.delete(sub);
+      else cur.add(sub);
+      return { ...prev, [name]: { ...prev[name], subagents: [...cur] } };
+    });
+
   const setEdit = (name: string, patchObj: Partial<Edit>) =>
     setEdits((prev) => ({ ...prev, [name]: { ...prev[name], ...patchObj } }));
 
@@ -207,9 +221,9 @@ export default function AgentsPanel() {
         <div>
           <h2 className="text-lg font-semibold">Agents</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Edit each agent&apos;s system prompt and tool access, or create
-            custom agents. Custom agents auto-route via the router by their
-            description — no restart. Changes apply on the next message.
+            Edit each agent&apos;s system prompt, tool access, and subagents, or
+            create custom agents. Custom agents auto-route via the router by
+            their description — no restart. Changes apply on the next message.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -314,6 +328,7 @@ export default function AgentsPanel() {
             system_prompt: a.system_prompt,
             description: a.description,
             tools: a.tools,
+            subagents: a.subagents ?? [],
           };
           const open = expanded === a.name;
           return (
@@ -418,6 +433,41 @@ export default function AgentsPanel() {
                       {tools.length === 0 && (
                         <span className="text-xs text-muted-foreground/70">
                           No enabled tools.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Subagents{" "}
+                      <span className="font-normal text-muted-foreground/70">
+                        — agents this one can delegate subtasks to on demand;
+                        they share this agent&apos;s memory read-only
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {agents
+                        .filter((x) => x.name !== a.name && x.enabled)
+                        .map((x) => (
+                          <label
+                            key={x.id}
+                            title={x.description}
+                            className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={e.subagents.includes(x.name)}
+                              onChange={() => toggleEditSubagent(a.name, x.name)}
+                            />
+                            <span className="font-mono capitalize">
+                              {x.name}
+                            </span>
+                          </label>
+                        ))}
+                      {agents.filter((x) => x.name !== a.name && x.enabled)
+                        .length === 0 && (
+                        <span className="text-xs text-muted-foreground/70">
+                          No other agents to delegate to.
                         </span>
                       )}
                     </div>

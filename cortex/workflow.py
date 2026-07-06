@@ -80,6 +80,12 @@ _INTENT_TO_NODE: dict[Intent, str] = {
     Intent.BOOKING: "booking",
 }
 
+# Reverse map: built-in agent/node name → its auto-mode intent tier. Used when a
+# built-in runs as a subagent so it still resolves its correct model tier.
+_NODE_TO_INTENT: dict[str, str] = {
+    node: intent.value for intent, node in _INTENT_TO_NODE.items()
+}
+
 
 def _assistant_name() -> str:
     return get_settings().assistant_name
@@ -488,6 +494,121 @@ def _effective_agent_tools(spec: Any) -> list[Any]:
         return spec.get_tools()
 
 
+def _load_agent_runtime(name: str):
+    """(system_prompt, tools, auto_intent) for any agent by name — built-in or
+    custom — so it can run as a subagent. None if it doesn't exist or is a
+    disabled custom agent. Never includes its OWN subagents, so delegation is a
+    single level (no recursion).
+    """
+    try:
+        agent_id = Agents(name)
+    except ValueError:
+        agent_id = None
+    if agent_id is not None:
+        try:
+            spec = get_agent_spec(agent_id)
+        except Exception:  # noqa: BLE001
+            return None
+        return (
+            _agent_static_prompt(name, spec),
+            _effective_agent_tools(spec),
+            _NODE_TO_INTENT.get(name),
+        )
+
+    from cortex.db.services.agents import load_custom_agent
+    from cortex.db.services.tool_catalog import (
+        effective_tool_names,
+        resolve_tool_instances,
+    )
+
+    spec = load_custom_agent(name)
+    if spec is None:
+        return None
+    from jinja2 import Template
+
+    try:
+        static = Template(spec["system_prompt"]).render(
+            assistant_name=_assistant_name()
+        )
+    except Exception:  # noqa: BLE001 — bad template: use it raw
+        static = spec.get("system_prompt") or ""
+    try:
+        tools = resolve_tool_instances(effective_tool_names(name, []))
+    except Exception:  # noqa: BLE001
+        tools = []
+    return static, tools, None
+
+
+def _subagent_tool(
+    subagent_name: str, description: str, config: RunnableConfig | None
+):
+    """Wrap an agent as a tool the parent can delegate a focused subtask to.
+
+    Isolated context (task in → result out) + read-only shared memory: the
+    subagent recalls the shared long-term store but never persists to it (the
+    ``save_memory`` write tool is stripped). Only the main agent writes memory.
+    """
+    from langchain_core.tools import StructuredTool
+
+    async def _delegate(task: str) -> str:
+        runtime = _load_agent_runtime(subagent_name)
+        if runtime is None:
+            return f"The '{subagent_name}' subagent is unavailable."
+        static, tools, intent = runtime
+        # Read-only memory: never let a subagent persist long-term memories.
+        tools = [t for t in tools if getattr(t, "name", "") != "save_memory"]
+        recalled = await _recall_memories([HumanMessage(task)])
+        system = static
+        if recalled:
+            system += (
+                "\n\n## Shared long-term memory (read-only — recall only, do not "
+                f"try to save)\n{recalled}"
+            )
+        try:
+            sub = create_agent(
+                model=get_chat_client(config=config, auto_intent=intent),
+                tools=tools,
+                system_prompt=system,
+            )
+            result = await sub.ainvoke({"messages": [HumanMessage(task)]})
+        except Exception:  # noqa: BLE001 — a subagent must never crash the parent
+            _persist_logger.exception("Subagent %r failed", subagent_name)
+            return f"The '{subagent_name}' subagent could not complete the task."
+        msgs = result.get("messages", [])
+        final = msgs[-1] if msgs else None
+        if (
+            isinstance(final, AIMessage)
+            and isinstance(final.content, str)
+            and final.content.strip()
+        ):
+            return final.content
+        return f"The '{subagent_name}' subagent returned no output."
+
+    safe = re.sub(r"[^a-z0-9_]+", "_", subagent_name.lower()).strip("_") or "subagent"
+    tool_desc = (
+        f"Delegate a focused subtask to the '{subagent_name}' subagent"
+        + (f" \u2014 {description}" if description else "")
+        + ". Give it a clear, self-contained instruction; it works in isolation "
+        "and returns its findings for you to use."
+    )
+    return StructuredTool.from_function(
+        coroutine=_delegate, name=f"ask_{safe}", description=tool_desc
+    )
+
+
+def _subagent_tools(agent_name: str, config: RunnableConfig | None) -> list[Any]:
+    """Subagent-delegation tools granted to a parent agent (Admin → Agents)."""
+    try:
+        from cortex.db.services.agents import subagents_for
+
+        subs = subagents_for(agent_name)
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        _subagent_tool(s["name"], s.get("description", ""), config) for s in subs
+    ]
+
+
 def _build_agent(
     agent_id: Agents,
     *,
@@ -525,9 +646,10 @@ def _build_agent(
         f"results unless they say otherwise."
     )
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
+    tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
     return create_agent(
         model=model,
-        tools=_effective_agent_tools(spec),
+        tools=tools,
         system_prompt=_system_prompt_for(model, static, dynamic),
         middleware=middleware,
     )
@@ -626,6 +748,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         tools = resolve_tool_instances(effective_tool_names(name, []))
     except Exception:  # noqa: BLE001
         tools = []
+    tools = tools + _subagent_tools(name, config)
 
     middleware: list[Any] = [
         PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, String, Text, func
+from sqlalchemy import Boolean, DateTime, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,27 @@ class Agent(Base):
     # True once an admin edits a built-in's prompt — stops the startup sync
     # from overwriting their edit with the packaged YAML.
     edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AgentSubagent(Base):
+    """Delegation grant — ``agent_name`` (parent) may call ``subagent_name`` as a
+    tool. One level only: a subagent doesn't get its own subagents at runtime,
+    so there's no delegation recursion. Subagents share the parent's long-term
+    memory read-only (they recall it but never persist via ``save_memory``)."""
+
+    __tablename__ = "agent_subagents"
+    __table_args__ = (
+        UniqueConstraint("agent_name", "subagent_name", name="uq_agent_subagent"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    agent_name: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    subagent_name: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

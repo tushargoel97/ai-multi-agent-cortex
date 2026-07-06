@@ -11,7 +11,7 @@ import logging
 
 from cortex.db.engine import engine, get_session
 from cortex.db.models import Base
-from cortex.db.models.agent import Agent, AgentKind
+from cortex.db.models.agent import Agent, AgentKind, AgentSubagent
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,9 @@ def _ensure_tables() -> None:
     global _tables_ready
     if _tables_ready:
         return
-    Base.metadata.create_all(engine, tables=[Agent.__table__])
+    Base.metadata.create_all(
+        engine, tables=[Agent.__table__, AgentSubagent.__table__]
+    )
     _tables_ready = True
 
 
@@ -155,3 +157,34 @@ def load_custom_agent(name: str) -> dict | None:
             }
     except Exception:  # noqa: BLE001
         return None
+
+
+def subagents_for(agent_name: str) -> list[dict]:
+    """Enabled subagents a parent agent may delegate to (name + description).
+
+    The workflow exposes each as a tool the parent can call on demand. Disabled
+    subagents drop out; best-effort ([] on any error) so a bad grant never
+    breaks a run.
+    """
+    try:
+        _ensure_tables()
+        with get_session() as s:
+            names = [
+                row[0]
+                for row in s.query(AgentSubagent.subagent_name)
+                .filter(AgentSubagent.agent_name == agent_name)
+                .all()
+            ]
+            if not names:
+                return []
+            rows = {
+                r.name: r for r in s.query(Agent).filter(Agent.name.in_(names)).all()
+            }
+            out: list[dict] = []
+            for n in names:
+                r = rows.get(n)
+                if r is not None and r.enabled:
+                    out.append({"name": n, "description": r.description or ""})
+            return out
+    except Exception:  # noqa: BLE001
+        return []

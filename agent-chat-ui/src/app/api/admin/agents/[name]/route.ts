@@ -15,6 +15,20 @@ async function setGrants(name: string, tools: string[]) {
   }
 }
 
+async function setSubagents(name: string, subagents: string[]) {
+  await query(`DELETE FROM agent_subagents WHERE agent_name = $1`, [name]);
+  for (const sub of Array.from(new Set(subagents))) {
+    if (sub && sub !== name) {
+      await query(
+        `INSERT INTO agent_subagents (id, agent_name, subagent_name)
+           VALUES (gen_random_uuid(), $1, $2)
+         ON CONFLICT (agent_name, subagent_name) DO NOTHING`,
+        [name, sub],
+      );
+    }
+  }
+}
+
 /** Update an agent's system prompt / description / enabled / tools, or reset a
  * built-in to its packaged defaults ({ reset: true }). */
 export async function PATCH(
@@ -48,6 +62,7 @@ export async function PATCH(
       [prompt, description, name],
     );
     await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
+    await query(`DELETE FROM agent_subagents WHERE agent_name = $1`, [name]);
     return NextResponse.json({ ok: true });
   }
 
@@ -72,6 +87,9 @@ export async function PATCH(
   }
   if (Array.isArray(body.tools)) {
     await setGrants(name, body.tools.map((t: unknown) => String(t)));
+  }
+  if (Array.isArray(body.subagents)) {
+    await setSubagents(name, body.subagents.map((s: unknown) => String(s)));
   }
   return NextResponse.json({ ok: true });
 }
@@ -101,6 +119,10 @@ export async function DELETE(
   }
   await query(`DELETE FROM agents WHERE name = $1 AND kind = 'custom'`, [name]);
   await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
+  await query(
+    `DELETE FROM agent_subagents WHERE agent_name = $1 OR subagent_name = $1`,
+    [name],
+  );
   return NextResponse.json({ ok: true });
 }
 
