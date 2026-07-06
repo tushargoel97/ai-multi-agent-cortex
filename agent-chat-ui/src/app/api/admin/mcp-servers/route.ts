@@ -30,8 +30,8 @@ export async function POST(req: Request) {
 
   try {
     const { rows } = await query<{ id: string }>(
-      `INSERT INTO mcp_servers (name, transport, url, command, args, env, enabled)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, true)
+      `INSERT INTO mcp_servers (id, name, transport, url, command, args, env, enabled)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::jsonb, $6::jsonb, true)
        ON CONFLICT (name) DO UPDATE
          SET transport = EXCLUDED.transport, url = EXCLUDED.url,
              command = EXCLUDED.command, args = EXCLUDED.args, env = EXCLUDED.env

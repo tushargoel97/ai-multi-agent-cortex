@@ -104,8 +104,8 @@ export async function POST(req: Request) {
 
   try {
     const { rows } = await query<{ id: string }>(
-      `INSERT INTO tools (name, kind, description, enabled, config)
-         VALUES ($1, 'langchain', $2, true, $3::jsonb)
+      `INSERT INTO tools (id, name, kind, description, enabled, config)
+         VALUES (gen_random_uuid(), $1, 'langchain', $2, true, $3::jsonb)
        ON CONFLICT (name) DO UPDATE
          SET config = EXCLUDED.config, enabled = true,
              description = EXCLUDED.description

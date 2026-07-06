@@ -24,7 +24,8 @@ export async function PATCH(
   await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
   for (const tool of tools) {
     await query(
-      `INSERT INTO agent_tools (agent_name, tool_name) VALUES ($1, $2)
+      `INSERT INTO agent_tools (id, agent_name, tool_name)
+       VALUES (gen_random_uuid(), $1, $2)
        ON CONFLICT (agent_name, tool_name) DO NOTHING`,
       [name, tool],
     );

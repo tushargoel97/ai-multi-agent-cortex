@@ -54,12 +54,6 @@ def _stackexchange(cfg: dict) -> BaseTool:
     return StackExchangeTool(api_wrapper=StackExchangeAPIWrapper())
 
 
-def _ddg(cfg: dict) -> BaseTool:
-    from langchain_community.tools import DuckDuckGoSearchRun
-
-    return DuckDuckGoSearchRun()
-
-
 def _tavily(cfg: dict) -> BaseTool:
     key = cfg.get("api_key") or os.getenv("TAVILY_API_KEY")
     if not key:
@@ -80,7 +74,6 @@ CATALOG: dict[str, CatalogEntry] = {
         CatalogEntry("arxiv", "arXiv", "Search arXiv papers and abstracts.", ("arxiv",), (), _arxiv),
         CatalogEntry("pubmed", "PubMed", "Search biomedical literature on PubMed.", (), (), _pubmed),
         CatalogEntry("stackexchange", "Stack Exchange", "Search Stack Overflow / Stack Exchange.", ("stackapi",), (), _stackexchange),
-        CatalogEntry("ddg_search", "DuckDuckGo Search", "Web search via DuckDuckGo.", ("duckduckgo_search",), (), _ddg),
         CatalogEntry("tavily_search", "Tavily Search", "AI-optimized web search (API key).", ("tavily",), ("api_key",), _tavily),
     )
 }
