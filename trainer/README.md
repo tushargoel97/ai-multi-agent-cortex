@@ -20,6 +20,14 @@ cd trainer
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8200
 ```
 
+Restarting? Use the helper — it frees port 8200 by killing **only** the old
+trainer's listener (never Docker), then starts uvicorn:
+
+```bash
+chmod +x restart.sh   # once
+./restart.sh          # add --reload for auto-restart on code changes
+```
+
 The admin UI (Admin → Fine-Tuning) drives everything from there:
 generate dataset → train (live loss) → convert & register.
 
