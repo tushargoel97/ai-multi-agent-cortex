@@ -230,8 +230,32 @@ containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-speciali
 | `db`        | 5432      | `pgvector/pgvector:pg16`      | Postgres — app registry/KB **and** durable graph state (see below) |
 | `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server ([`cortex/server`](cortex/server)) |
 | `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
-| `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models                |
+| `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models (reads `./models`) |
 | `mcp`       | 8811      | `docker/Dockerfile.langgraph` | FastMCP server exposing the stateless tools to external MCP clients |
+| `trainer` † | 8200      | host — `trainer/` (not Docker) | MLX LoRA fine-tuning service; writes fine-tuned GGUFs into `./models` |
+| `langfuse-*`| 4000      | `langfuse/*` (profile `observability`) | Tracing UI + worker (own Postgres/ClickHouse/Redis/MinIO) — captures every model & tool span |
+| `evals`     | —         | `docker/Dockerfile.evals` (profile `evals`) | One-shot runner for the pytest eval suites (faithfulness / routing / security) |
+
+† The **`trainer`** is the one component that is *not* containerized — MLX needs
+the Apple GPU, so it runs on the host and reaches the stack over
+`host.docker.internal`. See [the specialist](#the-self-trained-hardware-specialist).
+
+At a glance, each service owns one concern:
+
+- **`db`** — the single source of truth. Provider/model registry, tools & agents
+  config, knowledge base + embeddings, knowledge gaps, app settings, **and** the
+  durable graph state (threads, checkpoints, long-term memory) all live here;
+  it's the one volume you must not lose.
+- **`langgraph`** — the brain. Compiles and runs the multi-agent graph and serves
+  the chat API the UI talks to.
+- **`ui`** — the only public face. The chat experience plus the `/admin` console;
+  it also proxies admin calls to `ai` and to the host `trainer`.
+- **`ai`** — the local-inference engine. Serves GGUF models (downloaded or
+  fine-tuned) over an OpenAI-compatible API. Its models live in the **`./models`
+  host bind mount**, so imported/fine-tuned GGUFs and the `catalog.json` registry
+  survive `ai` restarts *and* image rebuilds — only `docker compose down -v` or
+  deleting the files removes them.
+- **`mcp`** — re-exposes the stateless tools to external MCP clients (below).
 
 The **`mcp`** service is an *additive* [FastMCP](https://modelcontextprotocol.io)
 server ([`cortex/tools/mcp.py`](cortex/tools/mcp.py)) that re-exposes Cortex's

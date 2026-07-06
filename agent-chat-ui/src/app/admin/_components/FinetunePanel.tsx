@@ -1245,6 +1245,13 @@ export default function FinetunePanel({
                 </span>
               )}
             </div>
+            {phase === "trained" && (
+              <p className="text-xs text-muted-foreground">
+                LoRA adapters saved (<code>adapters.safetensors</code>) — not a
+                servable model yet. Run <strong>Convert &amp; Register</strong>{" "}
+                below to fuse them into a GGUF the chat can load.
+              </p>
+            )}
             {status.history && <LossSparkline history={status.history} />}
             {status.log_tail && status.log_tail.length > 0 && (
               <details className="text-xs">
@@ -1304,13 +1311,31 @@ export default function FinetunePanel({
               : "Converting to GGUF (this can take a few minutes)…"}
           </p>
         )}
-        {registered && (
-          <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="mr-1 inline size-4" />
-            Registered! The model now appears in the chat model dropdown, and
-            hardware-spec questions will route to it automatically (no RAG, no
-            web search).
+        {busy === "convert" && phase === "done" && !registered && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            <Loader2 className="mr-1 inline size-4 animate-spin" />
+            GGUF built
+            {status.gguf_filename ? ` (${status.gguf_filename})` : ""} — importing
+            into the local model service and registering it…
           </p>
+        )}
+        {registered && (
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="mr-1 inline size-4" />
+              Registered!{" "}
+              <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> was
+              written to the shared <code>models/</code> folder and imported into
+              the local model service.
+            </p>
+            <p className="text-muted-foreground">
+              The GGUF lives in the <code>./models</code> host mount, so it
+              persists across <code>ai</code> restarts and image rebuilds. It now
+              appears in the chat model dropdown, and hardware-spec questions
+              route to it automatically (with a web-search fallback for hardware
+              it wasn&apos;t trained on).
+            </p>
+          </div>
         )}
       </section>
 
