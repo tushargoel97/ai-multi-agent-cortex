@@ -269,3 +269,57 @@ def convert(req: ConvertRequest) -> dict:
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "started", "output_name": req.output_name}
+
+
+@app.get("/admin/hf/search")
+def hf_search(q: str, limit: int = 20) -> dict:
+    """Search Hugging Face for trainable base models (text-generation repos).
+
+    mlx-lm downloads the chosen repo (safetensors) at train time; gated repos
+    (e.g. google/gemma-*) need an HF_TOKEN in the trainer's environment.
+    """
+    q = (q or "").strip()
+    if not q:
+        return {"results": []}
+    try:
+        from huggingface_hub import HfApi
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"huggingface_hub unavailable: {e}")
+    try:
+        models = HfApi().list_models(
+            search=q,
+            pipeline_tag="text-generation",
+            sort="downloads",
+            limit=max(1, min(limit, 40)),
+        )
+        results = [
+            {
+                "id": m.id,
+                "downloads": int(getattr(m, "downloads", 0) or 0),
+                "likes": int(getattr(m, "likes", 0) or 0),
+                "gated": bool(getattr(m, "gated", False)),
+            }
+            for m in models
+        ]
+        return {"results": results}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"HuggingFace search failed: {e}")
+
+
+@app.delete("/admin/artifacts")
+def clear_artifacts() -> dict:
+    """Delete the LoRA adapters + fused working dirs. They are base-specific
+    (tied to base_model.txt) and can't be reused to train a different base —
+    the next full train recreates them. The registered GGUF is removed
+    separately via the ai service. Refuses while a job is running.
+    """
+    if pipeline._busy():
+        raise HTTPException(status_code=409, detail="a training/convert job is running")
+    import shutil
+
+    removed: list[str] = []
+    for d in (settings.adapters_dir, settings.fused_dir):
+        if d.exists():
+            shutil.rmtree(d, ignore_errors=True)
+            removed.append(d.name)
+    return {"status": "cleared", "removed": removed}

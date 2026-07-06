@@ -189,6 +189,15 @@ export default function FinetunePanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [registered, setRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hfQuery, setHfQuery] = useState("");
+  const [hfResults, setHfResults] = useState<
+    { id: string; downloads: number; likes: number; gated: boolean }[]
+  >([]);
+  const [hfSearching, setHfSearching] = useState(false);
+  const [showHf, setShowHf] = useState(false);
+  const [finetuned, setFinetuned] = useState<
+    { id: string; model_id: string; display_name: string }[]
+  >([]);
 
   const headers = useCallback(() => {
     const t = getAdminToken();
@@ -514,6 +523,125 @@ export default function FinetunePanel({
 
       setRegistered(true);
       onChanged?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const searchHf = async () => {
+    const q = hfQuery.trim();
+    if (!q) return;
+    setHfSearching(true);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/admin/trainer/hf/search?q=${encodeURIComponent(q)}`,
+        { headers: headers() },
+      );
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.detail ?? data?.error ?? `search ${r.status}`);
+      setHfResults(data.results ?? []);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setHfSearching(false);
+    }
+  };
+
+  const pickBase = (repoId: string) => {
+    setBaseModel(repoId);
+    const tail = repoId.split("/").pop() ?? repoId;
+    const slug = tail
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    setModelName(`finetuned-${slug}-hardware`);
+    setShowHf(false);
+  };
+
+  const refreshFinetuned = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/models", { headers: headers() });
+      const rows = await r.json();
+      if (Array.isArray(rows)) {
+        setFinetuned(
+          rows
+            .filter((m: { model_id?: string }) =>
+              m.model_id?.startsWith("finetuned-"),
+            )
+            .map((m: { id: string; model_id: string; display_name?: string }) => ({
+              id: m.id,
+              model_id: m.model_id,
+              display_name: m.display_name || m.model_id,
+            })),
+        );
+      }
+    } catch {
+      /* registry unavailable — ignore */
+    }
+  }, [headers]);
+
+  useEffect(() => {
+    void refreshFinetuned();
+  }, [refreshFinetuned, registered]);
+
+  const deleteFinetuned = async (m: {
+    id: string;
+    model_id: string;
+    display_name: string;
+  }) => {
+    if (
+      !window.confirm(
+        `Delete "${m.display_name}" (${m.model_id})?\n\nRemoves it from the model registry and deletes the .gguf file.`,
+      )
+    )
+      return;
+    setBusy(`del-${m.id}`);
+    setError(null);
+    try {
+      const r = await fetch(`/api/admin/models/${m.id}`, {
+        method: "DELETE",
+        headers: headers(),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d?.detail ?? d?.error ?? `delete ${r.status}`);
+      }
+      // Best-effort GGUF removal from the ai service.
+      await fetch(`/api/admin/local/models/${encodeURIComponent(m.model_id)}`, {
+        method: "DELETE",
+        headers: headers(),
+      }).catch(() => {});
+      await refreshFinetuned();
+      onChanged?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const clearArtifacts = async () => {
+    if (
+      !window.confirm(
+        "Clear the LoRA adapters + fused working files?\n\nThey're tied to the current base model and can't be reused for a different one. The next full training recreates them.",
+      )
+    )
+      return;
+    setBusy("clear-artifacts");
+    setError(null);
+    try {
+      const r = await fetch("/api/admin/trainer/artifacts", {
+        method: "DELETE",
+        headers: headers(),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d?.detail ?? `clear ${r.status}`);
+      }
+      await refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -919,25 +1047,45 @@ export default function FinetunePanel({
         </div>
 
         <div className="mt-3 flex flex-wrap items-end gap-4">
-          <label className="text-sm">
+          <div className="text-sm">
             <span className="mb-1 block text-muted-foreground">Base model</span>
-            <select
-              value={baseModel}
-              disabled={training}
-              onChange={(e) => {
-                setBaseModel(e.target.value);
-                const bm = BASE_MODELS.find((b) => b.id === e.target.value);
-                if (bm) setModelName(bm.output);
-              }}
-              className="h-9 cursor-pointer appearance-none rounded-full border border-border bg-muted/50 px-4 pr-8 text-sm text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {BASE_MODELS.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="flex items-center gap-2">
+              <select
+                value={baseModel}
+                disabled={training}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__search__") {
+                    setShowHf(true);
+                    return;
+                  }
+                  setBaseModel(v);
+                  const bm = BASE_MODELS.find((b) => b.id === v);
+                  if (bm) setModelName(bm.output);
+                }}
+                className="h-9 cursor-pointer appearance-none rounded-full border border-border bg-muted/50 px-4 pr-8 text-sm text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {BASE_MODELS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+                {!BASE_MODELS.some((b) => b.id === baseModel) && (
+                  <option value={baseModel}>{baseModel} (custom)</option>
+                )}
+                <option value="__search__">Search Hugging Face…</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowHf((v) => !v)}
+                disabled={training}
+                className="inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted/50 disabled:opacity-50"
+                title="Search Hugging Face for a base model"
+              >
+                <Globe className="size-3.5" /> HF
+              </button>
+            </div>
+          </div>
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Iterations</span>
             <Input
@@ -961,6 +1109,74 @@ export default function FinetunePanel({
             />
           </label>
         </div>
+
+        {showHf && (
+          <div className="mt-3 rounded-md border bg-muted/30 p-3">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search Hugging Face — e.g. Qwen3 4B instruct, Llama 3.2 3B"
+                value={hfQuery}
+                disabled={training}
+                onChange={(e) => setHfQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") searchHf();
+                }}
+                className="h-9 flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={searchHf}
+                disabled={hfSearching || !hfQuery.trim()}
+              >
+                {hfSearching ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Globe className="mr-1 size-4" />
+                )}
+                Search
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              Any text-generation repo works as a training base. mlx-lm
+              downloads it at train time; gated repos (e.g. google/gemma-*) need
+              an HF_TOKEN on the trainer host.
+            </p>
+            {hfResults.length > 0 && (
+              <ul className="mt-2 max-h-56 space-y-1 overflow-auto">
+                {hfResults.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-xs text-foreground">
+                        {m.id}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        ↓ {m.downloads.toLocaleString()} · ♥{" "}
+                        {m.likes.toLocaleString()}
+                        {m.gated && (
+                          <span className="ml-1 rounded bg-amber-500/15 px-1 text-amber-600">
+                            gated
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => pickBase(m.id)}
+                      disabled={training}
+                    >
+                      Use
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {(training || phase === "trained" || (status.history?.length ?? 0) > 0) && (
           <div className="mt-4 space-y-2">
@@ -1056,6 +1272,68 @@ export default function FinetunePanel({
             web search).
           </p>
         )}
+      </section>
+
+      {/* 4 — Fine-tuned models */}
+      <section className="rounded-lg border p-4">
+        <div className="flex items-center gap-2">
+          <Database className="size-4 text-muted-foreground" />
+          <h2 className="font-medium">4 · Fine-tuned models</h2>
+        </div>
+        {finetuned.length > 0 ? (
+          <ul className="mt-3 space-y-1">
+            {finetuned.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between gap-2 rounded border bg-background px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-foreground">{m.display_name}</div>
+                  <code className="text-xs text-muted-foreground">
+                    {m.model_id}
+                  </code>
+                </div>
+                <button
+                  onClick={() => deleteFinetuned(m)}
+                  disabled={jobRunning}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  title="Delete from the registry and remove the .gguf file"
+                >
+                  {busy === `del-${m.id}` ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground/70">
+            No fine-tuned models registered yet — train one, then Convert &amp;
+            Register.
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={clearArtifacts}
+            disabled={jobRunning}
+          >
+            {busy === "clear-artifacts" ? (
+              <Loader2 className="mr-1 size-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-1 size-4" />
+            )}
+            Clear training artifacts
+          </Button>
+          <span className="text-xs text-muted-foreground/70">
+            Removes the LoRA adapters + fused files (shared working state, tied
+            to the current base). Do this before switching base models.
+          </span>
+        </div>
       </section>
     </div>
   );
