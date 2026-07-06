@@ -227,8 +227,12 @@ async def _memory_context(
 # small local model that can't do structured output): classify by keywords
 # instead of failing the whole run.
 _HARDWARE_RE = re.compile(
-    r"ps5|playstation|xbox|steam ?deck|nintendo|switch 2|rtx|geforce|radeon|"
-    r"ryzen|intel core|i9-|i7-|core ultra|tflops|gpu|cpu|graphics card|nvidia|amd|h100|b200",
+    r"ps5|playstation|xbox|steam ?deck|nintendo|switch\s?2?|"
+    r"rtx|gtx|geforce|radeon|\brx\s?\d|\barc\b|"
+    r"ryzen|threadripper|epyc|xeon|intel\s+core|core\s+ultra|i[3579]-\d|"
+    r"snapdragon|exynos|mediatek|dimensity|apple\s+silicone?|bionic|"
+    r"\bm[1-9]\b|\ba1[0-9]\b|\bchips?\b|chipset|\bsoc\b|processor|"
+    r"tflops|\bgpu\b|\bcpu\b|graphics\s+card|nvidia|\bamd\b|h100|h200|b200",
     re.IGNORECASE,
 )
 # Buy/price intent beats a bare hardware keyword: "where to buy a PS5 Pro" is
@@ -556,6 +560,13 @@ _NOTE_PREFIXES = (_GAP_NOTE_PREFIX, _FALLBACK_NOTE_PREFIX)
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 
+_TABLE_RE = re.compile(r"^\s*\|.+\|\s*\n\s*\|[\s:|-]+\|", re.MULTILINE)
+
+
+def _has_markdown_table(text: str) -> bool:
+    """True when the text already contains a markdown table (header + separator)."""
+    return bool(_TABLE_RE.search(text))
+
 
 def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> bool:
     """Fact guard for the synthesizer: no invented numbers, and (without an
@@ -667,6 +678,11 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             _routed_intent(msgs) == Intent.PRODUCT_SPECS.value
             or model_name.startswith(FINE_TUNED_PREFIX)
         )
+        # A spec answer that is already a markdown table needs no reformat —
+        # skip the extra LLM round-trip (it was adding ~10-20s before the
+        # table appeared). The web fallback and researcher emit tables directly.
+        if is_spec and _has_markdown_table(final.content):
+            return {}
         resolved = (
             resolve_auto_model(Intent.KNOWLEDGE_QUERY.value) if is_spec else None
         )
@@ -843,10 +859,10 @@ async def _frontier_spec_answer(
     system_prompt = (
         "You are a hardware specifications expert. The product in the user's "
         "question is NOT in any local knowledge base, so you MUST call the "
-        "web_search and fetch_url tools to find "
-        "authoritative, current specifications before answering — never guess. "
-        "Give accurate specs with brief source attribution; if you still cannot "
-        "verify after searching, say so plainly."
+        "web_search and fetch_url tools to find authoritative, current "
+        "specifications before answering — never guess. Present the specs as a "
+        "concise markdown table (Spec | Value) followed by brief source "
+        "attribution; if you still cannot verify after searching, say so plainly."
     )
     # Honor admin tool controls: a disabled/removed tool drops out here, so
     # the fallback degrades to the remaining enabled web tools instead of

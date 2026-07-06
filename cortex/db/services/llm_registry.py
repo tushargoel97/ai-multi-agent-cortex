@@ -124,7 +124,7 @@ def build_client_from_resolved(
 
     match resolved.kind:
         case ProviderKind.OPENAI:
-            kwargs: dict = {"model": resolved.model_id}
+            kwargs: dict = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
             if resolved.base_url:
@@ -136,6 +136,7 @@ def build_client_from_resolved(
         case ProviderKind.AZURE_OPENAI:
             kwargs = {
                 "model": resolved.model_id,
+                "max_retries": 4,
                 "azure_endpoint": resolved.azure_endpoint or "",
                 "api_version": resolved.azure_api_version or "2024-12-01-preview",
             }
@@ -146,7 +147,7 @@ def build_client_from_resolved(
             return AzureChatOpenAI(**kwargs)
 
         case ProviderKind.ANTHROPIC:
-            kwargs = {"model": resolved.model_id}
+            kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
             return _thinking_safe_anthropic_cls()(**kwargs)
@@ -154,7 +155,7 @@ def build_client_from_resolved(
         case ProviderKind.GOOGLE:
             from langchain_google_genai import ChatGoogleGenerativeAI
 
-            kwargs = {"model": resolved.model_id}
+            kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["google_api_key"] = resolved.api_key
             return ChatGoogleGenerativeAI(**kwargs)
@@ -162,6 +163,7 @@ def build_client_from_resolved(
         case ProviderKind.LOCAL:
             kwargs = {
                 "model": resolved.model_id,
+                "max_retries": 4,
                 "api_key": local_api_key_override or resolved.api_key or "not-needed",
                 "base_url": local_base_url_override or resolved.base_url,
             }
