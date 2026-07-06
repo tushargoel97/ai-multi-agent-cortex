@@ -16,8 +16,9 @@ distinguish a real product from a demo:
    and human-in-the-loop interrupts are wired in as `langchain` middleware.
 
 Everything is driveable from the UI — model/provider management, local-model
-downloads, and the fine-tuning pipeline all live in the `/admin` console; no
-CLI steps are required for day-to-day use.
+downloads, the fine-tuning pipeline, **tool & MCP-server control**, and **agent
+editing (system prompts, tool access, and custom agents)** all live in the
+`/admin` console; no CLI steps are required for day-to-day use.
 
 ---
 
@@ -39,10 +40,11 @@ CLI steps are required for day-to-day use.
 │                            ├─ imagegen      ──────────────────▶ END   │
 │                            ├─ shopping      ──────────────────▶ END   │
 │                            ├─ booking       ──────────────────▶ END   │
+│                            ├─ custom_agent  ──────────────────▶ END   │
 │                            ├─ researcher ─┐                           │
-│                            ├─ reasoner   ─┤                           │
-│                            ├─ specialist ─┼─▶ synthesize ──────▶ END │
-│                            └─ coder      ─┘                           │
+│                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END  │
+│                            ├─ coder      ─┘                           │
+│                            └─ specialist ─▶ spec_review ─▶ synthesize │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -66,11 +68,15 @@ CLI steps are required for day-to-day use.
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none — answers purely from the fine-tuned model's weights                 |
+| `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none at answer time; a `spec_review` pass self-critiques and, for untrained hardware, answers via a frontier model + web RAG (and logs a knowledge gap) |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
 | `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
 | `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
 | `synthesizer`   | Formatting pass over factual answers (tables, worked math) + fact grounding | none                                                           |
+
+> Every agent's **system prompt and tool access** is editable from **Admin →
+> Agents**, and you can create **custom agents** there — they auto-route via the
+> router by their description, with no restart and no code.
 
 ### Routing
 
@@ -89,15 +95,27 @@ one of nine labels, each mapped to a node:
 
 Unknown labels fall back to `general_chat`. If the routing model itself is
 unavailable (e.g. a small local model that can't emit structured output), a
-keyword heuristic classifies the turn so the run never fails.
+keyword heuristic classifies the turn so the run never fails. The router also
+emits an optional `agent` field: when a **custom agent** (Admin → Agents) best
+fits the message, the turn routes to the generic `custom_agent` node that runs
+it — custom agents register live, with no graph rebuild.
 
-The `researcher`, `reasoner`, `specialist`, and `coder` answers pass through
-the `synthesize` node. For factual answers it is a presentation-only pass
-(spec tables, worked math, structured research) that grounds drifted numbers
-against the authoritative spec YAMLs and rewrites the final message in place.
-For `coder` answers it never lets the fast model touch the code — instead it
-runs a deterministic, parse-only syntax check (Python via `ast`, JSON via
-`json`) and appends a heads-up when a complete code block is broken.
+The `specialist` answer first passes through a `spec_review` step that
+self-critiques the draft: when the fine-tuned model wasn't trained on the
+product (it refused, answered about the wrong product, or the product isn't in
+its training facts), it **logs a knowledge gap** and re-answers with a capable
+frontier model grounded on **live web search**, so the user still gets an
+accurate answer.
+
+The `researcher`, `reasoner`, `specialist`, and `coder` answers then pass
+through the `synthesize` node. For factual answers it is a presentation-only
+pass (spec tables, worked math, structured research) that grounds drifted
+numbers against the authoritative spec YAMLs and rewrites the final message in
+place — and **skips the reformat when the answer is already a table** so
+spec-sheet answers appear without a second round-trip. For `coder` answers it
+never lets the fast model touch the code — instead it runs a deterministic,
+parse-only syntax check (Python via `ast`, JSON via `json`) and appends a
+heads-up when a complete code block is broken.
 
 ### Auto mode
 
@@ -109,6 +127,25 @@ node resolves the best model for its intent from
 `app_settings` and switched from Admin → Models). Only models that are
 enabled in the registry are eligible, so the admin console stays in control.
 The routing chip in the transcript shows which model auto-mode picked.
+
+### Tools, MCP & agents (admin-managed)
+
+The agent layer itself is configurable from the console — no code, no restart:
+
+- **Tools & MCP** (`/admin` → Tools) — enable/disable the built-in tools, add
+  prebuilt **LangChain** tools from a catalog (Wikipedia, arXiv, PubMed, Stack
+  Exchange, Tavily), and register external **MCP servers** (HTTP/stdio) whose
+  tools become grantable to agents. Deleting a tool clears it from every agent
+  and (for built-ins) stops it being re-seeded.
+- **Agents** (`/admin` → Agents) — edit any agent's **system prompt** and
+  **tool access**, reset built-ins to their packaged defaults, and create
+  **custom agents** (name + description + prompt + tools) that **auto-route via
+  the router** by their description. Custom agents can use built-in, LangChain,
+  and MCP tools.
+
+DB-backed prompt and tool overrides win over the packaged YAML per agent and
+apply on the next message; transient provider errors (e.g. Anthropic
+"overloaded") are retried automatically.
 
 ### Web search, shopping & booking
 
@@ -198,8 +235,8 @@ containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-speciali
 
 The **`mcp`** service is an *additive* [FastMCP](https://modelcontextprotocol.io)
 server ([`cortex/tools/mcp.py`](cortex/tools/mcp.py)) that re-exposes Cortex's
-**stateless** tools (web search, page fetch, Wikipedia, crypto, TechPowerUp
-specs, product prices, booking search, time, calculator) over MCP for external
+**stateless** tools (web search, page fetch, Wikipedia, crypto, product prices,
+booking search, time, calculator) over MCP for external
 clients (Claude Desktop, IDEs, other agents). The chat graph uses the **same**
 tools in-process, so this server is never in the assistant's critical path — it
 adds no latency and its downtime can't affect the app. Stateful tools (memory,
@@ -289,7 +326,7 @@ variables:
 | `LLM_PROVIDER`                      | `openai` or `azure_openai`                         |
 | `DATABASE_URL`                      | Postgres DSN (app + durable server share it)       |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admin console login                                |
-| `FIRECRAWL_API_KEY`                 | Real web search + page scraping for `web_search` / `fetch_url` (or `BRAVE_API_KEY` / `SERPAPI_API_KEY` / `TAVILY_API_KEY`) |
+| `FIRECRAWL_API_KEY`                 | Real web search + page scraping for `web_search` / `fetch_url` **and** the trainer's topic + gap research (or `BRAVE_API_KEY` / `SERPAPI_API_KEY` / `TAVILY_API_KEY`) |
 | `LANGFUSE_*`                        | Optional Langfuse tracing (observability profile)  |
 
 The `langgraph` container reads `DATABASE_URL` for both the app's SQLAlchemy
@@ -301,22 +338,27 @@ code and the durable server (the server normalizes the driver suffix).
 
 Cortex ships a **`specialist`** agent backed by a small model (Gemma 3 1B)
 fine-tuned on a curated dataset of gaming-console and PC-hardware specs. It
-answers purely from its own weights — no RAG, no web — and the whole
-train → convert → register loop is driven from **Admin → Fine-Tuning**:
+answers from its own weights — and when asked about hardware it wasn't trained
+on, a `spec_review` step logs a knowledge gap and falls back to a frontier
+model + web search so the user still gets an accurate answer (see
+[Routing](#routing)). The whole train → convert → register loop is driven from
+**Admin → Fine-Tuning**:
 
 1. **Sources** — upload PDFs, spreadsheets, or images (spec-sheet
-   screenshots), add URLs, or paste text. "Import specs" distills them into
-   the learned-facts store.
+   screenshots), add URLs, or give a **research topic** prompt (e.g. "Apple
+   Silicon A- and M-series chip specs"): the trainer searches the web for it
+   and turns the fetched pages into training data. Web/topic search uses the
+   same provider chain as the app (set `FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily).
 2. **Generate dataset** — expands the facts into spec / overview /
    comparison / buying-advice / refusal examples
    ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)).
 3. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
    export to GGUF, and register it in the `ai` service under the
    `finetuned-` prefix (newest wins).
-4. **Knowledge gaps** — when the specialist is asked about hardware it
-   wasn't trained on, the question is logged as a gap; "Research gaps"
-   pulls specs from the web, and the next retrain closes the loop. The
-   model never touches the web at answer time.
+4. **Knowledge gaps** — questions about untrained hardware are logged as gaps
+   (at answer time by `spec_review`); "Research gaps" pulls specs from the web
+   (Firecrawl provider chain) into the learned-facts store, and the next
+   retrain bakes them into the model's weights.
 
 The trainer runs **on the host** (MLX needs Apple Silicon), not in Docker:
 
@@ -413,8 +455,8 @@ ai-multi-agent-cortex/
 │   ├── config.py             # Settings (Pydantic) + settings.yaml/.env loader
 │   ├── db/
 │   │   ├── engine.py         # SQLAlchemy session factory
-│   │   ├── models/           # LLMProvider, LLMModel, KnowledgeGap, AppSetting, KnowledgeArticle
-│   │   ├── services/         # llm_registry, auto_mode, knowledge_gaps, app_settings
+│   │   ├── models/           # LLMProvider, LLMModel, KnowledgeGap, AppSetting, KnowledgeArticle, Tool/MCPServer/AgentTool, Agent
+│   │   ├── services/         # llm_registry, auto_mode, knowledge_gaps, app_settings, tool_catalog, agents
 │   │   └── seed.py           # Registry + knowledge-base seeder
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
@@ -423,10 +465,11 @@ ai-multi-agent-cortex/
 │   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
 │   ├── scripts/              # one-off maintenance scripts
 │   └── tools/                # registry + web/commerce/utility/shared/memory tools;
-│                             #   mcp.py exposes the stateless ones over FastMCP
+│                             #   catalog.py (prebuilt LangChain tools); mcp.py exposes
+│                             #   the stateless ones over FastMCP
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
 ├── trainer/                  # Host-side MLX LoRA fine-tuning service (port 8200)
-│   ├── app/                  # FastAPI: dataset, train, convert, scrape, gap research
+│   ├── app/                  # FastAPI: dataset, train, convert, scrape/search, gap research
 │   ├── data/                 # facts.yaml + learned_facts.yaml (ground truth)
 │   └── generate_dataset.py   # Fine-tune dataset builder
 ├── evals/                    # pytest-based eval suites
@@ -447,12 +490,14 @@ ai-multi-agent-cortex/
 ## Adding new capabilities
 
 1. **New tool** — add a function in `cortex/tools/`, decorate with
-   `@register_tool`, and import the module from
-   `cortex/tools/__init__.py`.
-2. **New agent** — add a `---` document in
-   `cortex/declarative/agents.yaml` with its `name` and
-   `whitelisted_tools`, then add a member to the `Agents` enum and a
-   node in `cortex/workflow.py`.
+   `@register_tool`, and import the module from `cortex/tools/__init__.py`.
+   To add a tool **without code**, enable a prebuilt LangChain tool or register
+   an external MCP server in **Admin → Tools**.
+2. **New agent** — for a graph-level agent, add a `---` document in
+   `cortex/declarative/agents.yaml` with its `name` and `whitelisted_tools`,
+   add a member to the `Agents` enum, and a node in `cortex/workflow.py`. For a
+   **custom agent with no code**, create one in **Admin → Agents** — it
+   auto-routes via the router by its description.
 3. **New routing label** — extend `Intent` in `cortex/workflow.py`,
    update `_INTENT_TO_NODE`, add the label to `router.yaml`, and give the
    intent a candidate list in each profile of
