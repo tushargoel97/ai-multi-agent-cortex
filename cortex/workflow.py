@@ -634,7 +634,21 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     try:
         from cortex.db.services.auto_mode import FAST_TIER, resolve_auto_model
 
-        resolved = resolve_auto_model(FAST_TIER)
+        # Hardware/spec answers get a stronger formatter than the fast utility
+        # tier so the spec-sheet table is produced reliably (a tiny fast model
+        # often leaves the 1B specialist's prose as-is). Detect them by the
+        # router intent or a fine-tuned answering model (specialist bypass).
+        # Everything else stays on the fast tier for speed/cost.
+        model_name = str((final.response_metadata or {}).get("model_name", ""))
+        is_spec = (
+            _routed_intent(msgs) == Intent.PRODUCT_SPECS.value
+            or model_name.startswith(FINE_TUNED_PREFIX)
+        )
+        resolved = (
+            resolve_auto_model(Intent.KNOWLEDGE_QUERY.value) if is_spec else None
+        )
+        if resolved is None:
+            resolved = resolve_auto_model(FAST_TIER)
         if resolved is None:
             return {}
         # Ground drifted numbers: authoritative specs for products named in
