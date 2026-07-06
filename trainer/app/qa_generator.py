@@ -17,12 +17,20 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-_PROMPT = """From the source text below, write {n} factual question-answer pairs.
+_PROMPT = """From the source text below, write factual question-answer pairs to
+fine-tune a hardware-specs assistant.
 
 Rules:
-- Ground every answer ONLY in the source text — no outside knowledge.
-- Questions should be self-contained (understandable without seeing the text).
-- Answers: 1-3 sentences, concrete, include numbers/names from the text.
+- Ground every answer ONLY in the source text — no outside knowledge, no guessing.
+- Every question must be self-contained and use the FULL product name
+  (e.g. "Apple M4 Pro", never "it" or "the chip").
+- For EACH distinct product/model named in the text, include one pair whose
+  question asks for its full specifications (e.g. "What are the full specs of
+  the Apple M4 Pro?") and whose answer lists ALL of that product's specs found
+  in the text — CPU/GPU cores, process node, memory, bandwidth, TFLOPS/TOPS,
+  launch price, year, etc. This spec-sheet answer may be several lines long.
+- Then add up to {n} shorter pairs about individual specs or comparisons.
+- Copy every number, unit, and name EXACTLY as written.
 - Output STRICT JSON only: [{{"q": "...", "a": "..."}}, ...] — no commentary.
 
 Source text:
