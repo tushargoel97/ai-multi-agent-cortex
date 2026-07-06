@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
+  FileImage,
   Table2,
   Link2,
   MessageSquarePlus,
@@ -80,7 +81,7 @@ interface GapEntry {
 
 interface SourceEntry {
   id: string;
-  type: "pdf" | "excel" | "url" | "prompt";
+  type: "pdf" | "excel" | "url" | "prompt" | "image";
   name: string;
   url?: string;
   size_kb?: number;
@@ -91,6 +92,7 @@ const SOURCE_ICONS = {
   excel: Table2,
   url: Link2,
   prompt: MessageSquarePlus,
+  image: FileImage,
 } as const;
 
 // Per-URL outcome badge colors for the intelligent scrape agent.
@@ -629,10 +631,10 @@ export default function FinetunePanel({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-muted/50">
               <Upload className="size-4" />
-              Upload PDF / Excel
+              Upload PDF / Excel / Image
               <input
                 type="file"
-                accept=".pdf,.xlsx,.xls"
+                accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
                 className="hidden"
                 disabled={jobRunning}
                 onChange={(e) => {

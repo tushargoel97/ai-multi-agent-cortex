@@ -304,8 +304,9 @@ fine-tuned on a curated dataset of gaming-console and PC-hardware specs. It
 answers purely from its own weights — no RAG, no web — and the whole
 train → convert → register loop is driven from **Admin → Fine-Tuning**:
 
-1. **Sources** — upload PDFs/spreadsheets, add URLs, or paste text.
-   "Import specs" distills them into the learned-facts store.
+1. **Sources** — upload PDFs, spreadsheets, or images (spec-sheet
+   screenshots), add URLs, or paste text. "Import specs" distills them into
+   the learned-facts store.
 2. **Generate dataset** — expands the facts into spec / overview /
    comparison / buying-advice / refusal examples
    ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)).

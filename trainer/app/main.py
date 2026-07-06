@@ -132,7 +132,7 @@ def dataset_status() -> dict:
     return out
 
 
-# ── Training-data sources (PDF / Excel / URL / prompt) ─────────────────────
+# ── Training-data sources (PDF / Excel / image / URL / prompt) ──────────────────────
 
 
 @app.get("/admin/sources")

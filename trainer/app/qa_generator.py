@@ -42,6 +42,57 @@ def _resolve_model(client: httpx.Client, base_url: str) -> str:
     return data[0]["id"]
 
 
+_VISION_PROMPT = (
+    "Transcribe this document image for a hardware-specs dataset. Output ALL "
+    "text, tables, and specifications exactly as shown — preserve every number, "
+    "unit, and model name, and reproduce tables row by row as plain text. Do "
+    "not summarize or add anything not in the image; output only the transcription."
+)
+
+
+def transcribe_image(image_bytes: bytes, mime: str) -> str:
+    """Transcribe an image to text via the vision-capable QA model.
+
+    Reuses the OpenAI-compatible endpoint (TRAINER_QA_*). The configured model
+    MUST accept image input (OpenAI gpt-4o, Gemini, a local VLM, …) — the
+    default local Gemma 1B cannot, so point TRAINER_QA_* at a vision model.
+    """
+    import base64
+
+    base_url = settings.qa_base_url.rstrip("/")
+    headers = {"Authorization": f"Bearer {settings.qa_api_key}"}
+    b64 = base64.b64encode(image_bytes).decode()
+    with httpx.Client(timeout=180.0, headers=headers) as client:
+        model = _resolve_model(client, base_url)
+        resp = client.post(
+            f"{base_url}/chat/completions",
+            json={
+                "model": model,
+                "temperature": 0.0,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": _VISION_PROMPT},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{b64}"},
+                            },
+                        ],
+                    }
+                ],
+            },
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+    if not text:
+        raise RuntimeError(
+            "Vision model returned no text — point TRAINER_QA_* at a model that "
+            "accepts images (e.g. OpenAI gpt-4o)."
+        )
+    return text
+
+
 def _parse_pairs(text: str) -> list[dict]:
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:

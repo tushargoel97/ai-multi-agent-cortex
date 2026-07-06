@@ -18,7 +18,12 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_UPLOAD_EXTS = {".pdf", ".xlsx", ".xls"}
+ALLOWED_UPLOAD_EXTS = {".pdf", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+_IMAGE_MIME = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 CHUNK_CHARS = 1500
 MIN_CHUNK_CHARS = 200
 
@@ -62,9 +67,15 @@ def add_file_source(filename: str, content: bytes) -> dict:
     sid = uuid.uuid4().hex[:12]
     stored = _sources_dir() / f"{sid}{ext}"
     stored.write_bytes(content)
+    if ext in IMAGE_EXTS:
+        kind = "image"
+    elif ext in {".xlsx", ".xls"}:
+        kind = "excel"
+    else:
+        kind = "pdf"
     entry = {
         "id": sid,
-        "type": "excel" if ext in {".xlsx", ".xls"} else "pdf",
+        "type": kind,
         "name": filename,
         "path": stored.name,
         "size_kb": round(len(content) / 1024, 1),
@@ -128,7 +139,30 @@ def extract_pdf(path: Path) -> str:
     return "\n\n".join((page.extract_text() or "") for page in reader.pages)
 
 
+def _extract_xls(path: Path) -> str:
+    import xlrd
+
+    book = xlrd.open_workbook(str(path))
+    parts: list[str] = []
+    for sheet in book.sheets():
+        parts.append(f"# Sheet: {sheet.name}")
+        if sheet.nrows == 0:
+            continue
+        header = [str(sheet.cell_value(0, c)) or f"col{c}" for c in range(sheet.ncols)]
+        for r in range(1, sheet.nrows):
+            cells = [
+                f"{header[c]}: {sheet.cell_value(r, c)}"
+                for c in range(sheet.ncols)
+                if str(sheet.cell_value(r, c)).strip()
+            ]
+            if cells:
+                parts.append("; ".join(cells))
+    return "\n".join(parts)
+
+
 def extract_excel(path: Path) -> str:
+    if path.suffix.lower() == ".xls":
+        return _extract_xls(path)
     from openpyxl import load_workbook
 
     wb = load_workbook(str(path), read_only=True, data_only=True)
@@ -171,6 +205,17 @@ def extract_url(url: str) -> str:
     return "\n".join(ln for ln in lines if ln)
 
 
+def extract_image(path: Path) -> str:
+    """Transcribe a document image (spec sheet, screenshot, table) to text via
+    the vision-capable QA model. Point TRAINER_QA_* at a model that accepts
+    images (e.g. OpenAI gpt-4o) — the default local 1B model can't read images.
+    """
+    from .qa_generator import transcribe_image
+
+    mime = _IMAGE_MIME.get(path.suffix.lower(), "image/png")
+    return transcribe_image(path.read_bytes(), mime)
+
+
 def extract_source(entry: dict) -> str:
     """Extract plain text from a manifest entry."""
     kind = entry["type"]
@@ -181,6 +226,8 @@ def extract_source(entry: dict) -> str:
         return extract_pdf(path)
     if kind == "excel":
         return extract_excel(path)
+    if kind == "image":
+        return extract_image(path)
     if kind == "prompt":
         return path.read_text()
     raise ValueError(f"Unknown source type {kind!r}")
