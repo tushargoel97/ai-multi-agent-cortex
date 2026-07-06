@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -9,7 +9,6 @@ import { getAdminToken } from "../token";
 import {
   Wrench,
   Plug,
-  Bot,
   Trash2,
   Plus,
   Loader2,
@@ -46,13 +45,6 @@ interface CatalogEntry {
   available: boolean;
 }
 
-interface AgentRow {
-  name: string;
-  defaultTools: string[];
-  tools: string[];
-  customized: boolean;
-}
-
 const KIND_LABEL: Record<string, string> = {
   builtin: "Built-in",
   langchain: "LangChain",
@@ -64,8 +56,6 @@ export default function ToolsPanel() {
   const [tools, setTools] = useState<ToolRow[]>([]);
   const [mcpServers, setMcpServers] = useState<McpRow[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [agentEdits, setAgentEdits] = useState<Record<string, string[]>>({});
   const [suppressed, setSuppressed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,11 +86,7 @@ export default function ToolsPanel() {
       setTools(data.tools ?? []);
       setMcpServers(data.mcpServers ?? []);
       setCatalog(data.catalog ?? []);
-      setAgents(data.agents ?? []);
       setSuppressed(data.suppressed ?? []);
-      const edits: Record<string, string[]> = {};
-      for (const a of data.agents ?? []) edits[a.name] = [...a.tools];
-      setAgentEdits(edits);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -109,11 +95,6 @@ export default function ToolsPanel() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const enabledToolNames = useMemo(
-    () => tools.filter((t) => t.enabled).map((t) => t.name),
-    [tools],
-  );
 
   const selectedCatalog = catalog.find((c) => c.id === catalogId);
 
@@ -275,62 +256,15 @@ export default function ToolsPanel() {
     }
   };
 
-  const toggleAgentTool = (agent: string, tool: string) => {
-    setAgentEdits((prev) => {
-      const cur = new Set(prev[agent] ?? []);
-      if (cur.has(tool)) cur.delete(tool);
-      else cur.add(tool);
-      return { ...prev, [agent]: [...cur] };
-    });
-  };
-
-  const saveAgent = async (name: string) => {
-    setBusy(`agent-${name}`);
-    setError(null);
-    try {
-      const r = await fetch(`/api/admin/agents/${encodeURIComponent(name)}`, {
-        method: "PATCH",
-        headers: headers(),
-        body: JSON.stringify({ tools: agentEdits[name] ?? [] }),
-      });
-      if (!r.ok) throw new Error(`save ${r.status}`);
-      await refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const resetAgent = async (name: string) => {
-    setBusy(`agent-${name}`);
-    try {
-      await fetch(`/api/admin/agents/${encodeURIComponent(name)}`, {
-        method: "DELETE",
-        headers: headers(),
-      });
-      await refresh();
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const dirty = (name: string) => {
-    const a = agents.find((x) => x.name === name);
-    if (!a) return false;
-    const cur = [...(agentEdits[name] ?? [])].sort().join(",");
-    return cur !== [...a.tools].sort().join(",");
-  };
-
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold">Tools & MCP</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage built-in and third-party tools, register MCP servers, and
-            grant tools to each agent. Grants override the agent&apos;s YAML
-            defaults and apply on the next message.
+            Manage built-in and third-party tools and register MCP servers.
+            Grant tools to agents in the Agents tab. Changes apply on the next
+            message.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
@@ -596,73 +530,8 @@ export default function ToolsPanel() {
           </div>
           <p className="text-[11px] text-muted-foreground">
             Discovered MCP tools appear in the list above after the next
-            langgraph restart, then can be granted to agents below.
+            langgraph restart, then can be granted to agents in the Agents tab.
           </p>
-        </div>
-      </section>
-
-      {/* Per-agent access */}
-      <section className="space-y-3">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
-          <Bot className="size-4" /> Agent tool access
-        </h3>
-        <div className="space-y-3">
-          {agents.map((a) => (
-            <div key={a.name} className="rounded-md border p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium capitalize">
-                    {a.name}
-                  </span>
-                  {a.customized && (
-                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600">
-                      customized
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy === `agent-${a.name}` || !a.customized}
-                    onClick={() => void resetAgent(a.name)}
-                  >
-                    Reset to default
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={busy === `agent-${a.name}` || !dirty(a.name)}
-                    onClick={() => void saveAgent(a.name)}
-                  >
-                    {busy === `agent-${a.name}` ? (
-                      <Loader2 className="mr-1 size-4 animate-spin" />
-                    ) : null}
-                    Save
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {enabledToolNames.map((name) => (
-                  <label
-                    key={name}
-                    className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={(agentEdits[a.name] ?? []).includes(name)}
-                      onChange={() => toggleAgentTool(a.name, name)}
-                    />
-                    <span className="font-mono">{name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-          {agents.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Agent defaults appear after the langgraph server starts.
-            </p>
-          )}
         </div>
       </section>
     </div>

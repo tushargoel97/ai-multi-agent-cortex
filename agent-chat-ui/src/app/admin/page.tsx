@@ -2,14 +2,15 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Server, Boxes, Cpu, FlaskConical, Wrench } from "lucide-react";
+import { Server, Boxes, Cpu, FlaskConical, Wrench, Bot } from "lucide-react";
 import ProvidersPanel from "./_components/ProvidersPanel";
 import ModelsPanel from "./_components/ModelsPanel";
 import LocalModelsPanel from "./_components/LocalModelsPanel";
 import FinetunePanel from "./_components/FinetunePanel";
 import ToolsPanel from "./_components/ToolsPanel";
+import AgentsPanel from "./_components/AgentsPanel";
 
-type Tab = "providers" | "models" | "local" | "finetune" | "tools";
+type Tab = "providers" | "models" | "local" | "finetune" | "tools" | "agents";
 
 const TABS: { id: Tab; label: string; icon: typeof Server }[] = [
   { id: "providers", label: "Providers", icon: Server },
@@ -17,6 +18,7 @@ const TABS: { id: Tab; label: string; icon: typeof Server }[] = [
   { id: "local", label: "Local Models", icon: Cpu },
   { id: "finetune", label: "Fine-Tuning", icon: FlaskConical },
   { id: "tools", label: "Tools & MCP", icon: Wrench },
+  { id: "agents", label: "Agents", icon: Bot },
 ];
 
 function AdminTabs() {
@@ -78,6 +80,7 @@ function AdminTabs() {
           <FinetunePanel onChanged={() => setBump((n) => n + 1)} />
         )}
         {tab === "tools" && <ToolsPanel />}
+        {tab === "agents" && <AgentsPanel />}
       </div>
     </div>
   );

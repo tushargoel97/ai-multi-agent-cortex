@@ -1,47 +1,106 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import { ensureToolTables } from "@/lib/tool-tables";
+import { ensureAgentsTable } from "@/lib/tool-tables";
 
-/** Set an agent's tool grants (replaces the YAML whitelist for that agent).
- * An empty/absent list reverts the agent to its YAML default. */
+async function setGrants(name: string, tools: string[]) {
+  await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
+  for (const tool of Array.from(new Set(tools))) {
+    await query(
+      `INSERT INTO agent_tools (id, agent_name, tool_name)
+         VALUES (gen_random_uuid(), $1, $2)
+       ON CONFLICT (agent_name, tool_name) DO NOTHING`,
+      [name, tool],
+    );
+  }
+}
+
+/** Update an agent's system prompt / description / enabled / tools, or reset a
+ * built-in to its packaged defaults ({ reset: true }). */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ name: string }> },
 ) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
-  await ensureToolTables();
+  await ensureAgentsTable();
   const { name } = await params;
   const body = (await req.json().catch(() => null)) ?? {};
-  const tools = Array.isArray(body.tools)
-    ? Array.from(new Set(body.tools.map((t: unknown) => String(t))))
-    : null;
-  if (tools === null) {
-    return NextResponse.json({ error: "tools[] required" }, { status: 400 });
+
+  if (body.reset === true) {
+    const { rows } = await query<{ value: string }>(
+      `SELECT value FROM app_settings WHERE key = 'agent_defaults'`,
+    );
+    let prompt = "";
+    let description = "";
+    try {
+      const d = JSON.parse(rows[0]?.value ?? "{}")[name];
+      if (d) {
+        prompt = String(d.system_prompt ?? "");
+        description = String(d.description ?? "");
+      }
+    } catch {
+      /* no defaults mirror yet */
+    }
+    await query(
+      `UPDATE agents SET system_prompt = $1, description = $2, edited = false
+        WHERE name = $3`,
+      [prompt, description, name],
+    );
+    await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
+    return NextResponse.json({ ok: true });
   }
 
-  await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
-  for (const tool of tools) {
-    await query(
-      `INSERT INTO agent_tools (id, agent_name, tool_name)
-       VALUES (gen_random_uuid(), $1, $2)
-       ON CONFLICT (agent_name, tool_name) DO NOTHING`,
-      [name, tool],
-    );
+  const fields: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  if (typeof body.system_prompt === "string") {
+    fields.push(`system_prompt = $${i++}`, `edited = true`);
+    vals.push(body.system_prompt);
   }
-  return NextResponse.json({ ok: true, count: tools.length });
+  if (typeof body.description === "string") {
+    fields.push(`description = $${i++}`);
+    vals.push(body.description);
+  }
+  if (typeof body.enabled === "boolean") {
+    fields.push(`enabled = $${i++}`);
+    vals.push(body.enabled);
+  }
+  if (fields.length) {
+    vals.push(name);
+    await query(`UPDATE agents SET ${fields.join(", ")} WHERE name = $${i}`, vals);
+  }
+  if (Array.isArray(body.tools)) {
+    await setGrants(name, body.tools.map((t: unknown) => String(t)));
+  }
+  return NextResponse.json({ ok: true });
 }
 
-/** Reset an agent's tools back to its YAML default (clear grants). */
+/** Delete a custom agent (built-ins can only be reset). */
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ name: string }> },
 ) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
-  await ensureToolTables();
+  await ensureAgentsTable();
   const { name } = await params;
+
+  const { rows } = await query<{ kind: string }>(
+    `SELECT kind FROM agents WHERE name = $1`,
+    [name],
+  );
+  if (!rows.length) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  if (rows[0].kind !== "custom") {
+    return NextResponse.json(
+      { error: "built-in agents can't be deleted — reset it instead" },
+      { status: 400 },
+    );
+  }
+  await query(`DELETE FROM agents WHERE name = $1 AND kind = 'custom'`, [name]);
   await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
   return NextResponse.json({ ok: true });
 }
+

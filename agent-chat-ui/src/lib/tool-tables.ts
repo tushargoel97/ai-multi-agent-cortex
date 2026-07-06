@@ -72,3 +72,23 @@ export async function setSuppressedTools(names: string[]): Promise<void> {
     [SUPPRESSED_KEY, JSON.stringify(unique)],
   );
 }
+
+let agentsEnsured = false;
+
+/** Create the agents table if missing (mirrors cortex/db/models/agent.py). */
+export async function ensureAgentsTable(): Promise<void> {
+  if (agentsEnsured) return;
+  await ensureToolTables();
+  await query(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name varchar(60) NOT NULL UNIQUE,
+      kind varchar(20) NOT NULL DEFAULT 'custom',
+      description text NOT NULL DEFAULT '',
+      system_prompt text NOT NULL DEFAULT '',
+      enabled boolean NOT NULL DEFAULT true,
+      edited boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+  agentsEnsured = true;
+}
