@@ -808,6 +808,16 @@ def _has_markdown_table(text: str) -> bool:
     return bool(_TABLE_RE.search(text))
 
 
+# Spec / comparison queries (products, hardware, software) — these should always
+# render as a table, whichever agent answered them.
+_SPEC_QUERY_RE = re.compile(
+    r"\b(spec|specs|specification|specifications|compare|comparison|compared|"
+    r"versus|vs\.?|difference between|which is (?:better|faster|best)|"
+    r"pros and cons|benchmarks?)\b",
+    re.IGNORECASE,
+)
+
+
 def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> bool:
     """Fact guard for the synthesizer: no invented numbers, and (without an
     authoritative reference) every draft number must survive. With a
@@ -824,6 +834,26 @@ def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> boo
         # allowed to expand working steps, which adds intermediate numbers.
         return True
     return draft_nums <= synth_nums and (synth_nums - draft_nums) <= allowed_extra
+
+
+def _no_invented_numbers(source: str, rendered: str, reference: str = "") -> bool:
+    """Looser guard for the deterministic table path: the table may reorganize
+    or drop values, but must not INVENT a number absent from the draft and the
+    authoritative reference (keeps the spec answer honest)."""
+    allowed = (
+        set(_NUMBER_RE.findall(source))
+        | set(_NUMBER_RE.findall(reference))
+        | {str(n) for n in range(1, 21)}
+    )
+    return set(_NUMBER_RE.findall(rendered)) <= allowed
+
+
+def _carry_notes(source: str, text: str) -> str:
+    """Re-append a gap / fact-check note from ``source`` if ``text`` dropped it."""
+    for _pfx in _NOTE_PREFIXES:
+        if _pfx in source and _pfx not in text:
+            return f"{text}\n\n{source[source.index(_pfx):]}"
+    return text
 
 
 def _routed_intent(messages: list) -> str | None:
@@ -867,6 +897,53 @@ def _code_syntax_notes(text: str) -> list[str]:
             except ValueError:
                 notes.append("JSON block: not valid JSON")
     return notes
+
+
+async def _render_spec_answer(
+    question: str, draft: str, reference: str, resolved: Any
+) -> str | None:
+    """Turn a spec / comparison draft into a table, rendered deterministically.
+
+    The model only EXTRACTS structured data (columns + rows, copied verbatim);
+    ``render_spec_markdown`` renders the markdown, so the result always renders
+    as a valid table. Returns None when nothing tabular could be extracted (the
+    caller then falls back to the prose formatter).
+    """
+    from cortex.tools.spec_table import SpecTable, render_spec_markdown
+
+    system = (
+        "You convert a draft answer about product, hardware, or software specs "
+        "into a structured comparison table. Identify the items being compared "
+        "(the columns) and one row per spec. Copy values VERBATIM from the "
+        "draft — never invent, round, or drop a value; leave a cell blank when "
+        "the draft doesn't give it. Use a single column for a single item. When "
+        "an authoritative reference is provided, prefer its values where they "
+        "conflict with the draft. Add a one-line verdict only if the draft "
+        "states one."
+    )
+    prompt = f"Question:\n{question}\n\nDraft:\n{draft}"
+    if reference:
+        prompt += f"\n\nAuthoritative reference (ground truth):\n{reference}"
+    try:
+        agent = create_agent(
+            model=build_client_from_resolved(resolved),
+            tools=[],
+            system_prompt=system,
+            response_format=ProviderStrategy(SpecTable),
+        )
+        result = await agent.ainvoke({"messages": [HumanMessage(prompt)]})
+        table: SpecTable = result["structured_response"]
+    except Exception:  # noqa: BLE001 — extraction best-effort; fall back to prose
+        _persist_logger.exception("Spec table extraction failed")
+        return None
+    rows = [{"spec": r.spec, "values": list(r.values)} for r in table.rows]
+    md = render_spec_markdown(list(table.products), rows, table.verdict or "")
+    if not md:
+        return None
+    if not _no_invented_numbers(draft, md, reference):
+        _persist_logger.info("Spec table extraction invented numbers — using prose")
+        return None
+    return md
 
 
 async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
@@ -917,6 +994,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         is_spec = (
             _routed_intent(msgs) == Intent.PRODUCT_SPECS.value
             or model_name.startswith(FINE_TUNED_PREFIX)
+            or bool(_SPEC_QUERY_RE.search(question))
         )
         # A spec answer that is already a markdown table needs no reformat —
         # skip the extra LLM round-trip (it was adding ~10-20s before the
@@ -939,6 +1017,28 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             reference = reference_block(match_products(question))
         except Exception:  # noqa: BLE001 — facts mount optional
             pass
+
+        # Spec / comparison answers: render the table DETERMINISTICALLY. The
+        # model only extracts structured data (columns + rows, copied verbatim);
+        # the markdown is rendered by code, so it always renders as a valid
+        # table instead of relying on the model to format one correctly.
+        if is_spec:
+            rendered = await _render_spec_answer(
+                question, final.content, reference, resolved
+            )
+            if rendered:
+                return {
+                    "messages": [
+                        AIMessage(
+                            id=final.id,
+                            content=_carry_notes(final.content, rendered),
+                            additional_kwargs=final.additional_kwargs,
+                            response_metadata=final.response_metadata,
+                            usage_metadata=final.usage_metadata,
+                        )
+                    ]
+                }
+
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
         if reference:
             prompt += (
