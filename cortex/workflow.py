@@ -672,7 +672,7 @@ async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 
 
 _GAP_NOTE_PREFIX = "*I've logged this as a knowledge gap"
-_FALLBACK_NOTE_PREFIX = "*Answered from live web sources"
+_FALLBACK_NOTE_PREFIX = "*Fact-checked"
 _NOTE_PREFIXES = (_GAP_NOTE_PREFIX, _FALLBACK_NOTE_PREFIX)
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
@@ -825,21 +825,44 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             )
         spec = get_agent_spec(Agents.SYNTHESIZER)
         model = build_client_from_resolved(resolved)
-        result = await model.ainvoke(
-            [
-                SystemMessage(
-                    spec.render_system_prompt(assistant_name=_assistant_name())
-                ),
-                HumanMessage(prompt),
-            ]
-        )
-        text = (
-            result.content
-            if isinstance(result.content, str)
-            else "".join(
-                b.get("text", "") for b in result.content if isinstance(b, dict)
+
+        async def _reformat(extra: str = "") -> str:
+            res = await model.ainvoke(
+                [
+                    SystemMessage(
+                        spec.render_system_prompt(assistant_name=_assistant_name())
+                    ),
+                    HumanMessage(prompt + extra),
+                ]
             )
-        ).strip()
+            return (
+                res.content
+                if isinstance(res.content, str)
+                else "".join(
+                    b.get("text", "") for b in res.content if isinstance(b, dict)
+                )
+            ).strip()
+
+        text = await _reformat()
+        # Enforce the spec table: a fast reformatter sometimes echoes the 1B
+        # specialist's prose/bullets, or drifts a number and trips the guard.
+        # Retry once, forcing a strict table with every number preserved.
+        if is_spec and (
+            not _has_markdown_table(text)
+            or not _numbers_preserved(final.content, text, reference)
+        ):
+            forced = await _reformat(
+                "\n\nIMPORTANT: Output ONLY a GitHub-flavored markdown table — a "
+                "header row, a `| --- |` separator, then one row per spec, with no "
+                "prose before or after. Copy EVERY number from the draft verbatim; "
+                "never add, drop, round, or invent a number."
+            )
+            if (
+                forced
+                and _has_markdown_table(forced)
+                and _numbers_preserved(final.content, forced, reference)
+            ):
+                text = forced
         if not text:
             return {}
         if not _numbers_preserved(final.content, text, reference):
@@ -954,12 +977,12 @@ def _untrained_product_reason(question: str) -> str | None:
 async def _frontier_spec_answer(
     question: str, config: RunnableConfig
 ) -> AIMessage | None:
-    """Accurate hardware answer from a capable frontier model + web RAG.
+    """Accurate hardware answer from a capable frontier model.
 
-    Uses the auto-mode knowledge tier (a strong, non-fine-tuned model) with the
-    researcher's web tools so the user still gets a correct, current answer when
-    the local specialist couldn't. Best-effort: returns None if no suitable
-    model is configured or the tool loop fails.
+    Prefers web RAG (the researcher's tools) so specs are current and sourced;
+    if no web tool is enabled or the tool loop fails, it still answers from the
+    frontier model's own knowledge — far more reliable than the 1B draft it
+    replaces. Returns None only when no capable non-fine-tuned model exists.
     """
     from cortex.db.services.auto_mode import resolve_auto_model
 
@@ -973,45 +996,77 @@ async def _frontier_spec_answer(
     from cortex.tools.registry import get_tools
 
     model = build_client_from_resolved(resolved)
-    system_prompt = (
-        "You are a hardware specifications expert. The product in the user's "
-        "question is NOT in any local knowledge base, so you MUST call the "
-        "web_search and fetch_url tools to find authoritative, current "
-        "specifications before answering — never guess. Present the specs as a "
-        "concise markdown table (Spec | Value) followed by brief source "
-        "attribution; if you still cannot verify after searching, say so plainly."
-    )
+
     # Honor admin tool controls: a disabled/removed tool drops out here, so
-    # the fallback degrades to the remaining enabled web tools instead of
-    # calling it.
+    # the fallback degrades to the remaining enabled web tools (or none).
     try:
         from cortex.db.services.tool_catalog import (
             filter_enabled,
             resolve_tool_instances,
         )
 
-        fallback_tools = resolve_tool_instances(filter_enabled(list(_FALLBACK_TOOLS)))
+        web_tools = resolve_tool_instances(filter_enabled(list(_FALLBACK_TOOLS)))
     except Exception:  # noqa: BLE001 — tool controls optional; use the raw set
-        fallback_tools = get_tools(list(_FALLBACK_TOOLS))
-    try:
-        agent = create_agent(
-            model=model,
-            tools=fallback_tools,
-            system_prompt=system_prompt,
+        web_tools = get_tools(list(_FALLBACK_TOOLS))
+
+    # Prefer grounded, web-sourced specs when a web tool is available.
+    if web_tools:
+        grounded_prompt = (
+            "You are a hardware specifications expert. Call the web_search and "
+            "fetch_url tools to find authoritative, current specifications "
+            "before answering. Present the specs as a markdown table — a "
+            "`| Spec | <A> | <B> |` comparison table when two or more products "
+            "are named — followed by brief source attribution. Use the correct "
+            "manufacturer and architecture for each product."
         )
-        result = await agent.ainvoke({"messages": [HumanMessage(question)]})
+        try:
+            agent = create_agent(
+                model=model, tools=web_tools, system_prompt=grounded_prompt
+            )
+            result = await agent.ainvoke({"messages": [HumanMessage(question)]})
+            fmsgs = result.get("messages", [])
+            final = fmsgs[-1] if fmsgs else None
+            if (
+                isinstance(final, AIMessage)
+                and isinstance(final.content, str)
+                and final.content.strip()
+            ):
+                return final
+        except Exception:  # noqa: BLE001 — fall through to the knowledge answer
+            _persist_logger.exception("Frontier web spec fallback failed")
+
+    # No web tool, or the web loop failed / returned nothing — answer from the
+    # frontier model's own knowledge. Still far more reliable than the 1B
+    # specialist draft it replaces (correct brand, architecture, and figures).
+    knowledge_prompt = (
+        "You are a hardware specifications expert. Answer accurately from your "
+        "own knowledge. Present the specs as a markdown table — a "
+        "`| Spec | <A> | <B> |` comparison table when two or more products are "
+        "named. Use the correct manufacturer, architecture, and realistic "
+        "figures; if you are unsure of a specific value, write 'unverified' "
+        "rather than guess."
+    )
+    try:
+        answer = await model.ainvoke(
+            [SystemMessage(knowledge_prompt), HumanMessage(question)]
+        )
     except Exception:  # noqa: BLE001 — fallback is best-effort, never fatal
-        _persist_logger.exception("Frontier spec fallback failed")
+        _persist_logger.exception("Frontier knowledge spec fallback failed")
         return None
-    fmsgs = result.get("messages", [])
-    final = fmsgs[-1] if fmsgs else None
-    if (
-        isinstance(final, AIMessage)
-        and isinstance(final.content, str)
-        and final.content.strip()
-    ):
-        return final
-    return None
+    text = (
+        answer.content
+        if isinstance(answer.content, str)
+        else "".join(
+            b.get("text", "") for b in answer.content if isinstance(b, dict)
+        )
+    ).strip()
+    if not text:
+        return None
+    return AIMessage(
+        content=text,
+        response_metadata=getattr(answer, "response_metadata", {}) or {},
+        usage_metadata=getattr(answer, "usage_metadata", None),
+    )
 
 
 class _SpecCritique(BaseModel):
@@ -1078,7 +1133,12 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
         _persist_logger.exception("Spec draft critique failed")
         return None
     if critique.has_error:
-        return f"fact_error: {critique.reason[:200]}".strip()
+        # Return a short, stable reason code — the KnowledgeGap.reason column is
+        # narrow (String(40)); the detail is only useful for the debug log.
+        _persist_logger.info(
+            "Spec fact-check flagged draft: %s", critique.reason[:200]
+        )
+        return "fact_error"
     return None
 
 
@@ -1122,14 +1182,15 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
     if fallback is not None:
         if reason.startswith("fact_error"):
             note = (
-                "\n\n*Answered from live web sources — my fine-tuned model had "
-                "some of these specs wrong, so I've corrected them and logged "
-                "it for retraining.*"
+                "\n\n*Fact-checked — my fine-tuned model had some of these specs "
+                "wrong, so I've corrected them against a verified answer and "
+                "logged it for retraining.*"
             )
         else:
             note = (
-                "\n\n*Answered from live web sources — this hardware isn't in my "
-                "fine-tuned knowledge yet, so I've logged it for future training.*"
+                "\n\n*Fact-checked — this hardware isn't in my fine-tuned "
+                "knowledge yet, so I answered from a verified source and logged "
+                "it for future training.*"
             )
         return {
             "messages": [

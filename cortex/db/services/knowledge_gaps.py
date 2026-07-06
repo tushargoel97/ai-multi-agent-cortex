@@ -76,7 +76,14 @@ def log_gap(question: str, answer: str, reason: str) -> bool:
                 .first()
             )
             if exists is None:
-                session.add(KnowledgeGap(question=question, answer=answer, reason=reason))
+                # reason is a short code ("refusal" | "product_not_addressed" |
+                # "fact_error"); guard the narrow String(40) column against any
+                # overflow so the insert can never silently fail.
+                session.add(
+                    KnowledgeGap(
+                        question=question, answer=answer, reason=(reason or "")[:40]
+                    )
+                )
             return exists is None
     except Exception:  # noqa: BLE001
         logger.exception("Could not log knowledge gap")
