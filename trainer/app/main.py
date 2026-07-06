@@ -271,6 +271,30 @@ def convert(req: ConvertRequest) -> dict:
     return {"status": "started", "output_name": req.output_name}
 
 
+# Bytes per parameter for common safetensors dtypes (rough download-size guess).
+_DTYPE_BYTES = {
+    "F64": 8, "I64": 8, "U64": 8,
+    "F32": 4, "I32": 4, "U32": 4,
+    "F16": 2, "BF16": 2, "I16": 2, "U16": 2,
+    "F8_E4M3": 1, "F8_E5M2": 1, "F8": 1, "I8": 1, "U8": 1,
+    "I4": 0.5, "U4": 0.5,
+}
+
+
+def _hf_model_size(st) -> tuple[int | None, int | None]:
+    """(total_params, estimated_bytes) from a ModelInfo.safetensors block."""
+    if st is None:
+        return None, None
+    total = getattr(st, "total", None)
+    params = getattr(st, "parameters", None) or {}
+    if params:
+        approx = sum(
+            int(c) * _DTYPE_BYTES.get(str(dt).upper(), 2) for dt, c in params.items()
+        )
+        return total, int(approx) or (int(total) * 2 if total else None)
+    return total, (int(total) * 2 if total else None)
+
+
 @app.get("/admin/hf/search")
 def hf_search(q: str, limit: int = 20) -> dict:
     """Search Hugging Face for trainable base models (text-generation repos).
@@ -291,16 +315,21 @@ def hf_search(q: str, limit: int = 20) -> dict:
             pipeline_tag="text-generation",
             sort="downloads",
             limit=max(1, min(limit, 40)),
+            expand=["safetensors", "downloads", "likes", "gated"],
         )
-        results = [
-            {
-                "id": m.id,
-                "downloads": int(getattr(m, "downloads", 0) or 0),
-                "likes": int(getattr(m, "likes", 0) or 0),
-                "gated": bool(getattr(m, "gated", False)),
-            }
-            for m in models
-        ]
+        results = []
+        for m in models:
+            params, size_bytes = _hf_model_size(getattr(m, "safetensors", None))
+            results.append(
+                {
+                    "id": m.id,
+                    "downloads": int(getattr(m, "downloads", 0) or 0),
+                    "likes": int(getattr(m, "likes", 0) or 0),
+                    "gated": bool(getattr(m, "gated", False)),
+                    "params": params,
+                    "size_bytes": size_bytes,
+                }
+            )
         return {"results": results}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"HuggingFace search failed: {e}")

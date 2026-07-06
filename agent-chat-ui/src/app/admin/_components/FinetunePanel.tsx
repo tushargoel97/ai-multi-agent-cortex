@@ -108,7 +108,7 @@ const OUTCOME_STYLES: Record<string, string> = {
 const BASE_MODELS = [
   {
     id: "unsloth/gemma-3-1b-it",
-    label: "Gemma 3 1B — recommended (fast train + serve, no HF login)",
+    label: "Gemma 3 1B — recommended (~2 GB, fast train + serve, no HF login)",
     output: "finetuned-gemma3-1b-hardware",
   },
   {
@@ -128,6 +128,20 @@ const BUSY_PHASES = [
   "researching",
   "scraping",
 ];
+
+function fmtParams(n?: number | null): string | null {
+  if (!n || n <= 0) return null;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${Math.round(n / 1e6)}M`;
+  return `${n}`;
+}
+
+function fmtBytes(n?: number | null): string | null {
+  if (!n || n <= 0) return null;
+  const gb = n / 1e9;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${Math.round(n / 1e6)} MB`;
+}
 
 function LossSparkline({ history }: { history: LossPoint[] }) {
   if (history.length < 2) return null;
@@ -191,7 +205,14 @@ export default function FinetunePanel({
   const [error, setError] = useState<string | null>(null);
   const [hfQuery, setHfQuery] = useState("");
   const [hfResults, setHfResults] = useState<
-    { id: string; downloads: number; likes: number; gated: boolean }[]
+    {
+      id: string;
+      downloads: number;
+      likes: number;
+      gated: boolean;
+      params?: number | null;
+      size_bytes?: number | null;
+    }[]
   >([]);
   const [hfSearching, setHfSearching] = useState(false);
   const [showHf, setShowHf] = useState(false);
@@ -1160,8 +1181,19 @@ export default function FinetunePanel({
                         {m.id}
                       </div>
                       <div className="text-[11px] text-muted-foreground">
-                        ↓ {m.downloads.toLocaleString()} · ♥{" "}
-                        {m.likes.toLocaleString()}
+                        {fmtParams(m.params) && (
+                          <span className="font-medium text-foreground/80">
+                            {fmtParams(m.params)} params
+                          </span>
+                        )}
+                        {fmtBytes(m.size_bytes) && (
+                          <span>
+                            {fmtParams(m.params) ? " · " : ""}~
+                            {fmtBytes(m.size_bytes)}
+                          </span>
+                        )}
+                        {(fmtParams(m.params) || fmtBytes(m.size_bytes)) && " · "}
+                        ↓ {m.downloads.toLocaleString()}
                         {m.gated && (
                           <span className="ml-1 rounded bg-amber-500/15 px-1 text-amber-600">
                             gated
