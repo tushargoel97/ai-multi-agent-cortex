@@ -530,6 +530,8 @@ async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 
 
 _GAP_NOTE_PREFIX = "*I've logged this as a knowledge gap"
+_FALLBACK_NOTE_PREFIX = "*Answered from live web sources"
+_NOTE_PREFIXES = (_GAP_NOTE_PREFIX, _FALLBACK_NOTE_PREFIX)
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 
@@ -691,9 +693,11 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
                 "Synthesizer altered numbers — keeping the raw answer"
             )
             return {}
-        if _GAP_NOTE_PREFIX in final.content and _GAP_NOTE_PREFIX not in text:
-            note = final.content[final.content.index(_GAP_NOTE_PREFIX):]
-            text = f"{text}\n\n{note}"
+        for _pfx in _NOTE_PREFIXES:
+            if _pfx in final.content and _pfx not in text:
+                note = final.content[final.content.index(_pfx):]
+                text = f"{text}\n\n{note}"
+                break
         replacement = AIMessage(
             id=final.id,
             content=text,
@@ -760,27 +764,155 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             ]
         }
 
-    # Self-improvement loop: if the model refused or silently ignored a
-    # product it wasn't trained on, log the question as a knowledge gap.
-    # Admin → Fine-Tuning researches gaps (web) and retrains — the model
-    # itself never uses the web at answer time.
-    messages = result["messages"]
-    final = messages[-1] if messages else None
+    # Critique + fallback runs in the spec_review node (next in the graph):
+    # it logs a knowledge gap and, when the product isn't in the fine-tune's
+    # training, answers accurately via a frontier model + web search.
+    return {"messages": result["messages"]}
+
+
+# Web tools the frontier fallback uses to ground an answer (researcher's set).
+_FALLBACK_TOOLS = ("web_search", "fetch_url", "techpowerup_specs", "search_knowledge_base")
+
+
+def _untrained_product_reason(question: str) -> str | None:
+    """Gap reason when the user names a concrete hardware product the fine-tune
+    was never trained on — so any specifics it emitted are ungrounded.
+
+    The facts index (facts.yaml + learned_facts.yaml) is the same ground truth
+    the specialist trained on, so a named product missing from it is untrained.
+    Returns None when no concrete product is named or the facts mount is absent
+    (never force a fallback on uncertainty).
+    """
+    from cortex.db.services.knowledge_gaps import _PRODUCT_RE
+
+    if not _PRODUCT_RE.search(question):
+        return None
+    try:
+        from cortex.facts import match_products
+
+        if match_products(question):
+            return None  # product is in the training facts → trust the specialist
+    except Exception:  # noqa: BLE001 — facts mount optional; don't force a fallback
+        return None
+    return "product_not_addressed"
+
+
+async def _frontier_spec_answer(
+    question: str, config: RunnableConfig
+) -> AIMessage | None:
+    """Accurate hardware answer from a capable frontier model + web RAG.
+
+    Uses the auto-mode knowledge tier (a strong, non-fine-tuned model) with the
+    researcher's web tools so the user still gets a correct, current answer when
+    the local specialist couldn't. Best-effort: returns None if no suitable
+    model is configured or the tool loop fails.
+    """
+    from cortex.db.services.auto_mode import resolve_auto_model
+
+    try:
+        resolved = resolve_auto_model(Intent.KNOWLEDGE_QUERY.value)
+    except Exception:  # noqa: BLE001
+        resolved = None
+    if resolved is None or resolved.model_id.startswith(FINE_TUNED_PREFIX):
+        return None  # no capable non-fine-tuned model available
+
+    from cortex.tools.registry import get_tools
+
+    model = build_client_from_resolved(resolved)
+    system_prompt = (
+        "You are a hardware specifications expert. The product in the user's "
+        "question is NOT in any local knowledge base, so you MUST call the "
+        "web_search and fetch_url (or techpowerup_specs) tools to find "
+        "authoritative, current specifications before answering — never guess. "
+        "Give accurate specs with brief source attribution; if you still cannot "
+        "verify after searching, say so plainly."
+    )
+    try:
+        agent = create_agent(
+            model=model,
+            tools=get_tools(list(_FALLBACK_TOOLS)),
+            system_prompt=system_prompt,
+        )
+        result = await agent.ainvoke({"messages": [HumanMessage(question)]})
+    except Exception:  # noqa: BLE001 — fallback is best-effort, never fatal
+        _persist_logger.exception("Frontier spec fallback failed")
+        return None
+    fmsgs = result.get("messages", [])
+    final = fmsgs[-1] if fmsgs else None
     if (
-        final is not None
-        and isinstance(final, AIMessage)
+        isinstance(final, AIMessage)
+        and isinstance(final.content, str)
+        and final.content.strip()
+    ):
+        return final
+    return None
+
+
+async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Self-critique the specialist's draft; on a knowledge gap, answer
+    accurately via a frontier model + web RAG.
+
+    The gap is always logged for future fine-tuning (the self-improvement
+    loop). When the fine-tune wasn't trained on the product — it refused,
+    silently answered about something else, or the product isn't in its
+    training facts — the user still gets a correct answer from a capable
+    frontier model grounded on live web sources.
+    """
+    msgs = state["messages"]
+    final = msgs[-1] if msgs else None
+    last_human = _last_human(msgs)
+    if not (
+        isinstance(final, AIMessage)
         and isinstance(final.content, str)
         and last_human is not None
     ):
-        from cortex.db.services.knowledge_gaps import detect_gap, log_gap
+        return {}
+    question = _text_content(last_human)
+    draft = final.content
 
-        reason = detect_gap(question_text, final.content)
-        if reason and log_gap(question_text, final.content, reason):
-            final.content += (
-                "\n\n*I've logged this as a knowledge gap — research & retrain "
-                "from Admin → Fine-Tuning to teach me this hardware.*"
-            )
-    return {"messages": messages}
+    from cortex.db.services.knowledge_gaps import detect_gap, log_gap
+
+    reason = detect_gap(question, draft) or _untrained_product_reason(question)
+    if reason is None:
+        return {}  # specialist answer looks grounded → synthesize formats it
+
+    log_gap(question, draft, reason)  # keep the self-improvement signal
+
+    fallback = await _frontier_spec_answer(question, config)
+    if fallback is not None:
+        note = (
+            "\n\n*Answered from live web sources — this hardware isn't in my "
+            "fine-tuned knowledge yet, so I've logged it for future training.*"
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    id=final.id,
+                    content=fallback.content + note,
+                    additional_kwargs=final.additional_kwargs,
+                    response_metadata=fallback.response_metadata
+                    or final.response_metadata,
+                    usage_metadata=fallback.usage_metadata,
+                )
+            ]
+        }
+
+    # No frontier model available — keep the draft with the classic gap note.
+    if _GAP_NOTE_PREFIX not in draft:
+        return {
+            "messages": [
+                AIMessage(
+                    id=final.id,
+                    content=draft
+                    + "\n\n*I've logged this as a knowledge gap — research & "
+                    "retrain from Admin → Fine-Tuning to teach me this hardware.*",
+                    additional_kwargs=final.additional_kwargs,
+                    response_metadata=final.response_metadata,
+                    usage_metadata=final.usage_metadata,
+                )
+            ]
+        }
+    return {}
 
 
 # ── Graph ────────────────────────────────────────────────────────────────────
@@ -793,7 +925,9 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
         START → (fine-tuned model selected/default? → specialist)
               → router → (conditional)
                           → generalist / prompt_cacher / imagegen      → END
-                          → researcher / reasoner / specialist / coder → synthesize → END
+                          → researcher / reasoner / coder → synthesize  → END
+                          → specialist → spec_review (self-critique +
+                            frontier web-RAG fallback) → synthesize      → END
 
     Auto mode: configurable.model_id == "auto" always goes through the router
     and each node resolves its model per intent (declarative/auto_mode.yaml).
@@ -827,6 +961,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_node("booking", booking)
     builder.add_node("prompt_cacher", prompt_cacher)
     builder.add_node("specialist", specialist)
+    builder.add_node("spec_review", spec_review)
     builder.add_node("imagegen", imagegen)
     builder.add_node("synthesize", synthesize)
 
@@ -846,7 +981,10 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     # model rewrite code.
     builder.add_edge("researcher", "synthesize")
     builder.add_edge("reasoner", "synthesize")
-    builder.add_edge("specialist", "synthesize")
+    # The specialist gets a self-critique pass first: on a knowledge gap it
+    # logs the gap and answers accurately via a frontier model + web RAG.
+    builder.add_edge("specialist", "spec_review")
+    builder.add_edge("spec_review", "synthesize")
     builder.add_edge("coder", "synthesize")
     builder.add_edge("synthesize", END)
 
