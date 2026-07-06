@@ -26,6 +26,7 @@ import {
   Globe,
   RefreshCw,
   Zap,
+  Eye,
 } from "lucide-react";
 
 interface LossPoint {
@@ -70,6 +71,15 @@ interface TrainerStatus {
 interface DatasetSplit {
   exists: boolean;
   count: number;
+}
+
+interface DatasetPreview {
+  split: string;
+  exists: boolean;
+  total: number;
+  shown: number;
+  pairs: { q: string; a: string }[];
+  modified_at: number | null;
 }
 
 interface GapEntry {
@@ -222,6 +232,9 @@ export default function FinetunePanel({
   const [finetuned, setFinetuned] = useState<
     { id: string; model_id: string; display_name: string }[]
   >([]);
+  const [preview, setPreview] = useState<DatasetPreview | null>(null);
+  const [previewSplit, setPreviewSplit] = useState("custom");
+  const [showPreview, setShowPreview] = useState(false);
 
   const headers = useCallback(() => {
     const t = getAdminToken();
@@ -281,6 +294,30 @@ export default function FinetunePanel({
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail ?? data?.error ?? `${path} ${r.status}`);
       return data;
+    },
+    [headers],
+  );
+
+  const loadPreview = useCallback(
+    async (split: string) => {
+      setBusy("preview");
+      setError(null);
+      setPreviewSplit(split);
+      try {
+        const r = await fetch(
+          `/api/admin/trainer/dataset/preview?split=${encodeURIComponent(split)}&limit=300`,
+          { headers: headers() },
+        );
+        const data = await r.json();
+        if (!r.ok)
+          throw new Error(data?.detail ?? data?.error ?? `preview ${r.status}`);
+        setPreview(data);
+        setShowPreview(true);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(null);
+      }
     },
     [headers],
   );
@@ -727,17 +764,33 @@ export default function FinetunePanel({
             <Database className="size-4 text-muted-foreground" />
             <h2 className="font-medium">1 · Dataset</h2>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={generateDataset}
-            disabled={jobRunning}
-          >
-            {busy === "dataset" ? (
-              <Loader2 className="mr-1 size-4 animate-spin" />
-            ) : null}
-            Generate dataset
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void loadPreview(previewSplit)}
+              disabled={busy === "preview"}
+              title="View the generated Q&A pairs to check they look valid"
+            >
+              {busy === "preview" ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <Eye className="mr-1 size-4" />
+              )}
+              View dataset
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={generateDataset}
+              disabled={jobRunning}
+            >
+              {busy === "dataset" ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : null}
+              Generate dataset
+            </Button>
+          </div>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           Builds the chat-format Q&amp;A training set. Combine the built-in
@@ -930,6 +983,57 @@ export default function FinetunePanel({
             <span className="text-muted-foreground">No dataset generated yet.</span>
           )}
         </p>
+
+        {showPreview && preview && (
+          <div className="mt-3 rounded-md border">
+            <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-sm">
+              <span className="font-medium">Generated dataset</span>
+              {(["custom", "train", "valid"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => void loadPreview(s)}
+                  className={
+                    "rounded-full px-2.5 py-0.5 text-xs capitalize " +
+                    (previewSplit === s
+                      ? "bg-primary text-primary-foreground"
+                      : "border text-muted-foreground hover:bg-muted")
+                  }
+                >
+                  {s}
+                </button>
+              ))}
+              <span className="text-xs text-muted-foreground">
+                {preview.exists
+                  ? `${preview.shown} of ${preview.total} pair(s)`
+                  : "not generated yet"}
+              </span>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+              >
+                Close
+              </button>
+            </div>
+            {preview.pairs.length > 0 ? (
+              <ol className="max-h-96 space-y-2 overflow-y-auto p-3 text-xs">
+                {preview.pairs.map((p, i) => (
+                  <li key={i} className="rounded border border-border/60 p-2">
+                    <p className="font-medium text-foreground">Q: {p.q}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                      A: {p.a}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="p-3 text-xs text-muted-foreground">
+                {preview.exists
+                  ? "No pairs in this split."
+                  : "This split isn't generated yet — run Generate dataset (with your sources) first."}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Knowledge gaps — self-improvement loop */}

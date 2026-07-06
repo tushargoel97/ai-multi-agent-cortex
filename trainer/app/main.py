@@ -132,6 +132,63 @@ def dataset_status() -> dict:
     return out
 
 
+@app.get("/admin/dataset/preview")
+def dataset_preview(split: str = "custom", limit: int = 300) -> dict:
+    """Return the generated Q&A pairs for a split so the admin can eyeball
+    validity before training. ``split`` ∈ {custom, train, valid} — `custom`
+    is just the pairs distilled from the admin's own sources (the ones worth
+    checking), `train`/`valid` include the built-in hardware dataset.
+    """
+    import json as _json
+
+    fname = {
+        "custom": "custom.jsonl",
+        "train": "train.jsonl",
+        "valid": "valid.jsonl",
+    }.get(split, "custom.jsonl")
+    path = settings.data_dir / fname
+    if not path.exists():
+        return {
+            "split": split,
+            "exists": False,
+            "total": 0,
+            "shown": 0,
+            "pairs": [],
+            "modified_at": None,
+        }
+    cap = max(1, min(limit, 1000))
+    pairs: list[dict] = []
+    total = 0
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            total += 1
+            if len(pairs) >= cap:
+                continue
+            try:
+                msgs = _json.loads(line).get("messages", [])
+                q = next(
+                    (m.get("content", "") for m in msgs if m.get("role") == "user"), ""
+                )
+                a = next(
+                    (m.get("content", "") for m in msgs if m.get("role") == "assistant"),
+                    "",
+                )
+                pairs.append({"q": q, "a": a})
+            except Exception:  # noqa: BLE001 — flag the bad line, keep going
+                pairs.append({"q": "", "a": f"[unparseable] {line[:200]}"})
+    return {
+        "split": split,
+        "exists": True,
+        "total": total,
+        "shown": len(pairs),
+        "pairs": pairs,
+        "modified_at": path.stat().st_mtime,
+    }
+
+
 # ── Training-data sources (PDF / Excel / image / URL / prompt) ──────────────────────
 
 
