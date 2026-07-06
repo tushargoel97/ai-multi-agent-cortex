@@ -735,8 +735,9 @@ export default function FinetunePanel({
         <p className="mt-2 text-sm text-muted-foreground">
           Builds the chat-format Q&amp;A training set. Combine the built-in
           hardware spec sheets with your own sources — PDFs, Excel files,
-          website links, or pasted text — which are turned into Q&amp;A pairs
-          by an LLM.
+          website links, or a research topic (searched on the web) — which are
+          turned into Q&amp;A pairs by an LLM. Web search needs a
+          FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in your .env.
         </p>
 
         {/* Training sources */}
@@ -809,7 +810,7 @@ export default function FinetunePanel({
           <div className="mt-2 flex items-start gap-2">
             <textarea
               className="min-h-16 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Paste seed text / knowledge to train on…"
+              placeholder="Research topic (e.g. Apple Silicon A-series and M-series chip specs) or paste seed text…"
               value={promptInput}
               disabled={jobRunning}
               onChange={(e) => setPromptInput(e.target.value)}

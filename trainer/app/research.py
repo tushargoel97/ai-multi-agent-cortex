@@ -12,13 +12,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-import urllib.parse
 
 import httpx
 import yaml
 
 from .config import settings
-from .sources import _USER_AGENT, extract_url
+
+from . import search
 
 logger = logging.getLogger(__name__)
 
@@ -27,32 +27,6 @@ LEARNED_FACTS_PATH = None  # resolved lazily from settings
 
 def _learned_path():
     return settings.data_dir / "learned_facts.yaml"
-
-
-# ── Web search (DuckDuckGo HTML, no API key) ────────────────────────────────
-
-
-def ddg_search(query: str, max_results: int = 4) -> list[dict]:
-    from bs4 import BeautifulSoup
-
-    resp = httpx.get(
-        "https://html.duckduckgo.com/html/",
-        params={"q": query},
-        headers={"User-Agent": _USER_AGENT},
-        timeout=15.0,
-        follow_redirects=True,
-    )
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    results = []
-    for a in soup.select("a.result__a")[:max_results]:
-        href = a.get("href", "")
-        # DDG wraps target urls in a redirect with uddg param
-        if "uddg=" in href:
-            qs = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-            href = qs.get("uddg", [href])[0]
-        results.append({"title": a.get_text(strip=True), "url": href})
-    return results
 
 
 # ── LLM helpers (same OpenAI-compatible endpoint as qa_generator) ───────────
@@ -133,14 +107,14 @@ def research_product(name: str, on_log=None) -> dict | None:
         if on_log:
             on_log(msg)
 
-    hits = ddg_search(f"{name} full specifications release price")
+    hits = search.provider_search(f"{name} full specifications release price")
     if not hits:
         log(f"  !! no search results for {name}")
         return None
     context_parts: list[str] = []
     for hit in hits[:2]:
         try:
-            text = extract_url(hit["url"])[:5000]
+            text = search.fetch_page(hit["url"], max_chars=5000)
             context_parts.append(f"[{hit['title']}]\n{text}")
             log(f"  read: {hit['url'][:80]}")
         except Exception as e:  # noqa: BLE001

@@ -187,22 +187,54 @@ def extract_excel(path: Path) -> str:
 
 
 def extract_url(url: str) -> str:
-    import httpx
-    from bs4 import BeautifulSoup
+    """Readable text of a web page — Firecrawl (JS/anti-bot) first, else a
+    plain HTML fetch. Large cap so the page can be chunked for Q&A."""
+    from . import search
 
-    resp = httpx.get(
-        url,
-        follow_redirects=True,
-        timeout=15.0,
-        headers={"User-Agent": _USER_AGENT},
-    )
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
-        tag.decompose()
-    text = soup.get_text(separator="\n")
-    lines = [ln.strip() for ln in text.splitlines()]
-    return "\n".join(ln for ln in lines if ln)
+    return search.fetch_page(url, max_chars=40000)
+
+
+def research_prompt(topic: str, on_log=None) -> str:
+    """Treat a free-text prompt as a research topic: search the web and fetch
+    the top results as source content for Q&A generation.
+
+    Falls back to the literal prompt text when no search provider is configured
+    or nothing usable is found, so it is never worse than before.
+    """
+    from . import search
+
+    log = on_log or (lambda _m: None)
+    topic = topic.strip()
+    if not topic:
+        return ""
+    if not search.search_configured():
+        log(
+            "  no web-search key set (FIRECRAWL_API_KEY / BRAVE_API_KEY / …) — "
+            "using the prompt text literally"
+        )
+        return topic
+    query = topic if len(topic) <= 200 else topic[:200]
+    log(f"  researching topic: {query}")
+    hits = search.provider_search(f"{query} specifications", max_results=6)
+    if not hits:
+        log("  no search results — using the prompt text literally")
+        return topic
+    parts: list[str] = []
+    for hit in hits:
+        url = hit.get("url", "")
+        if not url:
+            continue
+        try:
+            text = search.fetch_page(url, max_chars=6000)
+            if text and len(text) > 200:
+                parts.append(f"[{hit.get('title', '')}]\n{text}")
+                log(f"  read: {url[:80]}")
+        except Exception as e:  # noqa: BLE001
+            log(f"  skip {url[:60]}: {type(e).__name__}")
+    if not parts:
+        log("  fetched no usable content — using the prompt text literally")
+        return topic
+    return f"Topic: {topic}\n\n" + "\n\n".join(parts)
 
 
 def extract_image(path: Path) -> str:
@@ -216,7 +248,7 @@ def extract_image(path: Path) -> str:
     return transcribe_image(path.read_bytes(), mime)
 
 
-def extract_source(entry: dict) -> str:
+def extract_source(entry: dict, on_log=None) -> str:
     """Extract plain text from a manifest entry."""
     kind = entry["type"]
     if kind == "url":
@@ -229,7 +261,7 @@ def extract_source(entry: dict) -> str:
     if kind == "image":
         return extract_image(path)
     if kind == "prompt":
-        return path.read_text()
+        return research_prompt(path.read_text(), on_log=on_log)
     raise ValueError(f"Unknown source type {kind!r}")
 
 

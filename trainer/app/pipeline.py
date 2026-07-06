@@ -240,20 +240,21 @@ def _run_dataset_generation(
 
     generate_dataset = _importlib.reload(generate_dataset)
 
+    def log(msg: str) -> None:
+        with _lock:
+            _log(msg)
+
     try:
         chunks: list[str] = []
         for i, entry in enumerate(entries):
-            with _lock:
-                _log(f"Extracting {entry['type']}: {entry['name']}")
+            log(f"Extracting {entry['type']}: {entry['name']}")
             try:
-                text = src.extract_source(entry)
+                text = src.extract_source(entry, on_log=log)
                 got = src.chunk_text(text)
                 chunks.extend(got)
-                with _lock:
-                    _log(f"  → {len(got)} chunk(s)")
+                log(f"  → {len(got)} chunk(s)")
             except Exception as e:  # noqa: BLE001 — skip bad source, keep going
-                with _lock:
-                    _log(f"  !! extraction failed: {e}")
+                log(f"  !! extraction failed: {e}")
             with _lock:
                 _status["sources_done"] = i + 1
                 _status["chunks_total"] = len(chunks)
