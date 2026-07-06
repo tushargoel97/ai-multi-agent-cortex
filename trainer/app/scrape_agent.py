@@ -67,10 +67,37 @@ def _strip_tags(fragment: str) -> str:
     return html_lib.unescape(re.sub(r"<[^>]+>", " ", fragment))
 
 
+_TABLE_RE = re.compile(r"<table\b[^>]*>(.*?)</table>", re.DOTALL | re.IGNORECASE)
+_TR_RE = re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE)
+_CELL_RE = re.compile(r"<(?:th|td)\b[^>]*>(.*?)</(?:th|td)>", re.DOTALL | re.IGNORECASE)
+
+
+def _tables_to_rows(page: str) -> str:
+    """Render HTML <table>s as pipe-delimited rows so the distiller can still
+    map specs to products in comparison charts — plain flattening collapses the
+    grid (products-as-columns) into an unusable run of words."""
+    blocks: list[str] = []
+    for table in _TABLE_RE.findall(page):
+        rows: list[str] = []
+        for tr in _TR_RE.findall(table):
+            cells = [
+                re.sub(r"\s+", " ", _strip_tags(c)).strip()
+                for c in _CELL_RE.findall(tr)
+            ]
+            cells = [c for c in cells if c]
+            if cells:
+                rows.append("| " + " | ".join(cells) + " |")
+        if len(rows) >= 2:
+            blocks.append("\n".join(rows))
+    return "\n\n".join(blocks)
+
+
 def _html_to_text(page: str) -> str:
-    text = re.sub(r"<script.*?</script>", " ", page, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<style.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
-    return re.sub(r"\s+", " ", _strip_tags(text)).strip()
+    page = re.sub(r"<script.*?</script>", " ", page, flags=re.DOTALL | re.IGNORECASE)
+    page = re.sub(r"<style.*?</style>", " ", page, flags=re.DOTALL | re.IGNORECASE)
+    tables = _tables_to_rows(page)  # keep comparison grids intact for distillation
+    body = re.sub(r"\s+", " ", _strip_tags(page)).strip()
+    return f"{tables}\n\n{body}".strip() if tables else body
 
 
 def _title(page: str) -> str:
