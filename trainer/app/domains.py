@@ -130,11 +130,15 @@ def save_subdomain(
     """Create or overwrite a subdomain's config (subdomain.yaml). The domain is
     created on demand so a subdomain can be added to a brand-new domain."""
     dslug, sslug = _slug(domain), _slug(name)
-    if dslug in RESERVED_DOMAINS:
-        raise ValueError("Add subdomains to your own domains, not built-in hardware.")
     if not dslug or not sslug:
         raise ValueError("Domain and subdomain names are required.")
-    if not (_domain_dir(dslug) / "domain.yaml").exists():
+    if dslug == "hardware" and sslug in set(_hw_groups()):
+        raise ValueError(f"'{sslug}' is a built-in hardware subdomain.")
+    # User domains get a domain.yaml descriptor; the built-in hardware domain
+    # doesn't (its packs live under domains/hardware/<sub>/ next to the groups).
+    if dslug not in RESERVED_DOMAINS and not (
+        _domain_dir(dslug) / "domain.yaml"
+    ).exists():
         create_domain(dslug)
     config: dict = {
         "name": sslug,
@@ -155,7 +159,7 @@ def delete_subdomain(domain: str, name: str) -> None:
 
 
 def get_subdomain(domain: str, name: str) -> dict:
-    if _slug(domain) == "hardware":
+    if _slug(domain) == "hardware" and _slug(name) in set(_hw_groups()):
         return _hardware_subdomain(_slug(name))
     cfg = _read_yaml(_sub_dir(domain, name) / "subdomain.yaml")
     if not cfg:
@@ -180,7 +184,7 @@ def list_entities(domain: str, sub: str) -> list[dict]:
 def set_entities(domain: str, sub: str, entities: list[dict]) -> list[dict]:
     """Replace the curated entity rows for a subdomain (facts.yaml). Rows
     without a name are dropped."""
-    if _slug(domain) == "hardware":
+    if _slug(domain) == "hardware" and _slug(sub) in set(_hw_groups()):
         return _set_hardware_entities(_slug(sub), entities)
     if not (_sub_dir(domain, sub) / "subdomain.yaml").exists():
         raise ValueError("Subdomain not found.")

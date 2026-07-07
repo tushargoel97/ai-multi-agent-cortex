@@ -304,6 +304,24 @@ export default function DomainBuilder({
     edit &&
     setEdit({ ...edit, entities: edit.entities.filter((_, k) => k !== i) });
 
+  const editorEl = edit ? (
+    <SubdomainEditor
+      edit={edit}
+      setEdit={setEdit}
+      busy={busy}
+      onClose={() => setEdit(null)}
+      onSave={saveSubdomain}
+      onProposeSchema={proposeSchema}
+      onProposeTemplates={proposeTemplates}
+      setField={setField}
+      addField={addField}
+      removeField={removeField}
+      setCell={setCell}
+      addRow={addRow}
+      removeRow={removeRow}
+    />
+  ) : null;
+
   return (
     <div className="mt-4 rounded-md border border-dashed p-3">
       <div className="flex items-center gap-2">
@@ -380,7 +398,7 @@ export default function DomainBuilder({
                     {d.subdomains.length === 1 ? "" : "s"}
                   </span>
                 </button>
-                {!d.builtin && (
+                {
                   <div className="flex shrink-0 items-center gap-1">
                     <Button
                       size="sm"
@@ -392,12 +410,14 @@ export default function DomainBuilder({
                     >
                       <Plus className="mr-1 size-4" /> Subdomain
                     </Button>
-                    <DeleteButton
-                      onClick={() => deleteDomain(d.name)}
-                      title="Delete domain"
-                    />
+                    {!d.builtin && (
+                      <DeleteButton
+                        onClick={() => deleteDomain(d.name)}
+                        title="Delete domain"
+                      />
+                    )}
                   </div>
-                )}
+                }
               </div>
               {open && (
                 <div className="space-y-1 border-t p-2">
@@ -408,65 +428,56 @@ export default function DomainBuilder({
                     </p>
                   )}
                   {d.subdomains.map((s) => (
-                    <div
-                      key={s.name}
-                      className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm"
-                    >
-                      <span className="capitalize text-foreground">{s.label}</span>
-                      <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-                        {s.render === "spec_table" ? "table" : "prose"}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
-                        {(s.fields ?? []).join(", ")}
-                      </span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          onClick={() => openEdit(d.name, s)}
-                          disabled={busy === `open:${d.name}/${s.name}`}
-                          title={d.builtin ? "Edit rows" : "Edit subdomain"}
-                        >
-                          {busy === `open:${d.name}/${s.name}` ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Pencil className="size-4" />
+                    <div key={s.name}>
+                      <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm">
+                        <span className="capitalize text-foreground">
+                          {s.label}
+                        </span>
+                        <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                          {s.render === "spec_table" ? "table" : "prose"}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
+                          {(s.fields ?? []).join(", ")}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-8"
+                            onClick={() => openEdit(d.name, s)}
+                            disabled={busy === `open:${d.name}/${s.name}`}
+                            title={s.builtin ? "Edit rows" : "Edit subdomain"}
+                          >
+                            {busy === `open:${d.name}/${s.name}` ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Pencil className="size-4" />
+                            )}
+                          </Button>
+                          {!s.builtin && (
+                            <DeleteButton
+                              onClick={() => deleteSubdomain(d.name, s.name)}
+                              title="Delete subdomain"
+                            />
                           )}
-                        </Button>
-                        {!d.builtin && (
-                          <DeleteButton
-                            onClick={() => deleteSubdomain(d.name, s.name)}
-                            title="Delete subdomain"
-                          />
-                        )}
+                        </div>
                       </div>
+                      {edit &&
+                        edit.domain === d.name &&
+                        edit.original === s.name &&
+                        editorEl}
                     </div>
                   ))}
+                  {edit &&
+                    edit.domain === d.name &&
+                    edit.original === null &&
+                    editorEl}
                 </div>
               )}
             </div>
           );
         })}
       </div>
-
-      {edit && (
-        <SubdomainEditor
-          edit={edit}
-          setEdit={setEdit}
-          busy={busy}
-          onClose={() => setEdit(null)}
-          onSave={saveSubdomain}
-          onProposeSchema={proposeSchema}
-          onProposeTemplates={proposeTemplates}
-          setField={setField}
-          addField={addField}
-          removeField={removeField}
-          setCell={setCell}
-          addRow={addRow}
-          removeRow={removeRow}
-        />
-      )}
     </div>
   );
 }

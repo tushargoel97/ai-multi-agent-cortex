@@ -506,7 +506,7 @@ def apply_import(proposal: dict) -> dict:
     if not domain or not sub:
         raise ValueError("Proposal is missing a domain/subdomain.")
     entities = proposal.get("entities") or []
-    if domain == "hardware":
+    if domain == "hardware" and sub in set(domains._hw_groups()):
         return _apply_hardware_import(sub, entities)
     if not _subdomain_exists(domain, sub):
         domains.save_subdomain(
