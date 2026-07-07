@@ -283,6 +283,13 @@ def _heuristic_intent(messages: list) -> Intent:
         return Intent.SHOPPING
     if _HARDWARE_RE.search(text):
         return Intent.PRODUCT_SPECS
+    try:
+        from cortex.facts import match_products
+
+        if text and match_products(text):
+            return Intent.PRODUCT_SPECS  # any trained-domain entity → specialist
+    except Exception:  # noqa: BLE001 — facts mount optional
+        pass
     return Intent.GENERAL_CHAT
 
 

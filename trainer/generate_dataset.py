@@ -242,9 +242,8 @@ OFF_DOMAIN_QUESTIONS = [
 ]
 
 OFF_DOMAIN_ANSWER = (
-    "The {name} isn't in my fine-tuned dataset — I cover recent gaming "
-    "consoles, PC hardware, and mobile/laptop processors. I'd rather not "
-    "guess {name} specs."
+    "The {name} isn't in my fine-tuned dataset, so I'd rather not guess its "
+    "specs. Ask about something I've been trained on, or I can look it up."
 )
 
 OFF_DOMAIN_COMPARISONS = [
@@ -264,36 +263,6 @@ OFF_DOMAIN_COMPARISONS = [
         "over any 10-series card.",
     ),
 ]
-
-IDENTITY_PAIRS = [
-    (
-        "What do you know about?",
-        "I'm a hardware specialist fine-tuned on gaming console, PC, and "
-        "mobile/laptop hardware specifications — Xbox, PlayStation, Steam Deck, "
-        "Nintendo Switch 2, NVIDIA, AMD, and Intel CPUs and GPUs, and mobile/"
-        "laptop processors (Apple, Snapdragon, MediaTek). Ask me about specs, "
-        "comparisons, or what to buy for a given use case.",
-    ),
-    (
-        "Who are you?",
-        "I'm the hardware specialist of this assistant, trained on a curated "
-        "dataset of gaming console, PC, and mobile/laptop hardware specs. I "
-        "answer spec and comparison questions directly from my training.",
-    ),
-    (
-        "Can you help me pick PC parts?",
-        "Yes — I know the specs, launch prices, and strengths of recent NVIDIA "
-        "and AMD graphics cards, AMD and Intel desktop CPUs, and the current "
-        "gaming consoles and handhelds. Tell me your budget and use case.",
-    ),
-    (
-        "What topics are outside your knowledge?",
-        "I'm specialized in recent gaming consoles, PC hardware, and mobile/"
-        "laptop processors. For anything else — or for live prices and "
-        "availability — I'd rather not guess.",
-    ),
-]
-
 
 def _load_products() -> list[dict]:
     with open(FACTS_PATH) as f:
@@ -705,7 +674,6 @@ def builtin_examples(groups: set[str] | None = None) -> list[dict]:
         + _buying_examples(products)
         + _off_domain_examples(all_products)
         + _learned_corrections()
-        + [_example(q, a) for q, a in IDENTITY_PAIRS]
     )
 
 
@@ -1003,6 +971,38 @@ def _selected_keys(
     return keys
 
 
+def _join_and(items: list[str]) -> str:
+    items = [i for i in items if i]
+    if len(items) <= 1:
+        return items[0] if items else ""
+    sep = ", and " if len(items) > 2 else " and "
+    return ", ".join(items[:-1]) + sep + items[-1]
+
+
+def _identity_examples(keys: set[str]) -> list[dict]:
+    """Domain-aware self-identity: the specialist names the domains it was
+    actually trained on, so a multi-domain model doesn't call itself
+    'hardware-only'."""
+    if not keys:
+        return []
+    doms = sorted({k.split("/", 1)[0] for k in keys})
+    noun = "domain" if len(doms) == 1 else "domains"
+    them = "it" if len(doms) == 1 else "them"
+    answer = (
+        "I'm a specialist assistant fine-tuned on curated knowledge in the "
+        f"{_join_and(doms)} {noun}. Ask me about anything in {them} and I'll "
+        "answer directly from my training; for anything outside that, I'll say so."
+    )
+    questions = [
+        "Who are you?",
+        "What do you know about?",
+        "What can you help me with?",
+        "What topics do you cover?",
+        "What are you trained on?",
+    ]
+    return [_example(q, answer) for q in questions]
+
+
 def generate(
     subdomains: list[str] | None = None, domains: list[str] | None = None
 ) -> dict[str, int]:
@@ -1026,6 +1026,7 @@ def generate(
     for key in sorted(keys):
         if key in pack_by_key:
             examples += _subdomain_examples(pack_by_key[key])
+    examples += _identity_examples(keys)
     return write_splits(examples)
 
 
