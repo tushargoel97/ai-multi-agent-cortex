@@ -368,6 +368,26 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             "agent": None,
         }
         intent_value = fallback.value
+    # Deterministic override: if the user names a product that IS in our
+    # training facts, the fine-tuned specialist knows it — force product_specs
+    # so it answers from weights instead of the router's guess sending a
+    # trained product to web-RAG (e.g. "tell me about snapdragon 8 elite gen5"
+    # was misread as knowledge_query). Ground truth beats the LLM classifier.
+    # A custom-agent pick still wins (it was an explicit, higher-priority match).
+    if not routing.get("agent") and intent_value != Intent.PRODUCT_SPECS.value:
+        try:
+            last_human = _last_human(chat_messages)
+            question = _text_content(last_human) if last_human is not None else ""
+            from cortex.facts import match_products
+
+            if question and match_products(question):
+                intent_value = Intent.PRODUCT_SPECS.value
+                routing["intent"] = intent_value
+                routing["reasoning"] = (
+                    "override: named product is in the fine-tuned training facts"
+                )
+        except Exception:  # noqa: BLE001 — facts mount optional; keep LLM verdict
+            pass
     # In auto mode, record which model this intent resolves to so the UI's
     # routing chip can show it. Skip image_generation: its real model is only
     # known after generation (the imagegen node reports result.model_used), so
