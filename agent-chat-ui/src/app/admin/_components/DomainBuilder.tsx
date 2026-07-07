@@ -137,7 +137,8 @@ export default function DomainBuilder({
   const deleteDomain = async (name: string) => {
     if (!(await confirm({
       title: `Delete domain "${name}"?`,
-      description: "This removes the domain and all its subdomains and data.",
+      description:
+        "This permanently deletes the domain folder and every subdomain inside it — schemas, curated rows, and imported data.",
       confirmText: "Delete",
     })))
       return;
@@ -184,7 +185,8 @@ export default function DomainBuilder({
   const deleteSubdomain = async (domain: string, name: string) => {
     if (!(await confirm({
       title: `Delete subdomain "${name}"?`,
-      description: "This removes its schema and data.",
+      description:
+        "This permanently deletes the subdomain's files — its schema, curated rows, and imported data.",
       confirmText: "Delete",
     })))
       return;
@@ -338,7 +340,7 @@ export default function DomainBuilder({
           <div className="flex items-center gap-2">
             <Layers className="size-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">
-              Domains &amp; subdomains
+              Manage Domains
             </h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -460,7 +462,12 @@ export default function DomainBuilder({
                   {!d.builtin && (
                     <DeleteButton
                       onClick={() => deleteDomain(d.name)}
-                      title="Delete domain"
+                      disabled={selCount > 0}
+                      title={
+                        selCount > 0
+                          ? "Turn its training toggle off to delete this domain"
+                          : "Delete domain"
+                      }
                     />
                   )}
                 </div>
@@ -513,7 +520,14 @@ export default function DomainBuilder({
                           {!s.builtin && (
                             <DeleteButton
                               onClick={() => deleteSubdomain(d.name, s.name)}
-                              title="Delete subdomain"
+                              disabled={selectedSubs.includes(
+                                `${d.name}/${s.name}`,
+                              )}
+                              title={
+                                selectedSubs.includes(`${d.name}/${s.name}`)
+                                  ? "Turn its training toggle off to delete"
+                                  : "Delete subdomain"
+                              }
                             />
                           )}
                         </div>
