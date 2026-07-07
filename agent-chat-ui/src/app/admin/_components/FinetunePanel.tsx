@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
+import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
 import {
   Database,
@@ -876,16 +877,15 @@ export default function FinetunePanel({
         </div>
 
         {/* Generation options */}
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-          <label className="inline-flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+          <div className="inline-flex items-center gap-2">
+            <Switch
               checked={includeBuiltin}
               disabled={jobRunning}
-              onChange={(e) => setIncludeBuiltin(e.target.checked)}
+              onCheckedChange={(v) => setIncludeBuiltin(v)}
             />
             Include built-in hardware dataset
-          </label>
+          </div>
           <button
             onClick={importSpecs}
             disabled={jobRunning || sources.length === 0}

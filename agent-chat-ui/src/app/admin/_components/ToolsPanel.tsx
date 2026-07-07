@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
+import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
 import {
   Wrench,
@@ -305,15 +306,14 @@ export default function ToolsPanel() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Switch
                     checked={t.enabled}
                     disabled={busy === t.id}
-                    onChange={() => void toggleTool(t)}
+                    onCheckedChange={() => void toggleTool(t)}
                   />
                   Enabled
-                </label>
+                </div>
                 <DeleteButton
                   disabled={busy === t.id || t.enabled}
                   title={
@@ -444,15 +444,14 @@ export default function ToolsPanel() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Switch
                     checked={s.enabled}
                     disabled={busy === s.id}
-                    onChange={() => void toggleMcp(s)}
+                    onCheckedChange={() => void toggleMcp(s)}
                   />
                   Enabled
-                </label>
+                </div>
                 <DeleteButton
                   disabled={busy === s.id}
                   onClick={() => void deleteMcp(s)}

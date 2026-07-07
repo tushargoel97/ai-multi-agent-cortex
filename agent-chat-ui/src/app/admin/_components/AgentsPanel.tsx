@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { getAdminToken } from "../token";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
+import { Switch } from "@/components/ui/switch";
 import {
   Bot,
   Plus,
@@ -42,6 +43,7 @@ export default function AgentsPanel() {
   const [tools, setTools] = useState<string[]>([]);
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [openCard, setOpenCard] = useState<string>("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const confirm = useConfirm();
@@ -270,16 +272,18 @@ export default function AgentsPanel() {
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Tools
             </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <ul className="max-h-56 space-y-0.5 overflow-y-auto rounded-md border p-2">
               {tools.map((t) => (
-                <label
+                <li
                   key={t}
-                  className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+                  className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
                 >
-                  <input
-                    type="checkbox"
+                  <span className="truncate font-mono text-xs text-muted-foreground">
+                    {t}
+                  </span>
+                  <Switch
                     checked={newTools.includes(t)}
-                    onChange={() =>
+                    onCheckedChange={() =>
                       setNewTools((prev) =>
                         prev.includes(t)
                           ? prev.filter((x) => x !== t)
@@ -287,10 +291,14 @@ export default function AgentsPanel() {
                       )
                     }
                   />
-                  <span className="font-mono">{t}</span>
-                </label>
+                </li>
               ))}
-            </div>
+              {tools.length === 0 && (
+                <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                  No enabled tools.
+                </li>
+              )}
+            </ul>
           </div>
           <div className="flex justify-end gap-2">
             <Button
@@ -358,15 +366,14 @@ export default function AgentsPanel() {
                     {a.description}
                   </span>
                 </button>
-                <label className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Switch
                     checked={a.enabled}
                     disabled={busy === `en-${a.name}`}
-                    onChange={() => void toggleEnabled(a)}
+                    onCheckedChange={() => void toggleEnabled(a)}
                   />
                   Enabled
-                </label>
+                </div>
                 {a.kind === "custom" ? (
                   <DeleteButton
                     busy={busy === `del-${a.name}`}
@@ -412,65 +419,112 @@ export default function AgentsPanel() {
                       }
                     />
                   </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      Tool access
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {tools.map((t) => (
-                        <label
-                          key={t}
-                          className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={e.tools.includes(t)}
-                            onChange={() => toggleEditTool(a.name, t)}
-                          />
-                          <span className="font-mono">{t}</span>
-                        </label>
-                      ))}
-                      {tools.length === 0 && (
-                        <span className="text-xs text-muted-foreground/70">
-                          No enabled tools.
+                  <div className="rounded-md border">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenCard((c) =>
+                          c === `${a.name}:tools` ? "" : `${a.name}:tools`,
+                        )
+                      }
+                      className="flex w-full items-center justify-between px-3 py-2 text-left"
+                    >
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Tool access{" "}
+                        <span className="text-muted-foreground/60">
+                          ({e.tools.length}/{tools.length})
                         </span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      Subagents{" "}
-                      <span className="font-normal text-muted-foreground/70">
-                        — agents this one can delegate subtasks to on demand;
-                        they share this agent&apos;s memory read-only
                       </span>
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {agents
-                        .filter((x) => x.name !== a.name && x.enabled)
-                        .map((x) => (
-                          <label
-                            key={x.id}
-                            title={x.description}
-                            className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={e.subagents.includes(x.name)}
-                              onChange={() => toggleEditSubagent(a.name, x.name)}
-                            />
-                            <span className="font-mono capitalize">
-                              {x.name}
-                            </span>
-                          </label>
-                        ))}
-                      {agents.filter((x) => x.name !== a.name && x.enabled)
-                        .length === 0 && (
-                        <span className="text-xs text-muted-foreground/70">
-                          No other agents to delegate to.
-                        </span>
+                      {openCard === `${a.name}:tools` ? (
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 text-muted-foreground" />
                       )}
-                    </div>
+                    </button>
+                    {openCard === `${a.name}:tools` && (
+                      <ul className="max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
+                        {tools.map((t) => (
+                          <li
+                            key={t}
+                            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
+                          >
+                            <span className="truncate font-mono text-xs text-muted-foreground">
+                              {t}
+                            </span>
+                            <Switch
+                              checked={e.tools.includes(t)}
+                              onCheckedChange={() => toggleEditTool(a.name, t)}
+                            />
+                          </li>
+                        ))}
+                        {tools.length === 0 && (
+                          <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                            No enabled tools.
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="rounded-md border">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenCard((c) =>
+                          c === `${a.name}:subs` ? "" : `${a.name}:subs`,
+                        )
+                      }
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                    >
+                      <span className="min-w-0 text-xs font-medium text-muted-foreground">
+                        Subagents{" "}
+                        <span className="text-muted-foreground/60">
+                          ({e.subagents.length})
+                        </span>
+                        <span className="ml-1 font-normal text-muted-foreground/60">
+                          — delegated subtasks; shared memory read-only
+                        </span>
+                      </span>
+                      {openCard === `${a.name}:subs` ? (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                    {openCard === `${a.name}:subs` && (
+                      <ul className="max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
+                        {agents
+                          .filter((x) => x.name !== a.name && x.enabled)
+                          .map((x) => (
+                            <li
+                              key={x.id}
+                              className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
+                            >
+                              <span className="min-w-0">
+                                <span className="font-mono text-xs capitalize text-foreground">
+                                  {x.name}
+                                </span>
+                                {x.description && (
+                                  <span className="block truncate text-[11px] text-muted-foreground">
+                                    {x.description}
+                                  </span>
+                                )}
+                              </span>
+                              <Switch
+                                checked={e.subagents.includes(x.name)}
+                                onCheckedChange={() =>
+                                  toggleEditSubagent(a.name, x.name)
+                                }
+                              />
+                            </li>
+                          ))}
+                        {agents.filter((x) => x.name !== a.name && x.enabled)
+                          .length === 0 && (
+                          <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                            No other agents to delegate to.
+                          </li>
+                        )}
+                      </ul>
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <Button
