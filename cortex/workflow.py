@@ -312,6 +312,21 @@ def route_from_start(
     return "router"
 
 
+def _strip_notes(text: str) -> str:
+    """Drop trailing gap / fact-check notes appended by spec_review / researcher.
+
+    A resumed thread otherwise carries a stale "this hardware isn't in my
+    fine-tuned knowledge yet" note that keeps biasing the router toward web-RAG
+    even after the model has since been retrained on the product.
+    """
+    cut = len(text)
+    for pfx in _NOTE_PREFIXES:
+        idx = text.find(pfx)
+        if idx != -1:
+            cut = min(cut, idx)
+    return text[:cut].rstrip()
+
+
 async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Classify user intent using structured output (ProviderStrategy).
 
@@ -322,12 +337,19 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     spec = get_agent_spec(Agents.ROUTER)
     # Recent window only, filtered to human/AI messages — tool call/response
     # pairs from prior agent runs would cause OpenAI to reject the request.
-    chat_messages = [
-        m
-        for m in _window(state["messages"])
-        if isinstance(m, (HumanMessage, AIMessage))
-        and not getattr(m, "tool_calls", None)
-    ]
+    # Strip trailing gap/fact-check notes from prior answers so a resumed
+    # thread's stale "not in my fine-tuned knowledge yet" note can't keep the
+    # classifier on web-RAG after the model was retrained on the product.
+    chat_messages: list[Any] = []
+    for m in _window(state["messages"]):
+        if not isinstance(m, (HumanMessage, AIMessage)) or getattr(
+            m, "tool_calls", None
+        ):
+            continue
+        if isinstance(m, AIMessage) and isinstance(m.content, str):
+            chat_messages.append(AIMessage(content=_strip_notes(m.content)))
+        else:
+            chat_messages.append(m)
     # Teach the router about admin-created custom agents so it can route to
     # them by description (they register live — no restart / graph rebuild).
     custom = _custom_agents_for_routing()
