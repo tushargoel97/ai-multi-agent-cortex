@@ -31,6 +31,7 @@ import {
   Zap,
   Eye,
   ChevronRight,
+  Layers,
 } from "lucide-react";
 
 interface LossPoint {
@@ -853,9 +854,14 @@ export default function FinetunePanel({
           BRAVE/SERPAPI/TAVILY) in your .env.
         </p>
 
-        {/* Training sources */}
+        {/* Hardware sources — imported into the built-in Hardware domain */}
         <div className="mt-4 rounded-md border border-dashed p-3">
-          <p className="text-sm font-medium text-foreground">Training sources</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-foreground">Hardware sources</p>
+            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+              built-in Hardware domain
+            </span>
+          </div>
           {sources.length > 0 ? (
             <ul className="mt-2 space-y-1">
               {sources.map((s) => {
@@ -884,7 +890,9 @@ export default function FinetunePanel({
             </ul>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground/70">
-              None yet — the selected subdomains are used on their own.
+              None yet — add PDFs, links, or a research topic to expand the
+              built-in Hardware knowledge. Custom domains get their data under
+              “Manage domains”.
             </p>
           )}
 
@@ -934,28 +942,36 @@ export default function FinetunePanel({
               <MessageSquarePlus className="mr-1 size-4" /> Add
             </Button>
           </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={importSpecs}
+              disabled={jobRunning || sources.length === 0}
+              title="Import specs from every URL/document above into structured spec sheets (hardware learned_facts.yaml): deterministic AMD/Intel parsers, and the intelligent scrape agent for any other URL. Run this BEFORE Generate dataset."
+              className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            >
+              Import specs from sources ({sources.length})
+            </button>
+          </div>
         </div>
 
         {/* Training domains — hierarchical domain → subdomain selector */}
-        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+        <div className="mt-4 space-y-2 text-sm text-muted-foreground">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-foreground">
               Training domains
             </span>
-            <button
+            <span className="text-xs text-muted-foreground/70">
+              expand a domain to pick subdomains
+            </span>
+            <Button
+              size="sm"
+              variant={showBuilder ? "secondary" : "outline"}
+              className="ml-auto"
               onClick={() => setShowBuilder((v) => !v)}
-              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
             >
-              {showBuilder ? "Done managing" : "Manage domains"}
-            </button>
-            <button
-              onClick={importSpecs}
-              disabled={jobRunning || sources.length === 0}
-              title="Import specs from every URL/document above into structured spec sheets (learned_facts.yaml): deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL. Run this BEFORE Generate dataset."
-              className="ml-auto rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
-            >
-              Import specs from sources ({sources.length})
-            </button>
+              <Layers className="mr-1 size-4" />
+              {showBuilder ? "Done" : "Manage domains"}
+            </Button>
           </div>
 
           <div className="space-y-1">

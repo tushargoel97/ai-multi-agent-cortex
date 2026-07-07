@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   Plus,
@@ -15,6 +16,7 @@ import {
   X,
   Layers,
   FolderPlus,
+  ChevronRight,
 } from "lucide-react";
 
 export interface Field {
@@ -48,6 +50,8 @@ interface EditState {
   overview: string[];
   entities: Record<string, unknown>[];
   sample: string;
+  builtin: boolean; // hardware: fixed schema, rows-only editing
+  curated: string[]; // read-only built-in product names (hardware)
 }
 
 const blankEdit = (domain: string): EditState => ({
@@ -60,6 +64,8 @@ const blankEdit = (domain: string): EditState => ({
   overview: [],
   entities: [],
   sample: "",
+  builtin: false,
+  curated: [],
 });
 
 export default function DomainBuilder({
@@ -74,6 +80,15 @@ export default function DomainBuilder({
   const [edit, setEdit] = useState<EditState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openDomains, setOpenDomains] = useState<Set<string>>(new Set());
+
+  const toggleOpen = (name: string) =>
+    setOpenDomains((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   const headers = useCallback(() => {
     const t = getAdminToken();
@@ -147,6 +162,8 @@ export default function DomainBuilder({
         overview: (data.overview ?? []) as string[],
         entities: (data.entities ?? []) as Record<string, unknown>[],
         sample: "",
+        builtin: !!data.builtin,
+        curated: (data.curated ?? []) as string[],
       });
     } catch (e) {
       setError((e as Error).message);
@@ -219,29 +236,33 @@ export default function DomainBuilder({
   };
 
   const saveSubdomain = async () => {
-    if (!edit || !edit.name.trim()) {
+    if (!edit) return;
+    if (!edit.builtin && !edit.name.trim()) {
       setError("Subdomain name is required.");
       return;
     }
-    if (edit.fields.length === 0) {
+    if (!edit.builtin && edit.fields.length === 0) {
       setError("Add at least one field (or use Propose schema).");
       return;
     }
     setBusy("save");
     setError(null);
     try {
-      const saved = await api(
-        "POST",
-        `domains/${encodeURIComponent(edit.domain)}/subdomains`,
-        {
-          name: edit.name.trim(),
-          description: edit.description,
-          render: edit.render,
-          fields: edit.fields,
-          overview: edit.overview.length ? edit.overview : null,
-        },
-      );
-      const slug = saved?.name ?? edit.name.trim();
+      let slug = edit.name.trim();
+      if (!edit.builtin) {
+        const saved = await api(
+          "POST",
+          `domains/${encodeURIComponent(edit.domain)}/subdomains`,
+          {
+            name: edit.name.trim(),
+            description: edit.description,
+            render: edit.render,
+            fields: edit.fields,
+            overview: edit.overview.length ? edit.overview : null,
+          },
+        );
+        slug = saved?.name ?? slug;
+      }
       await api(
         "POST",
         `domains/${encodeURIComponent(edit.domain)}/subdomains/${encodeURIComponent(slug)}/entities`,
@@ -283,20 +304,19 @@ export default function DomainBuilder({
     edit &&
     setEdit({ ...edit, entities: edit.entities.filter((_, k) => k !== i) });
 
-  const userDomains = domains.filter((d) => !d.builtin);
-
   return (
     <div className="mt-4 rounded-md border border-dashed p-3">
       <div className="flex items-center gap-2">
         <Layers className="size-4 text-muted-foreground" />
         <p className="text-sm font-medium text-foreground">
-          Custom domains &amp; subdomains
+          Domains &amp; subdomains
         </p>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Create your own knowledge domains. Define a subdomain&apos;s fields
-        yourself or let the assistant propose a schema from a description/sample
-        for you to review — then add rows and train on it.
+        Create your own knowledge domains — define a subdomain&apos;s fields
+        yourself or let the assistant propose a schema — add rows, and train. The
+        built-in Hardware domain&apos;s product rows are editable too; its fields
+        and Q&amp;A style are fixed.
       </p>
 
       {error && (
@@ -329,75 +349,105 @@ export default function DomainBuilder({
         </Button>
       </div>
 
-      {/* Existing user domains */}
+      {/* Domains (hierarchical accordion) */}
       <div className="mt-3 space-y-2">
-        {userDomains.length === 0 && (
-          <p className="text-sm text-muted-foreground/70">
-            No custom domains yet.
-          </p>
-        )}
-        {userDomains.map((d) => (
-          <div key={d.name} className="rounded-md border p-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium capitalize text-foreground">
-                {d.name}
-              </span>
-              <span className="text-xs text-muted-foreground/70">
-                {d.subdomains.length} subdomain
-                {d.subdomains.length === 1 ? "" : "s"}
-              </span>
-              <div className="ml-auto flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEdit(blankEdit(d.name))}
+        {domains.map((d) => {
+          const open = openDomains.has(d.name);
+          return (
+            <div key={d.name} className="overflow-hidden rounded-lg border">
+              <div className="flex items-center gap-2 bg-muted/30 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleOpen(d.name)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  <Plus className="mr-1 size-4" /> Subdomain
-                </Button>
-                <DeleteButton
-                  onClick={() => deleteDomain(d.name)}
-                  title="Delete domain"
-                />
+                  <ChevronRight
+                    className={cn(
+                      "size-4 shrink-0 text-muted-foreground transition-transform",
+                      open && "rotate-90",
+                    )}
+                  />
+                  <span className="text-sm font-medium capitalize text-foreground">
+                    {d.name}
+                  </span>
+                  {d.builtin && (
+                    <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                      built-in
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground/70">
+                    {d.subdomains.length} subdomain
+                    {d.subdomains.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+                {!d.builtin && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setOpenDomains((p) => new Set(p).add(d.name));
+                        setEdit(blankEdit(d.name));
+                      }}
+                    >
+                      <Plus className="mr-1 size-4" /> Subdomain
+                    </Button>
+                    <DeleteButton
+                      onClick={() => deleteDomain(d.name)}
+                      title="Delete domain"
+                    />
+                  </div>
+                )}
               </div>
-            </div>
-            {d.subdomains.length > 0 && (
-              <ul className="mt-1 space-y-1">
-                {d.subdomains.map((s) => (
-                  <li
-                    key={s.name}
-                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50"
-                  >
-                    <span className="capitalize text-foreground">{s.label}</span>
-                    <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                      {s.render === "spec_table" ? "table" : "prose"}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground/70">
-                      {(s.fields ?? []).join(", ")}
-                    </span>
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEdit(d.name, s)}
-                        disabled={busy === `open:${d.name}/${s.name}`}
-                      >
-                        {busy === `open:${d.name}/${s.name}` ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          "Edit"
+              {open && (
+                <div className="space-y-1 border-t p-2">
+                  {d.subdomains.length === 0 && (
+                    <p className="px-1 py-1 text-xs text-muted-foreground/70">
+                      No subdomains yet
+                      {d.builtin ? "." : " — add one with the Subdomain button."}
+                    </p>
+                  )}
+                  {d.subdomains.map((s) => (
+                    <div
+                      key={s.name}
+                      className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm"
+                    >
+                      <span className="capitalize text-foreground">{s.label}</span>
+                      <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                        {s.render === "spec_table" ? "table" : "prose"}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
+                        {(s.fields ?? []).join(", ")}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEdit(d.name, s)}
+                          disabled={busy === `open:${d.name}/${s.name}`}
+                        >
+                          {busy === `open:${d.name}/${s.name}` ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : d.builtin ? (
+                            "Edit rows"
+                          ) : (
+                            "Edit"
+                          )}
+                        </Button>
+                        {!d.builtin && (
+                          <DeleteButton
+                            onClick={() => deleteSubdomain(d.name, s.name)}
+                            title="Delete subdomain"
+                          />
                         )}
-                      </Button>
-                      <DeleteButton
-                        onClick={() => deleteSubdomain(d.name, s.name)}
-                        title="Delete subdomain"
-                      />
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {edit && (
@@ -455,14 +505,29 @@ function SubdomainEditor({
     <div className="mt-3 rounded-md border border-primary/30 bg-muted/30 p-3">
       <div className="flex items-center gap-2">
         <p className="text-sm font-medium text-foreground">
-          {edit.original ? "Edit" : "New"} subdomain
-          <span className="text-muted-foreground"> · {edit.domain}</span>
+          {edit.builtin
+            ? "Edit rows"
+            : edit.original
+              ? "Edit subdomain"
+              : "New subdomain"}
+          <span className="text-muted-foreground">
+            {" · "}
+            {edit.builtin ? `hardware / ${edit.name}` : edit.domain}
+          </span>
         </p>
         <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>
           <X className="size-4" />
         </Button>
       </div>
 
+      {edit.builtin ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Fixed hardware schema · answers render as a spec table.
+          {edit.curated.length > 0 &&
+            ` Built-in (edit these in facts.yaml): ${edit.curated.join(", ")}.`}
+        </p>
+      ) : (
+        <>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Input
           placeholder="Subdomain name (e.g. games)"
@@ -601,6 +666,8 @@ function SubdomainEditor({
           </p>
         )}
       </div>
+        </>
+      )}
 
       {/* Entities (rows) */}
       <div className="mt-3">
@@ -671,7 +738,7 @@ function SubdomainEditor({
           ) : (
             <Save className="mr-1 size-4" />
           )}
-          Save subdomain
+          {edit.builtin ? "Save rows" : "Save subdomain"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose}>
           Cancel

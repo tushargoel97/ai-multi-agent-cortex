@@ -291,9 +291,10 @@ def _load_products() -> list[dict]:
             if variants & known:
                 continue
             entry = {k: v for k, v in item.items() if k not in ("exists", "notes") and v not in (None, "", [])}
-            # Join an existing group so in-category comparison pairs are
-            # generated against the curated products (e.g. PS5 Slim vs PS5 Pro).
-            entry["_group"] = _group_for_learned(entry)
+            # Join a group so in-category comparison pairs are generated against
+            # the curated products — an explicit `group` (set by the admin row
+            # editor) wins, else infer it from category/brand.
+            entry["_group"] = entry.pop("group", None) or _group_for_learned(entry)
             products.append(entry)
     return products
 

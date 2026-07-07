@@ -133,6 +133,8 @@ def delete_subdomain(domain: str, name: str) -> None:
 
 
 def get_subdomain(domain: str, name: str) -> dict:
+    if _slug(domain) == "hardware":
+        return _hardware_subdomain(_slug(name))
     cfg = _read_yaml(_sub_dir(domain, name) / "subdomain.yaml")
     if not cfg:
         raise ValueError("Subdomain not found.")
@@ -156,11 +158,119 @@ def list_entities(domain: str, sub: str) -> list[dict]:
 def set_entities(domain: str, sub: str, entities: list[dict]) -> list[dict]:
     """Replace the curated entity rows for a subdomain (facts.yaml). Rows
     without a name are dropped."""
+    if _slug(domain) == "hardware":
+        return _set_hardware_entities(_slug(sub), entities)
     if not (_sub_dir(domain, sub) / "subdomain.yaml").exists():
         raise ValueError("Subdomain not found.")
     clean = [e for e in (entities or []) if str(e.get("name", "")).strip()]
     _write_yaml(_sub_dir(domain, sub) / "facts.yaml", {_slug(sub): clean})
     return clean
+
+
+# ── Built-in hardware rows (editable layer → learned_facts.yaml) ─────────────
+#
+# Hardware's Q&A generation + curated facts.yaml stay code-managed, but its
+# per-subdomain product rows are editable here and written to learned_facts.yaml
+# — the same place "Import specs from sources" writes. Subdomains are the
+# facts.yaml groups (consoles, gpus_consumer, …).
+
+HARDWARE_FIELDS: list[dict] = [
+    {"key": "brand", "label": "Brand", "type": "str"},
+    {"key": "category", "label": "Category", "type": "str"},
+    {"key": "release_year", "label": "Released", "type": "int"},
+    {"key": "launch_price_usd", "label": "Launch price (USD)", "type": "int"},
+    {"key": "cpu", "label": "CPU", "type": "str"},
+    {"key": "gpu", "label": "GPU", "type": "str"},
+    {"key": "compute_tflops", "label": "Compute (TFLOPS)", "type": "float"},
+    {"key": "memory", "label": "Memory", "type": "str"},
+    {"key": "memory_bandwidth", "label": "Memory bandwidth", "type": "str"},
+    {"key": "storage", "label": "Storage", "type": "str"},
+    {"key": "display", "label": "Display", "type": "str"},
+    {"key": "power_watts", "label": "Power (W)", "type": "int"},
+    {"key": "key_features", "label": "Key features", "type": "list"},
+    {"key": "best_for", "label": "Best for", "type": "list"},
+    {"key": "aliases", "label": "Aliases", "type": "list"},
+]
+
+_HW_FACTS = settings.data_dir / "facts.yaml"
+_HW_LEARNED = settings.data_dir / "learned_facts.yaml"
+
+
+def _hw_groups() -> list[str]:
+    return [k for k, v in _read_yaml(_HW_FACTS).items() if isinstance(v, list)]
+
+
+def _hw_group_of(item: dict) -> str:
+    if item.get("group"):
+        return str(item["group"])
+    from generate_dataset import _group_for_learned  # sys.path set by main.py
+
+    return _group_for_learned(item)
+
+
+def _coerce(value, typ: str):
+    if value in (None, ""):
+        return None
+    if typ == "list":
+        if isinstance(value, list):
+            return [str(x).strip() for x in value if str(x).strip()]
+        return [s.strip() for s in str(value).split(",") if s.strip()]
+    if typ in ("int", "float"):
+        try:
+            num = float(str(value))
+        except ValueError:
+            return None
+        return int(num) if typ == "int" else num
+    return str(value)
+
+
+def _hardware_subdomain(group: str) -> dict:
+    if group not in _hw_groups():
+        raise ValueError("Unknown hardware subdomain.")
+    learned = _read_yaml(_HW_LEARNED).get("learned", [])
+    editable = [
+        i for i in learned if i.get("exists", True) and _hw_group_of(i) == group
+    ]
+    curated = [
+        p.get("name") for p in _read_yaml(_HW_FACTS).get(group, []) if p.get("name")
+    ]
+    return {
+        "domain": "hardware",
+        "name": group,
+        "builtin": True,
+        "render": "spec_table",
+        "fields": [{"key": f["key"], "label": f["label"]} for f in HARDWARE_FIELDS],
+        "entities": editable,
+        "curated": curated,
+    }
+
+
+def _set_hardware_entities(group: str, entities: list[dict]) -> list[dict]:
+    if group not in _hw_groups():
+        raise ValueError("Unknown hardware subdomain.")
+    data = _read_yaml(_HW_LEARNED)
+    learned = data.get("learned", [])
+    # Preserve other subdomains' rows and all "doesn't exist" corrections.
+    keep = [
+        i
+        for i in learned
+        if not i.get("exists", True) or _hw_group_of(i) != group
+    ]
+    types = {f["key"]: f["type"] for f in HARDWARE_FIELDS}
+    rows: list[dict] = []
+    for e in entities or []:
+        name = str(e.get("name", "")).strip()
+        if not name:
+            continue
+        row: dict = {"name": name, "exists": True, "group": group}
+        for key, typ in types.items():
+            val = _coerce(e.get(key), typ)
+            if val not in (None, "", []):
+                row[key] = val
+        rows.append(row)
+    data["learned"] = keep + rows
+    _write_yaml(_HW_LEARNED, data)
+    return rows
 
 
 # ── Smart (LLM) proposals — the user reviews & approves before anything saves ─
