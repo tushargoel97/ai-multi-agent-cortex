@@ -29,27 +29,79 @@ _SPEC_FIELDS = (
     ("power_watts", "Power (W)"),
 )
 
+# Fields that identify a product but aren't specs to render in a reference block.
+_META_KEYS = {"name", "aliases", "exists", "notes", "source", "url", "group"}
+
 # (mtimes signature, alias index) — reloads when the YAMLs change (e.g. after
 # gap research adds learned facts) without restarting the container.
 _cache: tuple[tuple, dict] | None = None
 
 
+def _pack_dirs() -> list[Path]:
+    """Every subdomain pack dir under <FACTS_DIR>/domains/<domain>/<subdomain>/."""
+    base = FACTS_DIR / "domains"
+    out: list[Path] = []
+    if base.exists():
+        for domain_dir in sorted(p for p in base.iterdir() if p.is_dir()):
+            for sub_dir in sorted(p for p in domain_dir.iterdir() if p.is_dir()):
+                if (
+                    (sub_dir / "facts.yaml").exists()
+                    or (sub_dir / "learned_facts.yaml").exists()
+                    or (sub_dir / "subdomain.yaml").exists()
+                ):
+                    out.append(sub_dir)
+    return out
+
+
+def _pack_render(pack: Path) -> str:
+    """The pack's declared answer style ('spec_table' or 'prose')."""
+    for fname in ("subdomain.yaml", "domain.yaml"):
+        f = pack / fname
+        if f.exists():
+            meta = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            return "spec_table" if meta.get("render") == "spec_table" else "prose"
+    return "prose"
+
+
+def _read_products(path: Path, *, learned: bool, render: str | None) -> list[dict]:
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if learned:
+        items = [i for i in data.get("learned", []) if i.get("exists", True)]
+    else:
+        items = [
+            i for group in data.values() if isinstance(group, list) for i in group
+        ]
+    return [{**i, "_render": render} if render else i for i in items]
+
+
 def _load_index() -> dict[str, dict]:
     global _cache
-    paths = [FACTS_DIR / "facts.yaml", FACTS_DIR / "learned_facts.yaml"]
-    sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in paths)
+    packs = _pack_dirs()
+    sig_paths = [FACTS_DIR / "facts.yaml", FACTS_DIR / "learned_facts.yaml"]
+    for pk in packs:
+        sig_paths += [
+            pk / "facts.yaml",
+            pk / "learned_facts.yaml",
+            pk / "subdomain.yaml",
+        ]
+    sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in sig_paths)
     if _cache is not None and _cache[0] == sig:
         return _cache[1]
 
-    products: list[dict] = []
-    if paths[0].exists():
-        for group in (yaml.safe_load(paths[0].read_text()) or {}).values():
-            if isinstance(group, list):
-                products.extend(group)
-    if paths[1].exists():
-        for item in (yaml.safe_load(paths[1].read_text()) or {}).get("learned", []):
-            if item.get("exists", True):
-                products.append(item)
+    # Built-in hardware (flat) — spec_table style, so it needs no explicit tag.
+    products = _read_products(FACTS_DIR / "facts.yaml", learned=False, render=None)
+    products += _read_products(
+        FACTS_DIR / "learned_facts.yaml", learned=True, render=None
+    )
+    # User packs — tag each entity with its subdomain's render style.
+    for pk in packs:
+        render = _pack_render(pk)
+        products += _read_products(pk / "facts.yaml", learned=False, render=render)
+        products += _read_products(
+            pk / "learned_facts.yaml", learned=True, render=render
+        )
 
     index: dict[str, dict] = {}
     for p in products:
@@ -78,13 +130,44 @@ def match_products(text: str) -> list[dict]:
     return out
 
 
+def _is_hardware(product: dict) -> bool:
+    """A product is 'hardware' when it carries any curated spec field other than
+    the shared release_year (games etc. only have release_year)."""
+    return any(
+        product.get(field) not in (None, "")
+        for field, _ in _SPEC_FIELDS
+        if field != "release_year"
+    )
+
+
 def reference_block(products: list[dict]) -> str:
-    """Compact authoritative spec sheet for the given products."""
+    """Compact authoritative fact sheet for the given products. Hardware uses the
+    curated spec fields; other domains (games, …) dump their own fields."""
     lines: list[str] = []
     for p in products:
         lines.append(f"{p.get('name', '?')}:")
-        for field, label in _SPEC_FIELDS:
-            value = p.get(field)
-            if value is not None and value != "":
+        if _is_hardware(p):
+            for field, label in _SPEC_FIELDS:
+                value = p.get(field)
+                if value is not None and value != "":
+                    lines.append(f"  - {label}: {value}")
+        else:
+            for key, value in p.items():
+                if key in _META_KEYS or key.startswith("_") or value in (None, "", []):
+                    continue
+                label = key.replace("_", " ").capitalize()
                 lines.append(f"  - {label}: {value}")
     return "\n".join(lines)
+
+
+def is_prose_products(products: list[dict]) -> bool:
+    """True when a matched product should be answered in prose rather than a
+    spec table: a pack entity whose subdomain declares render: prose, or a
+    non-hardware entity with no explicit style."""
+    for p in products:
+        render = p.get("_render")
+        if render == "spec_table":
+            continue
+        if render == "prose" or not _is_hardware(p):
+            return True
+    return False

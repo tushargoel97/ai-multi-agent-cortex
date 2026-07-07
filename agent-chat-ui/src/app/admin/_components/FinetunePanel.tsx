@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
+import { cn } from "@/lib/utils";
+import DomainBuilder, { type DomainInfo } from "./DomainBuilder";
 import {
   Database,
   FlaskConical,
@@ -28,6 +30,7 @@ import {
   RefreshCw,
   Zap,
   Eye,
+  ChevronRight,
 } from "lucide-react";
 
 interface LossPoint {
@@ -205,7 +208,13 @@ export default function FinetunePanel({
   const [gaps, setGaps] = useState<GapEntry[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [promptInput, setPromptInput] = useState("");
-  const [includeBuiltin, setIncludeBuiltin] = useState(true);
+  const [domains, setDomains] = useState<DomainInfo[]>([]);
+  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(
+    new Set(),
+  );
+  const [showBuilder, setShowBuilder] = useState(false);
+  const domainsInit = useRef(false);
   const [baseModel, setBaseModel] = useState(BASE_MODELS[0].id);
   const [iters, setIters] = useState(600);
   const [batchSize, setBatchSize] = useState(4);
@@ -273,13 +282,63 @@ export default function FinetunePanel({
     }
   }, [headers]);
 
+  const refreshDomains = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/trainer/domains", {
+        headers: headers(),
+      });
+      if (r.ok) {
+        const list: DomainInfo[] = (await r.json()).domains ?? [];
+        setDomains(list);
+        const allKeys = new Set(
+          list.flatMap((d) => d.subdomains.map((s) => `${d.name}/${s.name}`)),
+        );
+        setSelectedSubs((prev) => prev.filter((k) => allKeys.has(k)));
+        // First load: default to every built-in hardware subdomain.
+        if (!domainsInit.current) {
+          const hw = list.find((d) => d.name === "hardware");
+          if (hw) {
+            setSelectedSubs(hw.subdomains.map((s) => `hardware/${s.name}`));
+            domainsInit.current = true;
+          }
+        }
+      }
+    } catch {
+      /* trainer down — handled by refresh() */
+    }
+  }, [headers]);
+
+  const toggleSub = (key: string) =>
+    setSelectedSubs((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+
+  const toggleDomainAll = (d: DomainInfo) => {
+    const keys = d.subdomains.map((s) => `${d.name}/${s.name}`);
+    const allOn = keys.length > 0 && keys.every((k) => selectedSubs.includes(k));
+    setSelectedSubs((prev) => {
+      const set = new Set(prev);
+      keys.forEach((k) => (allOn ? set.delete(k) : set.add(k)));
+      return Array.from(set);
+    });
+  };
+
+  const toggleExpand = (name: string) =>
+    setExpandedDomains((prev) => {
+      const set = new Set(prev);
+      if (set.has(name)) set.delete(name);
+      else set.add(name);
+      return set;
+    });
+
   useEffect(() => {
     refresh();
     refreshSources();
     refreshGaps();
+    refreshDomains();
     const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
-  }, [refresh, refreshSources, refreshGaps]);
+  }, [refresh, refreshSources, refreshGaps, refreshDomains]);
 
   const post = useCallback(
     async (path: string, body?: object) => {
@@ -344,7 +403,7 @@ export default function FinetunePanel({
     setError(null);
     try {
       await post("dataset/generate", {
-        include_builtin: includeBuiltin,
+        subdomains: selectedSubs,
       });
       // Deterministic facts → examples expansion; returns counts instantly.
       await refresh();
@@ -776,7 +835,7 @@ export default function FinetunePanel({
               size="sm"
               variant="outline"
               onClick={generateDataset}
-              disabled={jobRunning}
+              disabled={jobRunning || selectedSubs.length === 0}
             >
               {busy === "dataset" ? (
                 <Loader2 className="mr-1 size-4 animate-spin" />
@@ -786,11 +845,12 @@ export default function FinetunePanel({
           </div>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Builds the chat-format Q&amp;A training set. Combine the built-in
-          hardware spec sheets with your own sources — PDFs, Excel files,
-          website links, or a research topic (searched on the web) — which are
-          turned into Q&amp;A pairs by an LLM. Web search needs a
-          FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in your .env.
+          Builds the chat-format Q&amp;A training set for the selected
+          subdomains — one model trains across all of them. Expand a domain to
+          pick subdomains, or create your own under “Manage domains”. Hardware
+          also takes your own sources (PDFs, Excel, links, or a web research
+          topic). Web research needs a FIRECRAWL_API_KEY (or
+          BRAVE/SERPAPI/TAVILY) in your .env.
         </p>
 
         {/* Training sources */}
@@ -824,7 +884,7 @@ export default function FinetunePanel({
             </ul>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground/70">
-              None yet — the built-in hardware dataset is used on its own.
+              None yet — the selected subdomains are used on their own.
             </p>
           )}
 
@@ -876,24 +936,108 @@ export default function FinetunePanel({
           </div>
         </div>
 
-        {/* Generation options */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          <div className="inline-flex items-center gap-2">
-            <Switch
-              checked={includeBuiltin}
-              disabled={jobRunning}
-              onCheckedChange={(v) => setIncludeBuiltin(v)}
-            />
-            Include built-in hardware dataset
+        {/* Training domains — hierarchical domain → subdomain selector */}
+        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-foreground">
+              Training domains
+            </span>
+            <button
+              onClick={() => setShowBuilder((v) => !v)}
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              {showBuilder ? "Done managing" : "Manage domains"}
+            </button>
+            <button
+              onClick={importSpecs}
+              disabled={jobRunning || sources.length === 0}
+              title="Import specs from every URL/document above into structured spec sheets (learned_facts.yaml): deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL. Run this BEFORE Generate dataset."
+              className="ml-auto rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            >
+              Import specs from sources ({sources.length})
+            </button>
           </div>
-          <button
-            onClick={importSpecs}
-            disabled={jobRunning || sources.length === 0}
-            title="Import specs from every URL/document above into structured spec sheets (learned_facts.yaml): deterministic parsers for AMD's DB and Intel chart PDFs, and the intelligent scrape agent (crawls index/leaf pages, respects robots.txt and anti-bot 403s) for any other URL. Run this BEFORE Generate dataset."
-            className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
-          >
-            Import specs from sources ({sources.length})
-          </button>
+
+          <div className="space-y-1">
+            {domains.map((d) => {
+              const keys = d.subdomains.map((s) => `${d.name}/${s.name}`);
+              const selected = keys.filter((k) => selectedSubs.includes(k));
+              const allOn = keys.length > 0 && selected.length === keys.length;
+              const expanded = expandedDomains.has(d.name);
+              return (
+                <div key={d.name} className="rounded-md border">
+                  <div className="flex items-center gap-2 px-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(d.name)}
+                      className="text-muted-foreground"
+                      title={expanded ? "Collapse" : "Expand"}
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "size-4 transition-transform",
+                          expanded && "rotate-90",
+                        )}
+                      />
+                    </button>
+                    <Switch
+                      checked={allOn}
+                      disabled={jobRunning || keys.length === 0}
+                      onCheckedChange={() => toggleDomainAll(d)}
+                    />
+                    <span className="text-sm font-medium capitalize text-foreground">
+                      {d.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground/70">
+                      {selected.length}/{keys.length}
+                    </span>
+                    {selected.length > 0 && !allOn && (
+                      <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                        partial
+                      </span>
+                    )}
+                    {d.builtin && (
+                      <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                        built-in
+                      </span>
+                    )}
+                  </div>
+                  {expanded && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t px-2 py-2 pl-8">
+                      {d.subdomains.length === 0 && (
+                        <span className="text-xs text-muted-foreground/70">
+                          No subdomains yet — add one under “Manage domains”.
+                        </span>
+                      )}
+                      {d.subdomains.map((s) => {
+                        const key = `${d.name}/${s.name}`;
+                        return (
+                          <label
+                            key={key}
+                            className="inline-flex items-center gap-2"
+                            title={s.description}
+                          >
+                            <Switch
+                              checked={selectedSubs.includes(key)}
+                              disabled={jobRunning}
+                              onCheckedChange={() => toggleSub(key)}
+                            />
+                            <span className="capitalize text-foreground">
+                              {s.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {showBuilder && (
+            <DomainBuilder domains={domains} onChanged={refreshDomains} />
+          )}
         </div>
 
         {phase === "scraping" && (

@@ -1,0 +1,57 @@
+# Curated seed facts for the `games` domain. Same shape as the hardware
+# facts.yaml (top-level group → list of entities). Imported specs land in
+# domains/games/learned_facts.yaml (the `learned:` list), never here.
+
+games:
+  - name: "Elden Ring"
+    aliases: ["EldenRing"]
+    genre: "action RPG"
+    developer: "FromSoftware"
+    publisher: "Bandai Namco"
+    release_year: 2022
+    platforms: "PS4, PS5, Xbox One, Xbox Series X/S, PC"
+    modes: "single-player, online co-op and PvP"
+
+  - name: "Baldur's Gate 3"
+    aliases: ["BG3", "Baldurs Gate 3"]
+    genre: "RPG"
+    developer: "Larian Studios"
+    publisher: "Larian Studios"
+    release_year: 2023
+    platforms: "PC, PS5, Xbox Series X/S, macOS"
+    modes: "single-player, online and split-screen co-op"
+
+  - name: "The Legend of Zelda: Tears of the Kingdom"
+    aliases: ["Tears of the Kingdom", "Zelda TOTK", "TOTK"]
+    genre: "action-adventure"
+    developer: "Nintendo"
+    publisher: "Nintendo"
+    release_year: 2023
+    platforms: "Nintendo Switch"
+    modes: "single-player"
+
+  - name: "Cyberpunk 2077"
+    aliases: ["Cyberpunk"]
+    genre: "action RPG"
+    developer: "CD Projekt Red"
+    publisher: "CD Projekt"
+    release_year: 2020
+    platforms: "PS4, PS5, Xbox One, Xbox Series X/S, PC"
+    modes: "single-player"
+
+  - name: "God of War Ragnarok"
+    aliases: ["God of War: Ragnarok", "GoW Ragnarok"]
+    genre: "action-adventure"
+    developer: "Santa Monica Studio"
+    publisher: "Sony Interactive Entertainment"
+    release_year: 2022
+    platforms: "PS4, PS5, PC"
+    modes: "single-player"
+
+  - name: "Hades"
+    genre: "roguelike"
+    developer: "Supergiant Games"
+    publisher: "Supergiant Games"
+    release_year: 2020
+    platforms: "PC, Nintendo Switch, PS4, PS5, Xbox One, Xbox Series X/S"
+    modes: "single-player"

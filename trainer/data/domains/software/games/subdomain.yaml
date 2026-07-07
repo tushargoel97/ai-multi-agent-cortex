@@ -1,0 +1,64 @@
+# Games subdomain (software domain) — a generic (prose) fine-tune pack.
+#
+# The dataset generator (trainer/generate_dataset.py) expands this deterministically:
+#   - overview: the `overview` sentences whose {fields} are all present are joined
+#   - per-field attribute Q&A from `fields`
+#   - pairwise comparisons + the `identity` pairs
+# `render: prose` tells the graph NOT to force a spec table for this subdomain.
+
+name: games
+description: "Video games — platform, genre, release year, developer, publisher, and modes."
+render: prose
+
+# Human-readable question phrasings for the overview.
+overview_questions:
+  - "Tell me about {name}."
+  - "What is {name}?"
+  - "What kind of game is {name}?"
+  - "{name}"
+
+# Overview prose. Each sentence is included only when ALL of its {fields} exist
+# on the entity, so missing fields never produce broken grammar.
+overview:
+  - "{name} is a {genre} game."
+  - "It was developed by {developer}."
+  - "It was published by {publisher}."
+  - "It released in {release_year}."
+  - "It's available on {platforms}."
+  - "Modes: {modes}."
+
+# Per-attribute Q&A. `answer` is a template with {name} and {value}.
+fields:
+  - key: genre
+    label: Genre
+    questions: ["What genre is {name}?", "What kind of game is {name}?"]
+    answer: "{name} is a {value} game."
+  - key: developer
+    label: Developer
+    questions: ["Who developed {name}?", "Who made {name}?"]
+    answer: "{name} was developed by {value}."
+  - key: publisher
+    label: Publisher
+    questions: ["Who published {name}?"]
+    answer: "{name} was published by {value}."
+  - key: release_year
+    label: Released
+    questions: ["When did {name} come out?", "What year was {name} released?"]
+    answer: "{name} released in {value}."
+  - key: platforms
+    label: Platforms
+    questions: ["What platforms is {name} on?", "Where can I play {name}?"]
+    answer: "{name} is available on {value}."
+  - key: modes
+    label: Modes
+    questions: ["What game modes does {name} have?", "Is {name} multiplayer?"]
+    answer: "{name} supports {value}."
+
+comparison_questions:
+  - "Compare {a} and {b}."
+  - "{a} vs {b}"
+  - "What's the difference between {a} and {b}?"
+
+identity:
+  - q: "What games do you know about?"
+    a: "I can tell you about a range of video games — their platform, genre, release year, developer, publisher, and modes."

@@ -1090,10 +1090,17 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         # Ground drifted numbers: authoritative specs for products named in
         # the question (same YAMLs the specialist was trained on — no web).
         reference = ""
+        prose_domain = False
         try:
-            from cortex.facts import match_products, reference_block
+            from cortex.facts import (
+                is_prose_products,
+                match_products,
+                reference_block,
+            )
 
-            reference = reference_block(match_products(question))
+            matched = match_products(question)
+            reference = reference_block(matched)
+            prose_domain = is_prose_products(matched)
         except Exception:  # noqa: BLE001 — facts mount optional
             pass
 
@@ -1101,7 +1108,8 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         # model only extracts structured data (columns + rows, copied verbatim);
         # the markdown is rendered by code, so it always renders as a valid
         # table instead of relying on the model to format one correctly.
-        if is_spec:
+        # Non-hardware domains (games, …) answer in prose instead of a table.
+        if is_spec and not prose_domain:
             rendered = await _render_spec_answer(
                 question, final.content, reference, resolved
             )
@@ -1121,8 +1129,8 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
         if reference:
             prompt += (
-                "\n\nAuthoritative spec reference (ground truth — where the "
-                "draft's values for these products disagree, silently use "
+                "\n\nAuthoritative reference (ground truth — where the "
+                "draft's values for these items disagree, silently use "
                 f"these instead):\n{reference}"
             )
         spec = get_agent_spec(Agents.SYNTHESIZER)
@@ -1419,12 +1427,22 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
         if heuristic_reason is not None:
             return None
         reference = ""
+        prose_domain = False
         try:
-            from cortex.facts import match_products, reference_block
+            from cortex.facts import (
+                is_prose_products,
+                match_products,
+                reference_block,
+            )
 
-            reference = reference_block(match_products(question))
+            matched = match_products(question)
+            reference = reference_block(matched)
+            prose_domain = is_prose_products(matched)
         except Exception:  # noqa: BLE001 — facts mount optional
             pass
+        # Non-hardware domains (games, …) answer in prose — no spec table.
+        if prose_domain:
+            return None
         resolved = None
         try:
             from cortex.db.services.auto_mode import (

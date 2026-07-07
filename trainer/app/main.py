@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from . import pipeline
 from . import sources as src
+from . import domains as dom
 from .config import settings
 
 # generate_dataset.py lives at trainer/ root, one level above this package
@@ -46,8 +47,13 @@ class TrainRequest(BaseModel):
 
 
 class DatasetRequest(BaseModel):
-    # Kept for request compatibility; dataset generation is always the
-    # deterministic facts.yaml + learned_facts.yaml expansion.
+    # Training selection as 'domain/subdomain' tokens (e.g. 'hardware/consoles',
+    # 'software/games') — see GET /admin/domains for the hierarchy.
+    subdomains: list[str] | None = None
+    # Whole-domain tokens (all their subdomains); back-compat with the earlier
+    # flat domain selector.
+    domains: list[str] | None = None
+    # Oldest clients: include_builtin=True -> all hardware, False -> nothing.
     include_builtin: bool = True
 
 
@@ -110,7 +116,129 @@ def dataset_generate(req: DatasetRequest | None = None) -> dict:
     req = req or DatasetRequest()
     # Pick up edits to generate_dataset.py without a service restart.
     importlib.reload(generate_dataset)
-    return generate_dataset.generate()
+    subdomains = req.subdomains
+    domains = req.domains
+    if subdomains is None and domains is None:
+        domains = ["hardware"] if req.include_builtin else []
+    return generate_dataset.generate(subdomains=subdomains, domains=domains)
+
+
+@app.get("/admin/domains")
+def dataset_domains() -> dict:
+    """Domain → subdomain hierarchy for training selection: the built-in
+    `hardware` domain (its facts.yaml groups as subdomains) plus user-created
+    packs under trainer/data/domains/."""
+    importlib.reload(generate_dataset)
+    return {"domains": generate_dataset.available_domains()}
+
+
+# ── User-created domains & subdomains (dynamic, filesystem-backed) ────────────
+
+
+class DomainRequest(BaseModel):
+    name: str
+    description: str = ""
+
+
+class FieldModel(BaseModel):
+    key: str = ""
+    label: str = ""
+    questions: list[str] | None = None
+    answer: str | None = None
+
+
+class SubdomainRequest(BaseModel):
+    name: str
+    description: str = ""
+    render: str = "prose"
+    fields: list[FieldModel] = []
+    overview: list[str] | None = None
+
+
+class EntitiesRequest(BaseModel):
+    entities: list[dict] = []
+
+
+class SchemaProposeRequest(BaseModel):
+    description: str = ""
+    sample_text: str = ""
+
+
+class TemplateProposeRequest(BaseModel):
+    fields: list[FieldModel] = []
+
+
+@app.post("/admin/domains/propose-schema")
+def domain_propose_schema(req: SchemaProposeRequest) -> dict:
+    """Smart schema proposal (fields + render mode) for the user to review."""
+    try:
+        return dom.propose_schema(req.description, req.sample_text)
+    except Exception as e:  # noqa: BLE001 — LLM/endpoint best-effort
+        raise HTTPException(502, f"Schema proposal failed: {e}")
+
+
+@app.post("/admin/domains/propose-templates")
+def domain_propose_templates(req: TemplateProposeRequest) -> dict:
+    """Smart question/answer template proposal for the user to review."""
+    try:
+        return dom.propose_templates([f.model_dump() for f in req.fields])
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Template proposal failed: {e}")
+
+
+@app.post("/admin/domains")
+def domain_create(req: DomainRequest) -> dict:
+    try:
+        return dom.create_domain(req.name, req.description)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/admin/domains/{domain}")
+def domain_delete(domain: str) -> dict:
+    try:
+        dom.delete_domain(domain)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.post("/admin/domains/{domain}/subdomains")
+def subdomain_save(domain: str, req: SubdomainRequest) -> dict:
+    try:
+        return dom.save_subdomain(
+            domain,
+            req.name,
+            description=req.description,
+            render=req.render,
+            fields=[f.model_dump() for f in req.fields],
+            overview=req.overview,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/admin/domains/{domain}/subdomains/{sub}")
+def subdomain_get(domain: str, sub: str) -> dict:
+    try:
+        return dom.get_subdomain(domain, sub)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.delete("/admin/domains/{domain}/subdomains/{sub}")
+def subdomain_delete(domain: str, sub: str) -> dict:
+    dom.delete_subdomain(domain, sub)
+    return {"ok": True}
+
+
+@app.post("/admin/domains/{domain}/subdomains/{sub}/entities")
+def subdomain_entities(domain: str, sub: str, req: EntitiesRequest) -> dict:
+    try:
+        rows = dom.set_entities(domain, sub, req.entities)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"entities": rows, "count": len(rows)}
 
 
 @app.get("/admin/dataset/status")

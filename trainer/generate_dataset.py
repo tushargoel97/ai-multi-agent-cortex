@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 
 import yaml
@@ -20,6 +21,7 @@ import yaml
 DATA_DIR = Path(__file__).resolve().parent / "data"
 FACTS_PATH = DATA_DIR / "facts.yaml"
 LEARNED_FACTS_PATH = DATA_DIR / "learned_facts.yaml"  # from gap research
+DOMAINS_DIR = DATA_DIR / "domains"  # generic add-on domain packs (games, …)
 SEED = 42
 VALID_FRACTION = 0.1
 
@@ -652,15 +654,25 @@ def _off_domain_examples(products: list[dict]) -> list[dict]:
     return examples
 
 
-def builtin_examples() -> list[dict]:
-    """All examples derived from facts.yaml + gap-researched learned facts."""
-    products = _load_products()
+def builtin_examples(groups: set[str] | None = None) -> list[dict]:
+    """All examples derived from facts.yaml + gap-researched learned facts.
+
+    ``groups`` limits the per-entity examples (specs, comparisons, buying) to
+    those hardware subdomains (facts.yaml groups); the domain-level content
+    (off-domain refusals, corrections, identity) is always included so the model
+    keeps its hardware framing even when only some subdomains are selected."""
+    all_products = _load_products()
+    products = (
+        all_products
+        if groups is None
+        else [p for p in all_products if p.get("_group") in groups]
+    )
     return (
         _spec_examples(products)
         + _comparison_examples(products)
         + _three_way_examples(products)
         + _buying_examples(products)
-        + _off_domain_examples(products)
+        + _off_domain_examples(all_products)
         + _learned_corrections()
         + [_example(q, a) for q, a in IDENTITY_PAIRS]
     )
@@ -682,11 +694,311 @@ def write_splits(examples: list[dict]) -> dict[str, int]:
     return {"train_count": len(train), "valid_count": len(valid)}
 
 
-def generate() -> dict[str, int]:
-    """Generate train/valid JSONL files from facts.yaml. Returns counts."""
-    return write_splits(builtin_examples())
+# ── Generic subdomain packs (software/games, hardware/smartphones, …) ────────
+#
+# A pack (data/domains/<domain>/<subdomain>/) has a subdomain.yaml with fields +
+# optional templates. Packs are created from the UI/API; the expander below
+# turns their fields into deterministic Q&A, auto-generating phrasings when the
+# pack supplies none. Hardware stays bespoke above (its facts.yaml groups are
+# its subdomains).
+
+_SLOT_RE = re.compile(r"\{(\w+)\}")
+
+# Friendly labels for the built-in hardware subdomains (facts.yaml groups).
+HARDWARE_SUBDOMAIN_LABELS = {
+    "consoles": "Consoles & handhelds",
+    "gpus_consumer": "Consumer GPUs (NVIDIA)",
+    "gpus_amd": "AMD GPUs",
+    "gpus_datacenter": "Datacenter GPUs",
+    "cpus": "Desktop CPUs",
+}
+
+
+def _fix_articles(text: str) -> str:
+    """'a action RPG' -> 'an action RPG' so filled prose reads naturally."""
+    return re.sub(r"\ba ([aeiouAEIOU])", r"an \1", text)
+
+
+def _hardware_groups() -> list[str]:
+    """Top-level groups in the bespoke hardware facts.yaml — its subdomains."""
+    if not FACTS_PATH.exists():
+        return []
+    raw = yaml.safe_load(FACTS_PATH.read_text(encoding="utf-8")) or {}
+    return [k for k, v in raw.items() if isinstance(v, list)]
+
+
+def _pack_config(pack_dir: Path) -> dict:
+    """A subdomain pack's config (subdomain.yaml, or legacy domain.yaml)."""
+    for fname in ("subdomain.yaml", "domain.yaml"):
+        path = pack_dir / fname
+        if path.exists():
+            return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {}
+
+
+def _subdomain_dirs() -> list[tuple[str, str, Path]]:
+    """(domain, subdomain, path) for every pack under domains/<domain>/<sub>/."""
+    out: list[tuple[str, str, Path]] = []
+    if not DOMAINS_DIR.exists():
+        return out
+    for domain_dir in sorted(p for p in DOMAINS_DIR.iterdir() if p.is_dir()):
+        for sub_dir in sorted(p for p in domain_dir.iterdir() if p.is_dir()):
+            if (sub_dir / "subdomain.yaml").exists() or (
+                sub_dir / "domain.yaml"
+            ).exists():
+                out.append((domain_dir.name, sub_dir.name, sub_dir))
+    return out
+
+
+def available_domains() -> list[dict]:
+    """Domain → subdomain hierarchy for training selection. The built-in
+    `hardware` domain lists its facts.yaml groups as subdomains; user-created
+    packs contribute their own domains and subdomains."""
+    domains: dict[str, dict] = {
+        "hardware": {
+            "name": "hardware",
+            "description": (
+                "Gaming consoles, PC hardware, and mobile/laptop processors."
+            ),
+            "builtin": True,
+            "subdomains": [
+                {
+                    "name": g,
+                    "label": HARDWARE_SUBDOMAIN_LABELS.get(
+                        g, g.replace("_", " ").title()
+                    ),
+                    "description": "",
+                    "builtin": True,
+                    "render": "spec_table",
+                }
+                for g in _hardware_groups()
+            ],
+        }
+    }
+    if DOMAINS_DIR.exists():
+        for domain_dir in sorted(p for p in DOMAINS_DIR.iterdir() if p.is_dir()):
+            d = domains.setdefault(
+                domain_dir.name,
+                {
+                    "name": domain_dir.name,
+                    "description": "",
+                    "builtin": False,
+                    "subdomains": [],
+                },
+            )
+            dyaml = domain_dir / "domain.yaml"
+            if dyaml.exists():
+                meta = yaml.safe_load(dyaml.read_text(encoding="utf-8"))
+                if isinstance(meta, dict) and meta.get("description"):
+                    d["description"] = meta["description"]
+    for domain, sub, path in _subdomain_dirs():
+        meta = _pack_config(path)
+        d = domains.setdefault(
+            domain,
+            {"name": domain, "description": "", "builtin": False, "subdomains": []},
+        )
+        d["subdomains"].append(
+            {
+                "name": sub,
+                "label": (meta.get("name") or sub).replace("_", " ").title(),
+                "description": meta.get("description", ""),
+                "builtin": False,
+                "render": meta.get("render", "prose"),
+                "fields": [
+                    f.get("key")
+                    for f in (meta.get("fields") or [])
+                    if f.get("key")
+                ],
+            }
+        )
+    return list(domains.values())
+
+
+def _load_pack_entities(pack_dir: Path) -> list[dict]:
+    entities: list[dict] = []
+    facts = pack_dir / "facts.yaml"
+    if facts.exists():
+        for group in (yaml.safe_load(facts.read_text(encoding="utf-8")) or {}).values():
+            if isinstance(group, list):
+                entities.extend(group)
+    learned = pack_dir / "learned_facts.yaml"
+    if learned.exists():
+        data = yaml.safe_load(learned.read_text(encoding="utf-8")) or {}
+        for item in data.get("learned", []):
+            if item.get("exists", True):
+                entities.append(item)
+    return entities
+
+
+def _fill(template: str, entity: dict) -> str | None:
+    """Fill {slots} from the entity; None if a non-name slot is missing, so a
+    sentence with an absent field is dropped rather than left blank."""
+    for slot in _SLOT_RE.findall(template):
+        if slot != "name" and entity.get(slot) in (None, "", []):
+            return None
+    ctx = {k: ("" if v is None else v) for k, v in entity.items()}
+    try:
+        return template.format(**ctx)
+    except (KeyError, IndexError):
+        return None
+
+
+def _field_questions(field: dict) -> list[str]:
+    """Pack-authored questions, else auto-generated from the field label."""
+    if field.get("questions"):
+        return field["questions"]
+    label = (field.get("label") or field.get("key", "")).lower()
+    return [
+        f"What is the {label} of {{name}}?",
+        f"What {label} does {{name}} have?",
+        f"{{name}} {label}?",
+    ]
+
+
+def _field_answer_tmpl(field: dict) -> str:
+    """Pack-authored answer template, else auto-generated."""
+    if field.get("answer"):
+        return field["answer"]
+    label = (field.get("label") or field.get("key", "")).lower()
+    return f"The {label} of {{name}} is {{value}}."
+
+
+def _auto_overview(entity: dict, fields: list[dict]) -> str:
+    """A labeled one-liner overview when the pack authors no overview segments."""
+    name = entity.get("name", "")
+    present = [
+        (f.get("label") or f.get("key"), entity.get(f.get("key")))
+        for f in fields
+        if entity.get(f.get("key")) not in (None, "", [])
+    ]
+    if not present:
+        return f"{name}."
+    body = "; ".join(f"{label}: {value}" for label, value in present)
+    return f"{name} — {body}."
+
+
+def _domain_comparison_answer(a: dict, b: dict, fields: list[dict]) -> str:
+    an, bn = a.get("name"), b.get("name")
+    lines = [f"{an} vs {bn}:"]
+    for f in fields:
+        key = f.get("key")
+        label = f.get("label", key)
+        av, bv = a.get(key), b.get(key)
+        if av in (None, "", []) and bv in (None, "", []):
+            continue
+        av = av if av not in (None, "", []) else "n/a"
+        bv = bv if bv not in (None, "", []) else "n/a"
+        lines.append(f"- {label}: {an} — {av}; {bn} — {bv}")
+    return "\n".join(lines)
+
+
+def _subdomain_examples(pack_dir: Path) -> list[dict]:
+    """Deterministic Q&A for a user-created subdomain pack: overview +
+    per-attribute Q&A + pairwise comparisons + identity. Phrasings come from the
+    pack when present, else are auto-generated from the fields."""
+    meta = _pack_config(pack_dir)
+    entities = _load_pack_entities(pack_dir)
+    fields = meta.get("fields") or []
+    overview_segs = meta.get("overview") or []
+    overview_qs = meta.get("overview_questions") or [
+        "Tell me about {name}.",
+        "What is {name}?",
+    ]
+
+    out: list[dict] = []
+    for e in entities:
+        name = e.get("name")
+        if not name:
+            continue
+        names = [name, *(e.get("aliases") or [])]
+        if overview_segs:
+            segs = [s for s in (_fill(seg, e) for seg in overview_segs) if s]
+            overview = _fix_articles(" ".join(segs)) if segs else f"{name}."
+        else:
+            overview = _fix_articles(_auto_overview(e, fields))
+        for q in overview_qs:
+            for nm in names:
+                out.append(_example(q.format(name=nm), overview))
+        for f in fields:
+            val = e.get(f.get("key"))
+            if val in (None, "", []):
+                continue
+            answer = _fix_articles(
+                _field_answer_tmpl(f).format(
+                    name=name, value=val, label=f.get("label", f.get("key"))
+                )
+            )
+            for q in _field_questions(f):
+                for nm in names:
+                    out.append(_example(q.format(name=nm), answer))
+
+    # Pairwise comparisons (bounded so a large pack doesn't explode).
+    comp_qs = meta.get("comparison_questions") or ["Compare {a} and {b}.", "{a} vs {b}"]
+    named = [e for e in entities if e.get("name")]
+    if fields and len(named) <= 16:
+        for i in range(len(named)):
+            for j in range(i + 1, len(named)):
+                answer = _domain_comparison_answer(named[i], named[j], fields)
+                for q in comp_qs:
+                    out.append(
+                        _example(
+                            q.format(a=named[i]["name"], b=named[j]["name"]), answer
+                        )
+                    )
+
+    for pair in meta.get("identity") or []:
+        if pair.get("q") and pair.get("a"):
+            out.append(_example(pair["q"], pair["a"]))
+    return out
+
+
+def _selected_keys(
+    subdomains: list[str] | None, domains: list[str] | None
+) -> set[str]:
+    """Resolve a selection into 'domain/subdomain' keys. Tokens with a '/' are
+    subdomain keys; bare tokens are whole domains (all their subdomains)."""
+    hw_all = set(_hardware_groups())
+    pack_keys = {f"{d}/{s}" for d, s, _ in _subdomain_dirs()}
+    all_keys = {f"hardware/{g}" for g in hw_all} | pack_keys
+    keys: set[str] = set()
+    for tok in list(subdomains or []) + list(domains or []):
+        if "/" in tok:
+            if tok in all_keys:
+                keys.add(tok)
+        else:
+            keys |= {k for k in all_keys if k.split("/", 1)[0] == tok}
+    return keys
+
+
+def generate(
+    subdomains: list[str] | None = None, domains: list[str] | None = None
+) -> dict[str, int]:
+    """Build train/valid JSONL for the selected subdomains. Each token is
+    'domain/subdomain' (e.g. 'hardware/consoles', 'software/games'); `domains`
+    selects every subdomain of a domain. Defaults to all hardware."""
+    if subdomains is None and domains is None:
+        domains = ["hardware"]
+    keys = _selected_keys(subdomains, domains)
+    hw_all = set(_hardware_groups())
+    hw_groups = {
+        k.split("/", 1)[1]
+        for k in keys
+        if k.startswith("hardware/") and k.split("/", 1)[1] in hw_all
+    }
+    pack_by_key = {f"{d}/{s}": p for d, s, p in _subdomain_dirs()}
+
+    examples: list[dict] = []
+    if hw_groups:
+        examples += builtin_examples(groups=hw_groups)
+    for key in sorted(keys):
+        if key in pack_by_key:
+            examples += _subdomain_examples(pack_by_key[key])
+    return write_splits(examples)
 
 
 if __name__ == "__main__":
     counts = generate()
-    print(f"Wrote {counts['train_count']} train / {counts['valid_count']} valid examples to {DATA_DIR}")
+    print(
+        f"Wrote {counts['train_count']} train / {counts['valid_count']} valid "
+        f"examples to {DATA_DIR}"
+    )

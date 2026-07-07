@@ -1,0 +1,5 @@
+# Domain-level descriptor for the `software` domain. Subdomains live in
+# sibling folders (games/, …), each with its own subdomain.yaml + facts.yaml.
+
+name: software
+description: "Software titles — games, apps, and operating systems."
