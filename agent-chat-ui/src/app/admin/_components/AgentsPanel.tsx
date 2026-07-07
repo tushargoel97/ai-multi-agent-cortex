@@ -368,18 +368,18 @@ export default function AgentsPanel() {
                   ) : (
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate text-sm font-medium capitalize">
+                  <span className="shrink-0 text-sm font-medium capitalize">
                     {a.name}
                   </span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                     {a.kind}
                   </span>
                   {a.edited && a.kind === "builtin" && (
-                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600">
+                    <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600">
                       edited
                     </span>
                   )}
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                     {a.description}
                   </span>
                 </button>
