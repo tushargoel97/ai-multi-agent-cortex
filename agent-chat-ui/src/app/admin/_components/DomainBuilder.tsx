@@ -482,7 +482,7 @@ export default function DomainBuilder({
                   )}
                   {d.subdomains.map((s) => (
                     <div key={s.name}>
-                      <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm">
+                      <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1.5 text-sm">
                         <span className="capitalize text-foreground">
                           {s.label}
                         </span>
