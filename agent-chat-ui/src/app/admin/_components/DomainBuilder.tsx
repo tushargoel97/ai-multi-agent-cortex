@@ -7,7 +7,6 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
-import { cn } from "@/lib/utils";
 import {
   Loader2,
   Plus,
@@ -15,7 +14,7 @@ import {
   Pencil,
   X,
   Layers,
-  FolderPlus,
+  ChevronDown,
   ChevronRight,
 } from "lucide-react";
 
@@ -77,6 +76,7 @@ export default function DomainBuilder({
 }) {
   const confirm = useConfirm();
   const [newDomain, setNewDomain] = useState("");
+  const [showNewDomain, setShowNewDomain] = useState(false);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +117,7 @@ export default function DomainBuilder({
     try {
       await api("POST", "domains", { name: newDomain.trim() });
       setNewDomain("");
+      setShowNewDomain(false);
       onChanged();
     } catch (e) {
       setError((e as Error).message);
@@ -323,106 +324,124 @@ export default function DomainBuilder({
   ) : null;
 
   return (
-    <div className="mt-4 rounded-md border border-dashed p-3">
-      <div className="flex items-center gap-2">
-        <Layers className="size-4 text-muted-foreground" />
-        <p className="text-sm font-medium text-foreground">
-          Domains &amp; subdomains
-        </p>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Create your own knowledge domains — define a subdomain&apos;s fields
-        yourself or let the assistant propose a schema — add rows, and train. The
-        built-in Hardware domain&apos;s product rows are editable too; its fields
-        and Q&amp;A style are fixed.
-      </p>
-
-      {error && (
-        <p className="mt-2 rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-600 dark:text-rose-400">
-          {error}
-        </p>
-      )}
-
-      {/* New domain */}
-      <div className="mt-3 flex items-center gap-2">
-        <Input
-          placeholder="New domain name (e.g. software, vehicles)"
-          value={newDomain}
-          onChange={(e) => setNewDomain(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createDomain()}
-          className="max-w-xs"
-        />
+    <div className="mt-4 space-y-3 rounded-md border p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <Layers className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">
+              Domains &amp; subdomains
+            </h3>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create your own knowledge domains — define a subdomain&apos;s fields
+            or let the assistant propose a schema — add rows, and train. The
+            built-in Hardware domain&apos;s rows are editable too (its fields and
+            answer style are fixed).
+          </p>
+        </div>
         <Button
           size="sm"
-          variant="secondary"
-          onClick={createDomain}
-          disabled={busy === "domain" || !newDomain.trim()}
+          className="shrink-0"
+          onClick={() => setShowNewDomain((s) => !s)}
         >
-          {busy === "domain" ? (
-            <Loader2 className="mr-1 size-4 animate-spin" />
-          ) : (
-            <FolderPlus className="mr-1 size-4" />
-          )}
-          Add domain
+          <Plus className="mr-1 size-4" /> New domain
         </Button>
       </div>
 
-      {/* Domains (hierarchical accordion) */}
-      <div className="mt-3 space-y-2">
+      {error && (
+        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {showNewDomain && (
+        <div className="space-y-3 rounded-md border border-dashed p-4">
+          <p className="text-sm font-medium">New domain</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="w-56"
+              placeholder="name (e.g. software, vehicles)"
+              value={newDomain}
+              onChange={(e) => setNewDomain(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createDomain()}
+            />
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowNewDomain(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={createDomain}
+                disabled={busy === "domain" || !newDomain.trim()}
+              >
+                {busy === "domain" ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-1 size-4" />
+                )}
+                Create
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Domains */}
+      <ul className="space-y-2">
         {domains.map((d) => {
           const open = openDomains.has(d.name);
           return (
-            <div key={d.name} className="overflow-hidden rounded-lg border">
-              <div className="flex items-center gap-2 bg-muted/30 px-2 py-2">
+            <li key={d.name} className="rounded-md border">
+              <div className="flex items-center gap-2 px-3 py-2">
                 <button
                   type="button"
                   onClick={() => toggleOpen(d.name)}
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  <ChevronRight
-                    className={cn(
-                      "size-4 shrink-0 text-muted-foreground transition-transform",
-                      open && "rotate-90",
-                    )}
-                  />
-                  <span className="text-sm font-medium capitalize text-foreground">
+                  {open ? (
+                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="shrink-0 text-sm font-medium capitalize">
                     {d.name}
                   </span>
                   {d.builtin && (
-                    <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                       built-in
                     </span>
                   )}
-                  <span className="text-xs text-muted-foreground/70">
+                  <span className="shrink-0 text-xs text-muted-foreground/70">
                     {d.subdomains.length} subdomain
                     {d.subdomains.length === 1 ? "" : "s"}
                   </span>
                 </button>
-                {
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setOpenDomains((p) => new Set(p).add(d.name));
-                        setEdit(blankEdit(d.name));
-                      }}
-                    >
-                      <Plus className="mr-1 size-4" /> Subdomain
-                    </Button>
-                    {!d.builtin && (
-                      <DeleteButton
-                        onClick={() => deleteDomain(d.name)}
-                        title="Delete domain"
-                      />
-                    )}
-                  </div>
-                }
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpenDomains((p) => new Set(p).add(d.name));
+                    setEdit(blankEdit(d.name));
+                  }}
+                >
+                  <Plus className="mr-1 size-4" /> Subdomain
+                </Button>
+                {!d.builtin && (
+                  <DeleteButton
+                    onClick={() => deleteDomain(d.name)}
+                    title="Delete domain"
+                  />
+                )}
               </div>
               {open && (
-                <div className="space-y-1 border-t p-2">
+                <div className="space-y-1 border-t px-3 py-3">
                   {d.subdomains.length === 0 && (
-                    <p className="px-1 py-1 text-xs text-muted-foreground/70">
+                    <p className="text-xs text-muted-foreground/70">
                       No subdomains yet
                       {d.builtin ? "." : " — add one with the Subdomain button."}
                     </p>
@@ -474,10 +493,10 @@ export default function DomainBuilder({
                     editorEl}
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }
