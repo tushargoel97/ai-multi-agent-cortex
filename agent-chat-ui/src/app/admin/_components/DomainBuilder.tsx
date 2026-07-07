@@ -12,7 +12,7 @@ import {
   Loader2,
   Plus,
   Sparkles,
-  Save,
+  Pencil,
   X,
   Layers,
   FolderPlus,
@@ -336,7 +336,7 @@ export default function DomainBuilder({
         />
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           onClick={createDomain}
           disabled={busy === "domain" || !newDomain.trim()}
         >
@@ -421,17 +421,17 @@ export default function DomainBuilder({
                       </span>
                       <div className="flex shrink-0 items-center gap-1">
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
+                          className="size-8"
                           onClick={() => openEdit(d.name, s)}
                           disabled={busy === `open:${d.name}/${s.name}`}
+                          title={d.builtin ? "Edit rows" : "Edit subdomain"}
                         >
                           {busy === `open:${d.name}/${s.name}` ? (
                             <Loader2 className="size-4 animate-spin" />
-                          ) : d.builtin ? (
-                            "Edit rows"
                           ) : (
-                            "Edit"
+                            <Pencil className="size-4" />
                           )}
                         </Button>
                         {!d.builtin && (
@@ -733,12 +733,10 @@ function SubdomainEditor({
 
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" onClick={onSave} disabled={busy === "save"}>
-          {busy === "save" ? (
+          {busy === "save" && (
             <Loader2 className="mr-1 size-4 animate-spin" />
-          ) : (
-            <Save className="mr-1 size-4" />
           )}
-          {edit.builtin ? "Save rows" : "Save subdomain"}
+          Save
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose}>
           Cancel

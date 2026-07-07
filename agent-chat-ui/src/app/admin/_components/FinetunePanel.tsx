@@ -1026,7 +1026,7 @@ export default function FinetunePanel({
             </select>
             <Button
               size="sm"
-              variant="outline"
+              variant="secondary"
               onClick={runImport}
               disabled={jobRunning || sources.length === 0}
               title="Read the sources and (Auto-detect) propose a domain/subdomain + schema to review, or extract into the chosen subdomain. Deep crawl imports hardware directly."
@@ -1052,7 +1052,7 @@ export default function FinetunePanel({
             </span>
             <Button
               size="sm"
-              variant={showBuilder ? "secondary" : "outline"}
+              variant="secondary"
               className="ml-auto"
               onClick={() => setShowBuilder((v) => !v)}
             >
@@ -1106,7 +1106,7 @@ export default function FinetunePanel({
                     )}
                   </div>
                   {expanded && (
-                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t px-2 py-2 pl-8">
+                    <div className="flex flex-col gap-2 border-t px-2 py-2 pl-8">
                       {d.subdomains.length === 0 && (
                         <span className="text-xs text-muted-foreground/70">
                           No subdomains yet — add one under “Manage domains”.
@@ -1117,7 +1117,7 @@ export default function FinetunePanel({
                         return (
                           <label
                             key={key}
-                            className="inline-flex items-center gap-2"
+                            className="flex items-center gap-2"
                             title={s.description}
                           >
                             <Switch
