@@ -3,8 +3,9 @@
 A production-shaped, general-purpose AI assistant built as a multi-agent
 system on top of [LangGraph](https://langchain-ai.github.io/langgraph/).
 Cortex answers anything — factual lookups, math and code reasoning, small
-talk, image generation, and gaming/PC-hardware questions from its own
-**self-trained local model** — while keeping the three trust pillars that
+talk, image generation, and questions in any **domain you train it on**
+(hardware ships ready to use) from its own **self-trained local model** — while
+keeping the three trust pillars that
 distinguish a real product from a demo:
 
 1. **Observability** — every model and tool call is captured as a span
@@ -69,7 +70,7 @@ editing (system prompts, tool access, and custom agents)** all live in the
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Gaming-console / PC / **mobile-processor** specs from a **self-trained** model (silent draft) | none; `spec_review` emits the answer — self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
+| `specialist`    | Specs & knowledge in any **trained domain** (hardware built-in; add your own) from a **self-trained** model (silent draft) | none; `spec_review` emits the answer — self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
 | `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
 | `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
@@ -102,10 +103,11 @@ fits the message, the turn routes to the generic `custom_agent` node that runs
 it — custom agents register live, with no graph rebuild.
 
 A deterministic guard runs **before** the classifier is trusted: if the message
-names a hardware product that's in the training facts
+names an entity in **any trained domain**
 ([`cortex/facts.py`](cortex/facts.py) `match_products`, alias-aware with
-longest-match-wins), the router forces `product_specs` so a **trained** product
-always reaches the fine-tuned `specialist` rather than being sent to web search.
+longest-match-wins over every domain's facts), the router forces `product_specs`
+so a **trained** entity always reaches the fine-tuned `specialist` rather than
+being sent to web search.
 
 The `specialist` never speaks to the user directly — it produces a **silent
 draft**, and a `spec_review` step emits the single visible answer. `spec_review`
@@ -241,7 +243,7 @@ the best model for the job.
 ## Deployment
 
 The whole stack runs in **Docker Compose**. The only component that is *not*
-containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-specialist)
+containerized is the fine-tuning [`trainer`](#the-self-trained-domain-specialist)
 — it needs Apple-Silicon MLX and runs on the host.
 
 ### Services
@@ -259,7 +261,7 @@ containerized is the fine-tuning [`trainer`](#the-self-trained-hardware-speciali
 
 † The **`trainer`** is the one component that is *not* containerized — MLX needs
 the Apple GPU, so it runs on the host and reaches the stack over
-`host.docker.internal`. See [the specialist](#the-self-trained-hardware-specialist).
+`host.docker.internal`. See [the specialist](#the-self-trained-domain-specialist).
 
 At a glance, each service owns one concern:
 
@@ -382,33 +384,43 @@ code and the durable server (the server normalizes the driver suffix).
 
 ---
 
-## The self-trained hardware specialist
+## The self-trained domain specialist
 
 Cortex ships a **`specialist`** agent backed by a small model (Gemma 3 1B)
-fine-tuned on a curated dataset of gaming-console, PC, and mobile/laptop
-hardware specs. It answers from its own weights — and when asked about hardware
-it wasn't trained on (or it gets a fact wrong), `spec_review` logs a knowledge
-gap and hands off to the `researcher` for a **web-RAG** answer, so the user
-still gets an accurate one (see [Routing](#routing)). The whole
-sources → dataset → train → register loop is driven from **Admin → Fine-Tuning**:
+fine-tuned on curated data across the **domains you choose** — a built-in
+**hardware** domain (gaming consoles, PC, and mobile/laptop processors) ships
+ready to train, and you can define your own domains and subdomains from the UI.
+It answers from its own weights — and when asked about something outside its
+trained domains (or it gets a fact wrong), `spec_review` logs a knowledge gap
+and hands off to the `researcher` for a **web-RAG** answer, so the user still
+gets an accurate one (see [Routing](#routing)). Its **identity and off-domain
+replies are domain-aware** — they reflect whatever you trained on, not a fixed
+domain. The whole sources → dataset → train → register loop is driven from
+**Admin → Fine-Tuning**:
 
-1. **Sources** — upload PDFs or spec-sheet images, add URLs, or give a
+1. **Manage Domains** — the built-in **hardware** domain is ready to train, or
+   create your own **domains → subdomains** (each with its own fields/schema)
+   and tick which subdomains to include in the next run. **One model** is
+   trained across every selected subdomain.
+2. **Sources** — upload PDFs or spec-sheet images, add URLs, or give a
    **research topic** prompt (e.g. "Apple Silicon A- and M-series chip specs").
-2. **Import specs** — distills every source into structured spec sheets in
-   `learned_facts.yaml`: AMD's DB via a JSON parser, uploaded docs via a vision
-   model, and an LLM **scrape-agent** for any other URL (it respects robots /
-   anti-bot 403s — never evades them). Web/topic search uses the same provider
-   chain as the app (`FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily). Sources
-   become *facts*, not invented Q&A.
-3. **Generate dataset** — **deterministically** expands `facts.yaml` +
-   `learned_facts.yaml` into spec / overview / comparison / buying-advice /
-   off-domain-refusal / identity examples → `train.jsonl` / `valid.jsonl`
+3. **Import specs** — a **domain-aware smart import** reads every source and
+   proposes which domain/subdomain + schema + entities to add for you to
+   **review and approve** before anything is written: AMD's DB via a JSON
+   parser, uploaded docs via a vision model, and an LLM **scrape-agent** for any
+   other URL (it respects robots / anti-bot 403s — never evades them).
+   Web/topic search uses the same provider chain as the app
+   (`FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily). Sources become *facts*, not
+   invented Q&A.
+4. **Generate dataset** — **deterministically** expands the selected domains'
+   facts into spec / overview / comparison / buying-advice / off-domain-refusal
+   / **domain-aware identity** examples → `train.jsonl` / `valid.jsonl`
    ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)). **View
    dataset** shows the generated pairs so you can eyeball them before training.
-4. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
+5. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
    export to GGUF, and register it in the `ai` service under the `finetuned-`
    prefix (newest wins).
-5. **Knowledge gaps** — questions the specialist got wrong or wasn't trained on
+6. **Knowledge gaps** — questions the specialist got wrong or wasn't trained on
    are logged as gaps (by `spec_review`); "Research gaps" pulls specs from the
    web into `learned_facts.yaml`, and the next dataset → retrain bakes them into
    the model's weights.
