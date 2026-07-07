@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query, pool } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
 import { ensureAgentsTable } from "@/lib/tool-tables";
+
+/** Slugify a name into a stable identifier (matches the create route). */
+function slug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+}
 
 async function setGrants(name: string, tools: string[]) {
   await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
@@ -38,7 +48,7 @@ export async function PATCH(
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureAgentsTable();
-  const { name } = await params;
+  let { name } = await params;
   const body = (await req.json().catch(() => null)) ?? {};
 
   if (body.reset === true) {
@@ -66,6 +76,66 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
+  // Rename (custom agents only) — cascades to tool grants + subagent links
+  // (both directions) in one transaction, done before the other field updates
+  // so they target the new name.
+  if (typeof body.new_name === "string" && slug(body.new_name) !== name) {
+    const newName = slug(body.new_name);
+    if (!newName) {
+      return NextResponse.json({ error: "invalid name" }, { status: 400 });
+    }
+    const { rows: cur } = await query<{ kind: string }>(
+      `SELECT kind FROM agents WHERE name = $1`,
+      [name],
+    );
+    if (!cur.length) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (cur[0].kind !== "custom") {
+      return NextResponse.json(
+        { error: "built-in agents can't be renamed — only their prompt/tools" },
+        { status: 400 },
+      );
+    }
+    const { rows: taken } = await query(
+      `SELECT 1 FROM agents WHERE name = $1`,
+      [newName],
+    );
+    if (taken.length) {
+      return NextResponse.json(
+        { error: `an agent named "${newName}" already exists` },
+        { status: 409 },
+      );
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE agents SET name = $1 WHERE name = $2`, [
+        newName,
+        name,
+      ]);
+      await client.query(
+        `UPDATE agent_tools SET agent_name = $1 WHERE agent_name = $2`,
+        [newName, name],
+      );
+      await client.query(
+        `UPDATE agent_subagents SET agent_name = $1 WHERE agent_name = $2`,
+        [newName, name],
+      );
+      await client.query(
+        `UPDATE agent_subagents SET subagent_name = $1 WHERE subagent_name = $2`,
+        [newName, name],
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+    name = newName;
+  }
+
   const fields: string[] = [];
   const vals: unknown[] = [];
   let i = 1;
@@ -91,7 +161,7 @@ export async function PATCH(
   if (Array.isArray(body.subagents)) {
     await setSubagents(name, body.subagents.map((s: unknown) => String(s)));
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, name });
 }
 
 /** Delete a custom agent (built-ins can only be reset). */

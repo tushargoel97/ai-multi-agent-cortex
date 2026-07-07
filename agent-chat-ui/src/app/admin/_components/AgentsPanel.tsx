@@ -32,6 +32,7 @@ interface AgentRow {
 }
 
 interface Edit {
+  name: string;
   system_prompt: string;
   description: string;
   tools: string[];
@@ -73,6 +74,7 @@ export default function AgentsPanel() {
       const e: Record<string, Edit> = {};
       for (const a of data.agents ?? []) {
         e[a.name] = {
+          name: a.name,
           system_prompt: a.system_prompt,
           description: a.description,
           tools: [...a.tools],
@@ -93,6 +95,7 @@ export default function AgentsPanel() {
     const e = edits[a.name];
     if (!e) return false;
     return (
+      e.name !== a.name ||
       e.system_prompt !== a.system_prompt ||
       e.description !== a.description ||
       [...e.tools].sort().join(",") !== [...a.tools].sort().join(",") ||
@@ -119,14 +122,27 @@ export default function AgentsPanel() {
     }
   };
 
-  const saveAgent = (a: AgentRow) => {
+  const slugify = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 60);
+
+  const saveAgent = async (a: AgentRow) => {
     const e = edits[a.name];
-    return patch(a.name, {
+    const renamed =
+      a.kind === "custom" && !!e.name.trim() && slugify(e.name) !== a.name;
+    const body: Record<string, unknown> = {
       system_prompt: e.system_prompt,
       description: e.description,
       tools: e.tools,
       subagents: e.subagents,
-    });
+    };
+    if (renamed) body.new_name = e.name.trim();
+    await patch(a.name, body);
+    if (renamed) setExpanded(slugify(e.name));
   };
 
   const toggleEnabled = (a: AgentRow) =>
@@ -333,6 +349,7 @@ export default function AgentsPanel() {
       <ul className="space-y-2">
         {agents.map((a) => {
           const e = edits[a.name] ?? {
+            name: a.name,
             system_prompt: a.system_prompt,
             description: a.description,
             tools: a.tools,
@@ -396,6 +413,23 @@ export default function AgentsPanel() {
 
               {open && (
                 <div className="space-y-3 border-t px-3 py-3">
+                  {a.kind === "custom" && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        Name
+                      </p>
+                      <Input
+                        value={e.name}
+                        onChange={(ev) =>
+                          setEdit(a.name, { name: ev.target.value })
+                        }
+                      />
+                      <p className="mt-1 text-[11px] text-muted-foreground/70">
+                        Renaming re-slugs (spaces/symbols → underscores) and
+                        updates every tool grant + subagent link.
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="mb-1 text-xs font-medium text-muted-foreground">
                       Description (routing hint)
