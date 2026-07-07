@@ -353,18 +353,16 @@ def import_document(entry: dict, limit: int, on_progress, on_log=None) -> list[d
 
     Text extraction is delegated to sources.extract_source so every source
     type is handled correctly (images are OCR'd by the vision model, sheets
-    parsed, PDFs read). Then a deterministic chart parser (Intel today) tries
-    first, with LLM distillation as the fallback for anything else.
+    parsed, PDFs read). The extracted text is then LLM-distilled into spec
+    entries — the same dynamic path used for arbitrary web pages, so no
+    per-vendor parsers are needed.
     """
-    from app import intel_pdf, sources as src
+    from app import sources as src
     from app.research import distill_products_from_text
 
     name = entry.get("name", entry.get("id", "source"))
     on_progress(0, 0, f"extracting {name}…")
     text = src.extract_source(entry, on_log=on_log)
-    entries = intel_pdf.parse_chart_text(text, limit)
-    if len(entries) >= 3:
-        return entries
     on_progress(0, 0, f"distilling {name} (LLM)…")
     return distill_products_from_text(text, limit, on_log=on_log)
 
