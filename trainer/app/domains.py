@@ -21,6 +21,7 @@ import yaml
 from .config import settings
 
 DOMAINS_DIR = settings.data_dir / "domains"
+HARDWARE_DIR = DOMAINS_DIR / "hardware"  # built-in domain's own directory
 RESERVED_DOMAINS = {"hardware"}  # built-in bespoke generator
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -51,18 +52,23 @@ def _write_yaml(path: Path, data: dict) -> None:
     )
 
 
-def _migrate(new: Path, old: Path) -> Path:
-    """Prefer the new {name}_learned_facts.yaml; rename the legacy file once."""
-    if not new.exists() and old.exists():
-        try:
-            old.rename(new)
-        except OSError:
-            return old
+def _migrate(new: Path, *olds: Path) -> Path:
+    """Prefer the new {name}_learned_facts.yaml; rename a legacy file once."""
+    if not new.exists():
+        for old in olds:
+            if old.exists():
+                new.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    old.rename(new)
+                except OSError:
+                    return old
+                break
     return new
 
 
 def _hw_learned_path() -> Path:
     return _migrate(
+        HARDWARE_DIR / "hardware_learned_facts.yaml",
         settings.data_dir / "hardware_learned_facts.yaml",
         settings.data_dir / "learned_facts.yaml",
     )
@@ -241,11 +247,14 @@ HARDWARE_FIELDS: list[dict] = [
     {"key": "aliases", "label": "Aliases", "type": "list"},
 ]
 
-_HW_FACTS = settings.data_dir / "facts.yaml"
+def _hw_facts_path() -> Path:
+    return _migrate(HARDWARE_DIR / "facts.yaml", settings.data_dir / "facts.yaml")
 
 
 def _hw_groups() -> list[str]:
-    return [k for k, v in _read_yaml(_HW_FACTS).items() if isinstance(v, list)]
+    return [
+        k for k, v in _read_yaml(_hw_facts_path()).items() if isinstance(v, list)
+    ]
 
 
 def _hw_group_of(item: dict) -> str:
@@ -280,7 +289,9 @@ def _hardware_subdomain(group: str) -> dict:
         i for i in learned if i.get("exists", True) and _hw_group_of(i) == group
     ]
     curated = [
-        p.get("name") for p in _read_yaml(_HW_FACTS).get(group, []) if p.get("name")
+        p.get("name")
+        for p in _read_yaml(_hw_facts_path()).get(group, [])
+        if p.get("name")
     ]
     return {
         "domain": "hardware",

@@ -24,14 +24,21 @@ logger = logging.getLogger(__name__)
 
 
 def _learned_path():
-    """Hardware domain-level learned facts (migrates the legacy name once)."""
-    new = settings.data_dir / "hardware_learned_facts.yaml"
-    old = settings.data_dir / "learned_facts.yaml"
-    if not new.exists() and old.exists():
-        try:
-            old.rename(new)
-        except OSError:
-            return old
+    """Hardware domain-level learned facts (data/domains/hardware/); migrates the
+    legacy flat locations once."""
+    new = settings.data_dir / "domains" / "hardware" / "hardware_learned_facts.yaml"
+    if not new.exists():
+        for old in (
+            settings.data_dir / "hardware_learned_facts.yaml",
+            settings.data_dir / "learned_facts.yaml",
+        ):
+            if old.exists():
+                new.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    old.rename(new)
+                except OSError:
+                    return old
+                break
     return new
 
 

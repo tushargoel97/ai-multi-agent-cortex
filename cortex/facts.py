@@ -2,8 +2,8 @@
 
 The 1B fine-tuned specialist can drift numbers between sibling products
 (PS5 / Slim / Pro). This module exposes the same ground truth the model was
-trained on — trainer/data/facts.yaml + learned_facts.yaml, bind-mounted read
-only — so the synthesizer can correct drifted values deterministically.
+trained on — trainer/data/domains/hardware/{facts,hardware_learned_facts}.yaml,
+bind-mounted read only — so the synthesizer can correct drifted values.
 """
 
 from __future__ import annotations
@@ -37,11 +37,25 @@ _META_KEYS = {"name", "aliases", "exists", "notes", "source", "url", "group"}
 _cache: tuple[tuple, dict] | None = None
 
 
+_HW_DIR = FACTS_DIR / "domains" / "hardware"
+
+
+def _hw_facts_file() -> Path:
+    """Curated hardware facts; falls back to the legacy flat location."""
+    new = _HW_DIR / "facts.yaml"
+    return new if new.exists() else FACTS_DIR / "facts.yaml"
+
+
 def _hw_learned_file() -> Path:
-    """Hardware domain-level learned facts; falls back to the legacy name."""
-    new = FACTS_DIR / "hardware_learned_facts.yaml"
-    old = FACTS_DIR / "learned_facts.yaml"
-    return new if new.exists() else old
+    """Hardware domain-level learned facts; falls back to legacy locations."""
+    for path in (
+        _HW_DIR / "hardware_learned_facts.yaml",
+        FACTS_DIR / "hardware_learned_facts.yaml",
+        FACTS_DIR / "learned_facts.yaml",
+    ):
+        if path.exists():
+            return path
+    return _HW_DIR / "hardware_learned_facts.yaml"
 
 
 def _pack_learned_file(pack: Path) -> Path:
@@ -93,7 +107,7 @@ def _read_products(path: Path, *, learned: bool, render: str | None) -> list[dic
 def _load_index() -> dict[str, dict]:
     global _cache
     packs = _pack_dirs()
-    sig_paths = [FACTS_DIR / "facts.yaml", _hw_learned_file()]
+    sig_paths = [_hw_facts_file(), _hw_learned_file()]
     for pk in packs:
         sig_paths += [
             pk / "facts.yaml",
@@ -105,7 +119,7 @@ def _load_index() -> dict[str, dict]:
         return _cache[1]
 
     # Built-in hardware (flat) — spec_table style, so it needs no explicit tag.
-    products = _read_products(FACTS_DIR / "facts.yaml", learned=False, render=None)
+    products = _read_products(_hw_facts_file(), learned=False, render=None)
     products += _read_products(_hw_learned_file(), learned=True, render=None)
     # User packs — tag each entity with its subdomain's render style.
     for pk in packs:

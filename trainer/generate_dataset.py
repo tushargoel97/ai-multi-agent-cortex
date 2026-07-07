@@ -1,6 +1,6 @@
 """Deterministic dataset generator for the hardware-specialist fine-tune.
 
-Expands trainer/data/facts.yaml into chat-format JSONL that mlx-lm's LoRA
+Expands trainer/data/domains/hardware/facts.yaml into chat-format JSONL that
 trainer consumes directly:
 
     {"messages": [{"role": "user", ...}, {"role": "assistant", ...}]}
@@ -19,17 +19,39 @@ from pathlib import Path
 import yaml
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
-FACTS_PATH = DATA_DIR / "facts.yaml"
-DOMAINS_DIR = DATA_DIR / "domains"  # generic add-on domain packs (games, …)
+DOMAINS_DIR = DATA_DIR / "domains"  # per-domain packs (hardware, software, …)
+HARDWARE_DIR = DOMAINS_DIR / "hardware"  # the built-in domain's own directory
 SEED = 42
 VALID_FRACTION = 0.1
 
 
+def _migrate_hardware_layout() -> None:
+    """Move legacy flat hardware files into domains/hardware/ (idempotent)."""
+    for old, new in (
+        (DATA_DIR / "facts.yaml", HARDWARE_DIR / "facts.yaml"),
+        (
+            DATA_DIR / "hardware_learned_facts.yaml",
+            HARDWARE_DIR / "hardware_learned_facts.yaml",
+        ),
+        (
+            DATA_DIR / "learned_facts.yaml",
+            HARDWARE_DIR / "hardware_learned_facts.yaml",
+        ),
+    ):
+        if old.exists() and not new.exists():
+            new.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                old.rename(new)
+            except OSError:
+                pass
+
+
+_migrate_hardware_layout()
+FACTS_PATH = HARDWARE_DIR / "facts.yaml"
+
+
 def _hw_learned_path() -> Path:
-    """Hardware domain-level learned facts; falls back to the legacy name."""
-    new = DATA_DIR / "hardware_learned_facts.yaml"
-    old = DATA_DIR / "learned_facts.yaml"
-    return new if new.exists() else old
+    return HARDWARE_DIR / "hardware_learned_facts.yaml"
 
 # Human noun used in buying-advice questions, per facts.yaml group.
 GROUP_NOUNS = {
