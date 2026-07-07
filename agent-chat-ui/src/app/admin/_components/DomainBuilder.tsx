@@ -669,64 +669,59 @@ function SubdomainEditor({
         </>
       )}
 
-      {/* Entities (rows) */}
+      {/* Entries */}
       <div className="mt-3">
         <div className="flex items-center gap-2">
           <p className="text-xs font-medium text-foreground">
-            Data rows ({edit.entities.length})
+            Entries ({edit.entities.length})
           </p>
           <Button
             size="sm"
-            variant="ghost"
+            variant="secondary"
             onClick={addRow}
             disabled={edit.fields.length === 0}
           >
-            <Plus className="mr-1 size-4" /> Add row
+            <Plus className="mr-1 size-4" /> Add entry
           </Button>
         </div>
-        {edit.entities.length > 0 && (
-          <div className="mt-1 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="p-1">name</th>
-                  {edit.fields.map((f) => (
-                    <th key={f.key} className="p-1">
-                      {f.key || f.label}
-                    </th>
-                  ))}
-                  <th className="p-1"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {edit.entities.map((row, ri) => (
-                  <tr key={ri} className="border-t">
-                    <td className="p-1">
-                      <Input
-                        value={String(row.name ?? "")}
-                        onChange={(e) => setCell(ri, "name", e.target.value)}
-                        className="h-8 min-w-[8rem]"
-                      />
-                    </td>
+        {edit.entities.length === 0 ? (
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            No entries yet — add one, or use Smart import to fill them.
+          </p>
+        ) : (
+          <div className="mt-2 max-h-[26rem] space-y-2 overflow-auto pr-1">
+            {edit.entities.map((row, ri) => (
+              <div key={ri} className="rounded-md border bg-background p-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={String(row.name ?? "")}
+                    onChange={(e) => setCell(ri, "name", e.target.value)}
+                    placeholder="Name"
+                    className="h-8 flex-1 font-medium"
+                  />
+                  <DeleteButton
+                    onClick={() => removeRow(ri)}
+                    title="Remove entry"
+                  />
+                </div>
+                {edit.fields.length > 0 && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {edit.fields.map((f) => (
-                      <td key={f.key} className="p-1">
+                      <label key={f.key} className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {f.label || f.key}
+                        </span>
                         <Input
                           value={String(row[f.key] ?? "")}
                           onChange={(e) => setCell(ri, f.key, e.target.value)}
-                          className="h-8 min-w-[7rem]"
+                          className="h-8"
                         />
-                      </td>
+                      </label>
                     ))}
-                    <td className="p-1">
-                      <DeleteButton
-                        onClick={() => removeRow(ri)}
-                        title="Remove row"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
