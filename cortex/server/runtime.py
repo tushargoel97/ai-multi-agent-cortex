@@ -1,4 +1,4 @@
-"""Shared server runtime — durable checkpointer/store + the compiled graph.
+"""Shared server runtime, durable checkpointer/store + the compiled graph.
 
 Populated once at application startup (see ``app.lifespan``) and read by the
 route handlers. Kept in its own module to avoid circular imports between

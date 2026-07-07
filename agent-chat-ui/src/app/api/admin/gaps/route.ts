@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
 
-// Mirrors cortex/db/models/knowledge_gap.py — created here too so the panel
+// Mirrors cortex/db/models/knowledge_gap.py, created here too so the panel
 // works before the first gap is ever logged by the graph.
 const ENSURE_TABLE = `
   CREATE TABLE IF NOT EXISTS knowledge_gaps (

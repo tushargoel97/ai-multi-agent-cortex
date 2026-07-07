@@ -87,7 +87,7 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
       />
       {offers.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          {data?.note || "No offers found — try a more specific product name."}
+          {data?.note || "No offers found, try a more specific product name."}
         </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -175,7 +175,7 @@ export function BookingCards({ data }: { data: BookingData }) {
       />
       {options.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          {data?.note || "No options found — try adding a city, date, or exact title."}
+          {data?.note || "No options found, try adding a city, date, or exact title."}
         </p>
       ) : (
         <div className="grid gap-2">

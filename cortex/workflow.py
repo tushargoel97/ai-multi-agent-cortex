@@ -1,4 +1,4 @@
-"""LangGraph workflow — multi-agent assistant with capability-based routing."""
+"""LangGraph workflow, multi-agent assistant with capability-based routing."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ class ChatState(MessagesState):
     # by the spec table. spec_review consumes it and emits the final answer.
     spec_draft: str
     # Set by spec_review to the gap reason when the specialist's answer can't be
-    # trusted (refusal / untrained product / fact-check failure) — routes the
+    # trusted (refusal / untrained product / fact-check failure), routes the
     # query to the researcher (web-RAG) instead of emitting the bad draft.
     spec_gap: str
 
@@ -150,7 +150,7 @@ def _window(messages: list) -> list:
     """Newest WINDOW_KEEP messages, cleaned for model consumption.
 
     Drops router intent markers and never starts on an orphan tool result.
-    The full history stays in graph state (the UI renders it) — this only
+    The full history stays in graph state (the UI renders it), this only
     bounds what agents re-read each turn.
     """
     msgs = [m for m in messages if not _is_router_marker(m)]
@@ -202,7 +202,7 @@ async def _update_summary(state: ChatState, config: RunnableConfig) -> dict[str,
         summary = result.content if isinstance(result.content, str) else str(result.content)
         return {"summary": summary.strip(), "summary_upto": len(msgs) - WINDOW_KEEP}
     except Exception:  # noqa: BLE001
-        _persist_logger.exception("Summary refresh failed — keeping previous summary")
+        _persist_logger.exception("Summary refresh failed, keeping previous summary")
         return {}
 
 
@@ -221,7 +221,7 @@ async def _recall_memories(messages: list) -> str:
             MEMORY_NAMESPACE, query=str(last_human.content), limit=4
         )
         return "\n".join(f"- {h.value.get('content', '')}" for h in hits)
-    except Exception:  # noqa: BLE001 — store unavailable outside the runtime
+    except Exception:  # noqa: BLE001, store unavailable outside the runtime
         return ""
 
 
@@ -288,7 +288,7 @@ def _heuristic_intent(messages: list) -> Intent:
 
         if text and match_products(text):
             return Intent.PRODUCT_SPECS  # any trained-domain entity → specialist
-    except Exception:  # noqa: BLE001 — facts mount optional
+    except Exception:  # noqa: BLE001, facts mount optional
         pass
     return Intent.GENERAL_CHAT
 
@@ -297,7 +297,7 @@ def route_from_start(
     state: ChatState, config: RunnableConfig
 ) -> Literal["router", "specialist"]:
     """Send chats straight to the specialist when a fine-tuned model is the
-    effective chat model (dropdown selection OR registry default) — small
+    effective chat model (dropdown selection OR registry default), small
     fine-tuned models cannot run the router's structured-output
     classification, and picking them IS the intent."""
     configurable = (config or {}).get("configurable") or {}
@@ -314,7 +314,7 @@ def route_from_start(
         resolved = resolve_with_session(configurable.get("model_id"))
         if resolved and resolved.model_id.startswith(FINE_TUNED_PREFIX):
             return "specialist"
-    except Exception:  # noqa: BLE001 — registry hiccup: fall through to router
+    except Exception:  # noqa: BLE001, registry hiccup: fall through to router
         _persist_logger.exception("route_from_start model resolution failed")
     return "router"
 
@@ -342,7 +342,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     keyword heuristic so the turn still gets answered.
     """
     spec = get_agent_spec(Agents.ROUTER)
-    # Recent window only, filtered to human/AI messages — tool call/response
+    # Recent window only, filtered to human/AI messages, tool call/response
     # pairs from prior agent runs would cause OpenAI to reject the request.
     # Strip trailing gap/fact-check notes from prior answers so a resumed
     # thread's stale "not in my fine-tuned knowledge yet" note can't keep the
@@ -358,7 +358,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         else:
             chat_messages.append(m)
     # Teach the router about admin-created custom agents so it can route to
-    # them by description (they register live — no restart / graph rebuild).
+    # them by description (they register live, no restart / graph rebuild).
     custom = _custom_agents_for_routing()
     system_prompt = _agent_static_prompt(Agents.ROUTER.value, spec)
     if custom:
@@ -386,7 +386,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         fallback = _heuristic_intent(chat_messages)
         _persist_logger.warning(
-            "Router model failed (%s: %s) — heuristic fallback to %r",
+            "Router model failed (%s: %s), heuristic fallback to %r",
             type(e).__name__,
             e,
             fallback.value,
@@ -398,7 +398,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         }
         intent_value = fallback.value
     # Deterministic override: if the user names a product that IS in our
-    # training facts, the fine-tuned specialist knows it — force product_specs
+    # training facts, the fine-tuned specialist knows it, force product_specs
     # so it answers from weights instead of the router's guess sending a
     # trained product to web-RAG (e.g. "tell me about snapdragon 8 elite gen5"
     # was misread as knowledge_query). Ground truth beats the LLM classifier.
@@ -415,7 +415,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
                 routing["reasoning"] = (
                     "override: named product is in the fine-tuned training facts"
                 )
-        except Exception:  # noqa: BLE001 — facts mount optional; keep LLM verdict
+        except Exception:  # noqa: BLE001, facts mount optional; keep LLM verdict
             pass
     # In auto mode, record which model this intent resolves to so the UI's
     # routing chip can show it. Skip image_generation: its real model is only
@@ -432,7 +432,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             resolved = resolve_auto_model(intent_value)
             if resolved is not None:
                 routing["model"] = resolved.model_id
-        except Exception:  # noqa: BLE001 — chip model is cosmetic, never fatal
+        except Exception:  # noqa: BLE001, chip model is cosmetic, never fatal
             _persist_logger.exception("auto-mode chip model resolution failed")
     return {
         "messages": [
@@ -471,7 +471,7 @@ def route_by_intent(
         intent = Intent.GENERAL_CHAT  # safe fallback
 
     node = _INTENT_TO_NODE[intent]
-    # The specialist is a text-only 1B model — hardware questions that come
+    # The specialist is a text-only 1B model, hardware questions that come
     # with an image (e.g. a screenshot of a spec table) go to the researcher,
     # whose vision-capable model can actually read the image.
     last = _last_human(state["messages"])
@@ -482,7 +482,7 @@ def route_by_intent(
 
 def _system_prompt_for(model: Any, static: str, dynamic: str | None):
     """Anthropic models get a cache_control breakpoint after the static agent
-    prompt — the cached prefix covers tool definitions + system, and dynamic
+    prompt, the cached prefix covers tool definitions + system, and dynamic
     context (memories, summary) stays after the breakpoint so it never breaks
     the cache. Other providers cache automatically; they get a plain string."""
     try:
@@ -499,7 +499,7 @@ def _system_prompt_for(model: Any, static: str, dynamic: str | None):
             if dynamic:
                 blocks.append({"type": "text", "text": dynamic})
             return SystemMessage(content=blocks)
-    except Exception:  # noqa: BLE001 — caching is an optimization, never a blocker
+    except Exception:  # noqa: BLE001, caching is an optimization, never a blocker
         pass
     return f"{static}\n\n{dynamic}" if dynamic else static
 
@@ -517,7 +517,7 @@ def _agent_static_prompt(name: str, spec: Any) -> str:
 
         try:
             return Template(override).render(assistant_name=_assistant_name())
-        except Exception:  # noqa: BLE001 — bad template: fall back to YAML
+        except Exception:  # noqa: BLE001, bad template: fall back to YAML
             _persist_logger.exception("Agent prompt override render failed")
     return spec.render_system_prompt(assistant_name=_assistant_name())
 
@@ -547,14 +547,14 @@ def _effective_agent_tools(spec: Any) -> list[Any]:
 
         names = effective_tool_names(spec.name, spec.whitelisted_tools)
         return resolve_tool_instances(names)
-    except Exception:  # noqa: BLE001 — never break a run over tool config
+    except Exception:  # noqa: BLE001, never break a run over tool config
         _persist_logger.exception("Agent tool resolution fell back to YAML")
         return spec.get_tools()
 
 
 def _load_agent_runtime(name: str):
-    """(system_prompt, tools, auto_intent) for any agent by name — built-in or
-    custom — so it can run as a subagent. None if it doesn't exist or is a
+    """(system_prompt, tools, auto_intent) for any agent by name, built-in or
+    custom, so it can run as a subagent. None if it doesn't exist or is a
     disabled custom agent. Never includes its OWN subagents, so delegation is a
     single level (no recursion).
     """
@@ -588,7 +588,7 @@ def _load_agent_runtime(name: str):
         static = Template(spec["system_prompt"]).render(
             assistant_name=_assistant_name()
         )
-    except Exception:  # noqa: BLE001 — bad template: use it raw
+    except Exception:  # noqa: BLE001, bad template: use it raw
         static = spec.get("system_prompt") or ""
     try:
         tools = resolve_tool_instances(effective_tool_names(name, []))
@@ -619,7 +619,7 @@ def _subagent_tool(
         system = static
         if recalled:
             system += (
-                "\n\n## Shared long-term memory (read-only — recall only, do not "
+                "\n\n## Shared long-term memory (read-only, recall only, do not "
                 f"try to save)\n{recalled}"
             )
         try:
@@ -629,7 +629,7 @@ def _subagent_tool(
                 system_prompt=system,
             )
             result = await sub.ainvoke({"messages": [HumanMessage(task)]})
-        except Exception:  # noqa: BLE001 — a subagent must never crash the parent
+        except Exception:  # noqa: BLE001, a subagent must never crash the parent
             _persist_logger.exception("Subagent %r failed", subagent_name)
             return f"The '{subagent_name}' subagent could not complete the task."
         msgs = result.get("messages", [])
@@ -645,7 +645,7 @@ def _subagent_tool(
     safe = re.sub(r"[^a-z0-9_]+", "_", subagent_name.lower()).strip("_") or "subagent"
     tool_desc = (
         f"Delegate a focused subtask to the '{subagent_name}' subagent"
-        + (f" \u2014 {description}" if description else "")
+        + (f": {description}" if description else "")
         + ". Give it a clear, self-contained instruction; it works in isolation "
         "and returns its findings for you to use."
     )
@@ -689,7 +689,7 @@ def _build_agent(
     static = _agent_static_prompt(agent_id.value, spec)
     # Inject today's date + the user's browser region so agents resolve
     # "9th July" to the right year and default shopping/booking to the user's
-    # country — kept in the dynamic (post-cache) segment.
+    # country, kept in the dynamic (post-cache) segment.
     from cortex.tools.commerce import region_from_browser
 
     now = datetime.now()
@@ -732,12 +732,12 @@ async def _run_agent(
 
 
 async def generalist(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Default chat agent — friendly conversation + identity."""
+    """Default chat agent, friendly conversation + identity."""
     return await _run_agent(Agents.GENERALIST, state, config, Intent.GENERAL_CHAT.value)
 
 
 async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Knowledge agent — web search + local KB + Wikipedia.
+    """Knowledge agent, web search + local KB + Wikipedia.
 
     Also handles specialist knowledge gaps: when the fine-tuned model refused,
     answered about an untrained product, or was fact-checked wrong, spec_review
@@ -757,7 +757,7 @@ async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             and final.content.strip()
         ):
             note = (
-                "\n\n*Fact-checked — my fine-tuned model had some of these specs "
+                "\n\n*Fact-checked, my fine-tuned model had some of these specs "
                 "wrong, so I've corrected them against verified web sources and "
                 "logged it for retraining.*"
                 if gap.startswith("fact_error")
@@ -775,17 +775,17 @@ async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 
 
 async def coder(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Coding specialist — writes, explains, reviews, refactors, and debugs code."""
+    """Coding specialist, writes, explains, reviews, refactors, and debugs code."""
     return await _run_agent(Agents.CODER, state, config, Intent.CODING_TASK.value)
 
 
 async def shopping(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Shopping specialist — region-aware product prices and buying advice."""
+    """Shopping specialist, region-aware product prices and buying advice."""
     return await _run_agent(Agents.SHOPPING, state, config, Intent.SHOPPING.value)
 
 
 async def booking(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Booking specialist — flights, hotels, movies, concerts, events, and shows."""
+    """Booking specialist, flights, hotels, movies, concerts, events, and shows."""
     return await _run_agent(Agents.BOOKING, state, config, Intent.BOOKING.value)
 
 
@@ -793,7 +793,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
     """Run an admin-created custom agent the router selected by name.
 
     Custom agents are defined entirely in Admin → Agents (system prompt +
-    granted tools) and route live via the router — no graph rebuild needed.
+    granted tools) and route live via the router, no graph rebuild needed.
     """
     routing: dict | None = None
     for m in reversed(state["messages"]):
@@ -806,7 +806,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
 
     spec = load_custom_agent(name) if name else None
     if spec is None:
-        # Selected agent vanished / was disabled mid-turn — answer generally.
+        # Selected agent vanished / was disabled mid-turn, answer generally.
         return await generalist(state, config)
 
     memory_suffix, updates = await _memory_context(state, config)
@@ -818,7 +818,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         static = Template(spec["system_prompt"]).render(
             assistant_name=_assistant_name()
         )
-    except Exception:  # noqa: BLE001 — bad template: use it raw
+    except Exception:  # noqa: BLE001, bad template: use it raw
         static = spec["system_prompt"]
 
     now = datetime.now()
@@ -856,7 +856,7 @@ async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, A
 
 
 async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Image Artist — Google image models behind a two-layer safety gate."""
+    """Image Artist, Google image models behind a two-layer safety gate."""
     last_human = next(
         (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
         None,
@@ -894,7 +894,7 @@ def _has_markdown_table(text: str) -> bool:
     return bool(_TABLE_RE.search(text))
 
 
-# Spec / comparison queries (products, hardware, software) — these should always
+# Spec / comparison queries (products, hardware, software): these should always
 # render as a table, whichever agent answered them.
 _SPEC_QUERY_RE = re.compile(
     r"\b(spec|specs|specification|specifications|compare|comparison|compared|"
@@ -907,7 +907,7 @@ _SPEC_QUERY_RE = re.compile(
 def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> bool:
     """Fact guard for the synthesizer: no invented numbers, and (without an
     authoritative reference) every draft number must survive. With a
-    reference, the synthesizer corrects drifted values against it — so
+    reference, the synthesizer corrects drifted values against it, so
     numbers may come from either the draft or the reference, nowhere else."""
     draft_nums = set(_NUMBER_RE.findall(draft))
     allowed_extra = {str(n) for n in range(1, 21)}  # step numbers / list indices
@@ -916,7 +916,7 @@ def _numbers_preserved(draft: str, synthesized: str, reference: str = "") -> boo
         allowed = draft_nums | set(_NUMBER_RE.findall(reference)) | allowed_extra
         return synth_nums <= allowed
     if len(draft_nums) < 4:
-        # Not a spec sheet (e.g. a short math result) — the synthesizer is
+        # Not a spec sheet (e.g. a short math result), the synthesizer is
         # allowed to expand working steps, which adds intermediate numbers.
         return True
     return draft_nums <= synth_nums and (synth_nums - draft_nums) <= allowed_extra
@@ -954,7 +954,7 @@ _CODE_BLOCK_RE = re.compile(r"```([\w+-]*)\n(.*?)```", re.DOTALL)
 
 
 def _code_syntax_notes(text: str) -> list[str]:
-    """Parse-only syntax sanity checks on fenced code — never executes anything.
+    """Parse-only syntax sanity checks on fenced code, never executes anything.
 
     Conservative on purpose: only flags substantial, complete-looking Python
     and any JSON, so intentional snippets / pseudocode don't false-positive.
@@ -968,7 +968,7 @@ def _code_syntax_notes(text: str) -> list[str]:
             if len(lines) < 4 or not re.search(
                 r"^\s*(?:async\s+def|def|class|import|from)\b", body, re.M
             ):
-                continue  # a snippet, not a full unit — skip
+                continue  # a snippet, not a full unit, skip
             import ast
 
             try:
@@ -1001,7 +1001,7 @@ async def _render_spec_answer(
         "You convert a draft answer about product, hardware, or software specs "
         "into a structured comparison table. Identify the items being compared "
         "(the columns) and one row per spec. Copy values VERBATIM from the "
-        "draft — never invent, round, or drop a value; leave a cell blank when "
+        "draft, never invent, round, or drop a value; leave a cell blank when "
         "the draft doesn't give it. Use a single column for a single item. When "
         "an authoritative reference is provided, prefer its values where they "
         "conflict with the draft. Add a one-line verdict only if the draft "
@@ -1019,7 +1019,7 @@ async def _render_spec_answer(
         )
         result = await agent.ainvoke({"messages": [HumanMessage(prompt)]})
         table: SpecTable = result["structured_response"]
-    except Exception:  # noqa: BLE001 — extraction best-effort; fall back to prose
+    except Exception:  # noqa: BLE001, extraction best-effort; fall back to prose
         _persist_logger.exception("Spec table extraction failed")
         return None
     rows = [{"spec": r.spec, "values": list(r.values)} for r in table.rows]
@@ -1027,7 +1027,7 @@ async def _render_spec_answer(
     if not md:
         return None
     if not _no_invented_numbers(draft, md, reference):
-        _persist_logger.info("Spec table extraction invented numbers — using prose")
+        _persist_logger.info("Spec table extraction invented numbers, using prose")
         return None
     return md
 
@@ -1036,8 +1036,8 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     """Formatting pass over factual answers (tables, worked math, structure).
 
     Rewrites the final AI message in place (same id) so the transcript keeps
-    the answering model's usage/name. Presentation only — the prompt forbids
-    fact changes — and ANY failure passes the original answer through.
+    the answering model's usage/name. Presentation only, the prompt forbids
+    fact changes, and ANY failure passes the original answer through.
     """
     msgs = state["messages"]
     final = msgs[-1] if msgs else None
@@ -1048,7 +1048,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     ):
         return {}
     # Coding answers reuse this node but deterministically: never hand code to
-    # the fast-tier reformatter (it can silently corrupt it) — just run a
+    # the fast-tier reformatter (it can silently corrupt it), just run a
     # parse-only syntax check and append a heads-up when a full block is broken.
     if _routed_intent(msgs) == Intent.CODING_TASK.value:
         notes = _code_syntax_notes(final.content)
@@ -1082,7 +1082,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             or model_name.startswith(FINE_TUNED_PREFIX)
             or bool(_SPEC_QUERY_RE.search(question))
         )
-        # A spec answer that is already a markdown table needs no reformat —
+        # A spec answer that is already a markdown table needs no reformat, 
         # skip the extra LLM round-trip (it was adding ~10-20s before the
         # table appeared). The web fallback and researcher emit tables directly.
         if is_spec and _has_markdown_table(final.content):
@@ -1095,7 +1095,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         if resolved is None:
             return {}
         # Ground drifted numbers: authoritative specs for products named in
-        # the question (same YAMLs the specialist was trained on — no web).
+        # the question (same YAMLs the specialist was trained on, no web).
         reference = ""
         prose_domain = False
         try:
@@ -1108,7 +1108,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             matched = match_products(question)
             reference = reference_block(matched)
             prose_domain = is_prose_products(matched)
-        except Exception:  # noqa: BLE001 — facts mount optional
+        except Exception:  # noqa: BLE001, facts mount optional
             pass
 
         # Spec / comparison answers: render the table DETERMINISTICALLY. The
@@ -1136,7 +1136,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
         if reference:
             prompt += (
-                "\n\nAuthoritative reference (ground truth — where the "
+                "\n\nAuthoritative reference (ground truth, where the "
                 "draft's values for these items disagree, silently use "
                 f"these instead):\n{reference}"
             )
@@ -1169,7 +1169,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             or not _numbers_preserved(final.content, text, reference)
         ):
             forced = await _reformat(
-                "\n\nIMPORTANT: Output ONLY a GitHub-flavored markdown table — a "
+                "\n\nIMPORTANT: Output ONLY a GitHub-flavored markdown table, a "
                 "header row, a `| --- |` separator, then one row per spec, with no "
                 "prose before or after. Copy EVERY number from the draft verbatim; "
                 "never add, drop, round, or invent a number."
@@ -1184,7 +1184,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             return {}
         if not _numbers_preserved(final.content, text, reference):
             _persist_logger.warning(
-                "Synthesizer altered numbers — keeping the raw answer"
+                "Synthesizer altered numbers, keeping the raw answer"
             )
             return {}
         for _pfx in _NOTE_PREFIXES:
@@ -1200,13 +1200,13 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             usage_metadata=final.usage_metadata,
         )
         return {"messages": [replacement]}
-    except Exception:  # noqa: BLE001 — synthesis must never lose an answer
-        _persist_logger.exception("Synthesizer pass failed — keeping raw answer")
+    except Exception:  # noqa: BLE001, synthesis must never lose an answer
+        _persist_logger.exception("Synthesizer pass failed, keeping raw answer")
         return {}
 
 
 async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Hardware expert — answers from the self-trained model's weights.
+    """Hardware expert, answers from the self-trained model's weights.
 
     Always uses the fine-tuned model from the registry (model_id prefixed
     `finetuned-` under the local provider), regardless of the model selected
@@ -1227,13 +1227,13 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         }
 
     model = build_client_from_resolved(resolved)
-    # Spec recall wants exactness — greedy decoding so memorized numbers
+    # Spec recall wants exactness, greedy decoding so memorized numbers
     # (prices, TFLOPS) come out digit-perfect every time.
     model.temperature = 0.0
     # Send ONLY the latest user question, as plain text. Small fine-tuned
     # models anchor hard on prior turns and will parrot an earlier answer
     # instead of addressing the new question; they also reject tool-role
-    # remnants and image blocks. Spec lookup is stateless — one question in,
+    # remnants and image blocks. Spec lookup is stateless, one question in,
     # one answer out. NO system prompt: the LoRA training data is bare
     # user/assistant pairs, and prepending one knocks the 1B model off its
     # memorized answers (verified: it duplicates comparison columns).
@@ -1257,7 +1257,7 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
                 b.get("text", "") for b in result.content if isinstance(b, dict)
             )
         ).strip()
-    except Exception:  # noqa: BLE001 — local service may be down/unloaded
+    except Exception:  # noqa: BLE001, local service may be down/unloaded
         return {
             "messages": [
                 AIMessage(
@@ -1273,7 +1273,7 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
 
     # Hand the draft to spec_review (next node) via state, not as a visible
     # message. It runs the fact-check and the table extraction in parallel and
-    # emits the final answer — a spec table, or a frontier web-RAG answer when
+    # emits the final answer, a spec table, or a frontier web-RAG answer when
     # the draft is wrong / the product isn't in the fine-tune's training.
     return {"spec_draft": draft}
 
@@ -1294,7 +1294,7 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
 
     The keyword heuristics can't tell a confidently-wrong answer (an Apple
     A-series chip labelled 'NVIDIA', a Snapdragon described with AMD 'Zen 4'
-    cores, a $40,000 phone SoC) from a good one — the products ARE named, so
+    cores, a $40,000 phone SoC) from a good one, the products ARE named, so
     they pass. This asks a capable non-fine-tuned model to judge the draft's
     facts and figures, returning a gap reason on a clear error, else None.
     Best-effort: needs a frontier critic; skips silently otherwise.
@@ -1306,7 +1306,7 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
     except Exception:  # noqa: BLE001
         resolved = None
     if resolved is None or resolved.model_id.startswith(FINE_TUNED_PREFIX):
-        return None  # no capable critic available — keep the heuristics' verdict
+        return None  # no capable critic available, keep the heuristics' verdict
 
     system = (
         "You are a strict hardware fact-checker. You receive a user question "
@@ -1338,11 +1338,11 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
             }
         )
         critique: _SpecCritique = result["structured_response"]
-    except Exception:  # noqa: BLE001 — critic is best-effort, never fatal
+    except Exception:  # noqa: BLE001, critic is best-effort, never fatal
         _persist_logger.exception("Spec draft critique failed")
         return None
     if critique.has_error:
-        # Return a short, stable reason code — the KnowledgeGap.reason column is
+        # Return a short, stable reason code, the KnowledgeGap.reason column is
         # narrow (String(40)); the detail is only useful for the debug log.
         _persist_logger.info(
             "Spec fact-check flagged draft: %s", critique.reason[:200]
@@ -1353,7 +1353,7 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
 
 def _untrained_product_reason(question: str) -> str | None:
     """Gap reason when the user names a concrete hardware product the fine-tune
-    was never trained on — so any specifics it emitted are ungrounded.
+    was never trained on, so any specifics it emitted are ungrounded.
 
     The facts index (facts.yaml + learned_facts.yaml) is the same ground truth
     the specialist trained on, so a named product missing from it is untrained.
@@ -1369,7 +1369,7 @@ def _untrained_product_reason(question: str) -> str | None:
 
         if match_products(question):
             return None  # product is in the training facts → trust the specialist
-    except Exception:  # noqa: BLE001 — facts mount optional; don't force a fallback
+    except Exception:  # noqa: BLE001, facts mount optional; don't force a fallback
         return None
     return "product_not_addressed"
 
@@ -1429,7 +1429,7 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
         return await _critique_spec_draft(question, draft)
 
     async def _table() -> str | None:
-        # A clear gap means the draft is untrusted — don't tabulate it; the
+        # A clear gap means the draft is untrusted, don't tabulate it; the
         # frontier answer will replace it.
         if heuristic_reason is not None:
             return None
@@ -1445,9 +1445,9 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
             matched = match_products(question)
             reference = reference_block(matched)
             prose_domain = is_prose_products(matched)
-        except Exception:  # noqa: BLE001 — facts mount optional
+        except Exception:  # noqa: BLE001, facts mount optional
             pass
-        # Non-hardware domains (games, …) answer in prose — no spec table.
+        # Non-hardware domains (games, …) answer in prose, no spec table.
         if prose_domain:
             return None
         resolved = None
@@ -1481,7 +1481,7 @@ async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any
 
     # Gap: the draft is a refusal, is about an untrained product, or the
     # fact-check flagged it. A frontier model alone can't be trusted for exact
-    # specs — hand the query to the researcher (web-RAG). ``spec_gap`` flips
+    # specs, hand the query to the researcher (web-RAG). ``spec_gap`` flips
     # the conditional edge to the researcher node; it web-searches, answers,
     # and synthesize tabulates the result.
     log_gap(question, draft, reason)  # keep the self-improvement signal
@@ -1553,7 +1553,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_edge("custom_agent", END)
     # Factual agents get a formatting pass (tables / worked math / structure).
     # The coder shares this node too, but synthesize handles code
-    # deterministically (a parse-only syntax check) — it never lets the fast
+    # deterministically (a parse-only syntax check), it never lets the fast
     # model rewrite code.
     builder.add_edge("researcher", "synthesize")
     builder.add_edge("reasoner", "synthesize")
@@ -1576,7 +1576,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
         from cortex.db.services.auto_mode import publish_defaults
 
         publish_defaults()
-    except Exception:  # noqa: BLE001 — UI convenience, never blocks graph build
+    except Exception:  # noqa: BLE001, UI convenience, never blocks graph build
         _persist_logger.exception("publish_defaults at graph build failed")
 
     return builder.compile(checkpointer=checkpointer, store=store)

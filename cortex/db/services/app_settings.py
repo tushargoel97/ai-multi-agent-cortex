@@ -26,7 +26,7 @@ def get_setting(key: str, default: str = "") -> str:
         with get_session() as session:
             row = session.get(AppSetting, key)
             return row.value if row is not None else default
-    except Exception:  # noqa: BLE001 — settings are never worth failing a run
+    except Exception:  # noqa: BLE001, settings are never worth failing a run
         logger.exception("get_setting(%r) failed", key)
         return default
 

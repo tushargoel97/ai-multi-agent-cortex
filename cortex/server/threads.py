@@ -95,7 +95,7 @@ async def _thread_values(thread_id: str) -> dict:
         snap = await runtime.graph.aget_state(
             {"configurable": {"thread_id": str(thread_id)}}
         )
-    except Exception:  # noqa: BLE001 — a thread with no checkpoint yet
+    except Exception:  # noqa: BLE001, a thread with no checkpoint yet
         return {}
     return jsonable(snap.values) if snap and snap.values else {}
 
@@ -183,7 +183,7 @@ def snapshot_to_state(snap: Any) -> dict:
 async def _json(request: Request) -> dict:
     try:
         body = await request.json()
-    except Exception:  # noqa: BLE001 — empty body is valid for some calls
+    except Exception:  # noqa: BLE001, empty body is valid for some calls
         return {}
     return body if isinstance(body, dict) else {}
 
@@ -230,7 +230,7 @@ async def patch_thread(thread_id: str, request: Request):
 async def delete_thread(thread_id: str):
     try:
         await runtime.checkpointer.adelete_thread(str(thread_id))
-    except Exception:  # noqa: BLE001 — older savers may lack adelete_thread
+    except Exception:  # noqa: BLE001, older savers may lack adelete_thread
         logger.warning("adelete_thread unavailable; leaving checkpoints for %s", thread_id)
     async with runtime.pool.connection() as conn:
         await conn.execute("DELETE FROM threads WHERE thread_id = %s", (str(thread_id),))

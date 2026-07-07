@@ -26,7 +26,7 @@
 }
 
 /* Tables are fully styled (theme-aware spec-sheet grid) by the component
-   overrides in markdown-text.tsx — no hardcoded colors here, they painted
+   overrides in markdown-text.tsx, no hardcoded colors here, they painted
    white bands in dark mode. */
 .markdown-content table {
   border-collapse: collapse;

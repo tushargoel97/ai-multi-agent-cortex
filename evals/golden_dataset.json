@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "description": "Cortex multi-agent assistant — golden dataset for evals.",
+  "description": "Cortex multi-agent assistant, golden dataset for evals.",
   "test_cases": [
     {
       "id": "ROUTE-001",

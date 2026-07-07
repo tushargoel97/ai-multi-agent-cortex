@@ -168,10 +168,10 @@ export default function ProvidersPanel({
       }
     }
     if (failed === eligible.length) {
-      toast.error(`All syncs failed — ${failures[0]}`, { id: t });
+      toast.error(`All syncs failed, ${failures[0]}`, { id: t });
     } else {
       toast.success(
-        `Synced — ${inserted} new, ${updated} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
+        `Synced, ${inserted} new, ${updated} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
         { id: t },
       );
     }
@@ -213,7 +213,7 @@ export default function ProvidersPanel({
                   p.kind !== "azure_openai",
               ).length
             }{" "}
-            provider(s). Click <em>Not set — click to add</em> in the API Key
+            provider(s). Click <em>Not set, click to add</em> in the API Key
             column below to add your key, then use <em>Sync models</em> to pull
             the latest list.
           </div>
@@ -341,7 +341,7 @@ export default function ProvidersPanel({
                   />
                 </td>
                 <td className="p-3 text-xs text-muted-foreground">
-                  {p.base_url || "—"}
+                  {p.base_url || "-"}
                 </td>
                 <td className="p-3">
                   <Switch
@@ -394,7 +394,7 @@ function SetKey({
         onClick={() => setEditing(true)}
         className="text-xs text-muted-foreground hover:underline"
       >
-        {isSet ? "✓ Set — click to update" : "Not set — click to add"}
+        {isSet ? "✓ Set, click to update" : "Not set, click to add"}
       </button>
     );
   }

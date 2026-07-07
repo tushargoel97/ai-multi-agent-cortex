@@ -175,7 +175,7 @@ const defaultComponents: any = {
     />
   ),
   // Spec-sheet style tables: framed grid, product-name header band, shaded
-  // spec-label column, zebra rows — scrolls horizontally instead of wrapping.
+  // spec-label column, zebra rows, scrolls horizontally instead of wrapping.
   table: ({ className, ...props }: { className?: string }) => (
     <div className="my-5 overflow-x-auto rounded-xl border border-border shadow-sm">
       <table

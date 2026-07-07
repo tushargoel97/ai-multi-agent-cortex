@@ -1,5 +1,5 @@
 # Curated product spec sheets for fine-tuning the hardware specialist.
-# Deterministic source of truth — trainer/generate_dataset.py expands these
+# Deterministic source of truth: trainer/generate_dataset.py expands these
 # into chat-format Q&A pairs (train.jsonl / valid.jsonl).
 #
 # Fields (omit when not applicable to the product type):

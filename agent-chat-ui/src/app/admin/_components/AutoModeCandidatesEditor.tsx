@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 
-// { profile: { intent: [model_id, ...] } } — mirrors cortex auto_mode.yaml.
+// { profile: { intent: [model_id, ...] } }, mirrors cortex auto_mode.yaml.
 type Profiles = Record<string, Record<string, string[]>>;
 
 interface ModelOpt {
@@ -204,7 +204,7 @@ export default function AutoModeCandidatesEditor({
             Auto-mode candidates
           </h3>
           <p className="text-muted-foreground text-xs">
-            Per-intent model order for each profile — the first enabled model
+            Per-intent model order for each profile, the first enabled model
             wins. Your edits layer over the shipped defaults.
           </p>
         </div>
@@ -253,7 +253,7 @@ export default function AutoModeCandidatesEditor({
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : intents.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No defaults published yet — send one chat in Auto mode so the
+              No defaults published yet, send one chat in Auto mode so the
               graph mirrors its shipped candidate lists here.
             </p>
           ) : (
@@ -310,7 +310,7 @@ export default function AutoModeCandidatesEditor({
                             title={
                               isKnown(id)
                                 ? id
-                                : `${id} — not an enabled registry model`
+                                : `${id}, not an enabled registry model`
                             }
                           >
                             {labelFor(id)}
@@ -353,7 +353,7 @@ export default function AutoModeCandidatesEditor({
                       ))}
                       {list.length === 0 && (
                         <li className="text-muted-foreground text-xs italic">
-                          No candidates — this intent falls back to the fast
+                          No candidates, this intent falls back to the fast
                           tier.
                         </li>
                       )}

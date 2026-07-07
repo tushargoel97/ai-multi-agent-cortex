@@ -2,21 +2,21 @@
 
 A production-shaped, general-purpose AI assistant built as a multi-agent
 system on top of [LangGraph](https://langchain-ai.github.io/langgraph/).
-Cortex answers anything — factual lookups, math and code reasoning, small
+Cortex answers anything: factual lookups, math and code reasoning, small
 talk, image generation, and questions in any **domain you train it on**
-(hardware ships ready to use) from its own **self-trained local model** — while
+(hardware ships ready to use) from its own **self-trained local model**, while
 keeping the three trust pillars that
 distinguish a real product from a demo:
 
-1. **Observability** — every model and tool call is captured as a span
+1. **Observability**: every model and tool call is captured as a span
    in [Langfuse](https://langfuse.com/) via OpenTelemetry.
-2. **Evaluation** — golden-dataset tests run as `pytest` files using
+2. **Evaluation**: golden-dataset tests run as `pytest` files using
    [DeepEval](https://github.com/confident-ai/deepeval) and
    [RAGAS](https://github.com/explodinggradients/ragas) primitives.
-3. **Guardrails** — PII redaction, an image-safety gate, tool allowlists,
+3. **Guardrails**: PII redaction, an image-safety gate, tool allowlists,
    and human-in-the-loop interrupts are wired in as `langchain` middleware.
 
-Everything is driveable from the UI — model/provider management, local-model
+Everything is driveable from the UI: model/provider management, local-model
 downloads, the fine-tuning pipeline, **tool & MCP-server control**, and **agent
 editing (system prompts, tool access, and custom agents)** all live in the
 `/admin` console; no CLI steps are required for day-to-day use.
@@ -33,9 +33,9 @@ editing (system prompts, tool access, and custom agents)** all live in the
        │ LangGraph SDK over HTTP
        ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│  Custom durable server (:2024) — cortex graph                         │
+│  Custom durable server (:2024) - cortex graph                         │
 │                                                                       │
-│  START ─▶ route ─┬─ specialist  (fine-tuned local model — bypass)     │
+│  START ─▶ route ─┬─ specialist  (fine-tuned local model - bypass)     │
 │                  └─ router ─┬─ generalist     ───────────────▶ END    │
 │                            ├─ prompt_cacher ──────────────────▶ END   │
 │                            ├─ imagegen      ──────────────────▶ END   │
@@ -65,19 +65,19 @@ editing (system prompts, tool access, and custom agents)** all live in the
 | Agent           | Purpose                                                          | Tools                                                                     |
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `router`        | Classifies user intent into one of nine capability types        | none (structured output only)                                             |
-| `generalist`    | Default chat agent — greetings, opinions, creative tasks         | `get_current_time`, memory                                                |
+| `generalist`    | Default chat agent, greetings, opinions, creative tasks         | `get_current_time`, memory                                                |
 | `researcher`    | Factual questions, grounded answers with citations               | `search_knowledge_base`, `wikipedia_search`, `web_search`, `fetch_url`, `crypto_price`, memory |
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Specs & knowledge in any **trained domain** (hardware built-in; add your own) from a **self-trained** model (silent draft) | none; `spec_review` emits the answer — self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
-| `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
-| `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
-| `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
+| `specialist`    | Specs & knowledge in any **trained domain** (hardware built-in; add your own) from a **self-trained** model (silent draft) | none; `spec_review` emits the answer, self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
+| `imagegen`      | Generates images behind a two-layer safety gate                  | none; calls Google / OpenAI image APIs directly                          |
+| `shopping`      | Product shopping: direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
+| `booking`       | Booking: flights, hotels, movies, concerts, events, shows; dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
 | `synthesizer`   | Deterministic spec/comparison tables (via `render_spec_table`) + formatting pass over factual answers (worked math, grounding) | none (renders in-node) |
 
 > Every agent's **system prompt and tool access** is editable from **Admin →
-> Agents**, and you can create **custom agents** there — they auto-route via the
+> Agents**, and you can create **custom agents** there, they auto-route via the
 > router by their description, with no restart and no code.
 
 ### Routing
@@ -100,7 +100,7 @@ unavailable (e.g. a small local model that can't emit structured output), a
 keyword heuristic classifies the turn so the run never fails. The router also
 emits an optional `agent` field: when a **custom agent** (Admin → Agents) best
 fits the message, the turn routes to the generic `custom_agent` node that runs
-it — custom agents register live, with no graph rebuild.
+it, custom agents register live, with no graph rebuild.
 
 A deterministic guard runs **before** the classifier is trusted: if the message
 names an entity in **any trained domain**
@@ -109,12 +109,12 @@ longest-match-wins over every domain's facts), the router forces `product_specs`
 so a **trained** entity always reaches the fine-tuned `specialist` rather than
 being sent to web search.
 
-The `specialist` never speaks to the user directly — it produces a **silent
+The `specialist` never speaks to the user directly, it produces a **silent
 draft**, and a `spec_review` step emits the single visible answer. `spec_review`
 runs two things **in parallel** (so the table appears instantly, not after two
 serial LLM calls): a **self-critique** and the **table extraction**. The
 critique is cheap heuristics (refusal phrases, a product not in the training
-facts) plus a strict **LLM fact-check** that flags confidently-wrong answers —
+facts) plus a strict **LLM fact-check** that flags confidently-wrong answers, 
 wrong manufacturer, an impossible architecture (e.g. "CUDA cores" on an Apple
 chip), or an implausible figure. If it finds a gap it **logs it** and hands off
 to the `researcher`, which re-answers with **live web-RAG** so the user gets a
@@ -126,13 +126,13 @@ node (the specialist's table is already rendered in `spec_review`). For
 **product, hardware, or software spec and comparison** answers it renders the
 table **deterministically**: a model only *extracts* the structured data
 (columns + rows, copied verbatim) and code renders the markdown through the
-`render_spec_table` tool — so the answer always comes out as a valid table
+`render_spec_table` tool, so the answer always comes out as a valid table
 instead of relying on the model to format one (a guard blocks any invented
 number, and it falls back to prose only if nothing tabular could be extracted).
 Other factual answers get a lighter presentation pass that grounds drifted
 numbers against the authoritative spec YAMLs, and it **skips the reformat when
 the answer is already a table**. For `coder` answers it never lets the fast
-model touch the code — instead it runs a deterministic, parse-only syntax check
+model touch the code, instead it runs a deterministic, parse-only syntax check
 (Python via `ast`, JSON via `json`) and appends a heads-up when a complete code
 block is broken.
 
@@ -149,18 +149,18 @@ The routing chip in the transcript shows which model auto-mode picked.
 
 ### Tools, MCP & agents (admin-managed)
 
-The agent layer itself is configurable from the console — no code, no restart:
+The agent layer itself is configurable from the console, no code, no restart:
 
-- **Tools & MCP** (`/admin` → Tools) — enable/disable the built-in tools, add
+- **Tools & MCP** (`/admin` → Tools), enable/disable the built-in tools, add
   prebuilt **LangChain** tools from a catalog (Wikipedia, arXiv, PubMed, Stack
   Exchange, Tavily), and register external **MCP servers** (HTTP/stdio) whose
   tools become grantable to agents. Deleting a tool clears it from every agent
   and (for built-ins) stops it being re-seeded.
-- **Agents** (`/admin` → Agents) — edit any agent's **system prompt** and
+- **Agents** (`/admin` → Agents), edit any agent's **system prompt** and
   **tool access**, reset built-ins to their packaged defaults, and create
   **custom agents** (name + description + prompt + tools) that **auto-route via
   the router** by their description. Custom agents can use built-in, LangChain,
-  and MCP tools. Any agent can also be given **subagents** — other agents it
+  and MCP tools. Any agent can also be given **subagents**, other agents it
   delegates focused subtasks to on demand (agent-as-tool). A subagent runs in
   isolated context, shares the parent's long-term memory **read-only** (it can
   recall but never `save_memory`), and uses its own granted built-in/LangChain/
@@ -176,17 +176,17 @@ Every agent is given **today's date** and the user's **region** (derived from
 the browser locale/timezone) so date- and location-sensitive answers are
 correct by default.
 
-- **Web search & scraping** — `web_search` and `fetch_url` use a real search
+- **Web search & scraping**: `web_search` and `fetch_url` use a real search
   API when a key is set: **Firecrawl** (recommended; also powers JS/anti-bot
   page scraping), or **Brave** / **SerpAPI** / **Tavily**. Without a key they
-  fall back to a best-effort DuckDuckGo scrape, which is often blocked — so set
+  fall back to a best-effort DuckDuckGo scrape, which is often blocked, so set
   `FIRECRAWL_API_KEY` (or one of the others) in `.env` for real results.
-- **Shopping** — `product_prices` looks the product up live and returns the
+- **Shopping**: `product_prices` looks the product up live and returns the
   **actual product page** on each regional retailer with the **price** and an
   **in-stock** hint (region's own stores first, cheapest first), rendered as
   product cards with an *In stock* / *Out of stock* badge. Without a search key
   it falls back to per-retailer search links.
-- **Booking** — `find_bookings` builds **dated deep links** into each platform's
+- **Booking**: `find_bookings` builds **dated deep links** into each platform's
   live results (Google Flights, Skyscanner, KAYAK, MakeMyTrip, Cleartrip for
   flights; Booking.com / Google Hotels; Ticketmaster / SeatGeek / BookMyShow for
   events), rendered as booking cards. It never completes a purchase.
@@ -224,9 +224,9 @@ commands.
 Open the admin console at <http://localhost:3000/admin> (log in with
 `ADMIN_USERNAME` / `ADMIN_PASSWORD`) and:
 
-1. **Providers** — add an OpenAI, Azure, Anthropic, Google, or local
+1. **Providers**: add an OpenAI, Azure, Anthropic, Google, or local
    provider and paste its API key.
-2. **Models** — register the models you want and pick the active auto-mode
+2. **Models**: register the models you want and pick the active auto-mode
    profile. Mark one model as the default.
 
 Prefer a starter registry and knowledge base instead? See
@@ -244,48 +244,48 @@ the best model for the job.
 
 The whole stack runs in **Docker Compose**. The only component that is *not*
 containerized is the fine-tuning [`trainer`](#the-self-trained-domain-specialist)
-— it needs Apple-Silicon MLX and runs on the host.
+, it needs Apple-Silicon MLX and runs on the host.
 
 ### Services
 
 | Service     | Host port | Build                         | Role                                                               |
 | ----------- | --------- | ----------------------------- | ------------------------------------------------------------------ |
-| `db`        | 5432      | `pgvector/pgvector:pg16`      | Postgres — app registry/KB **and** durable graph state (see below) |
+| `db`        | 5432      | `pgvector/pgvector:pg16`      | Postgres, app registry/KB **and** durable graph state (see below) |
 | `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server ([`cortex/server`](cortex/server)) |
 | `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
 | `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models (reads `./models`) |
 | `mcp`       | 8811      | `docker/Dockerfile.langgraph` | FastMCP server exposing the stateless tools to external MCP clients |
-| `trainer` † | 8200      | host — `trainer/` (not Docker) | MLX LoRA fine-tuning service; writes fine-tuned GGUFs into `./models` |
-| `langfuse-*`| 4000      | `langfuse/*` (profile `observability`) | Tracing UI + worker (own Postgres/ClickHouse/Redis/MinIO) — captures every model & tool span |
-| `evals`     | —         | `docker/Dockerfile.evals` (profile `evals`) | One-shot runner for the pytest eval suites (faithfulness / routing / security) |
+| `trainer` † | 8200      | host, `trainer/` (not Docker) | MLX LoRA fine-tuning service; writes fine-tuned GGUFs into `./models` |
+| `langfuse-*`| 4000      | `langfuse/*` (profile `observability`) | Tracing UI + worker (own Postgres/ClickHouse/Redis/MinIO), captures every model & tool span |
+| `evals`     | n/a       | `docker/Dockerfile.evals` (profile `evals`) | One-shot runner for the pytest eval suites (faithfulness / routing / security) |
 
-† The **`trainer`** is the one component that is *not* containerized — MLX needs
+† The **`trainer`** is the one component that is *not* containerized, MLX needs
 the Apple GPU, so it runs on the host and reaches the stack over
 `host.docker.internal`. See [the specialist](#the-self-trained-domain-specialist).
 
 At a glance, each service owns one concern:
 
-- **`db`** — the single source of truth. Provider/model registry, tools & agents
+- **`db`**: the single source of truth. Provider/model registry, tools & agents
   config, knowledge base + embeddings, knowledge gaps, app settings, **and** the
   durable graph state (threads, checkpoints, long-term memory) all live here;
   it's the one volume you must not lose.
-- **`langgraph`** — the brain. Compiles and runs the multi-agent graph and serves
+- **`langgraph`**: the brain. Compiles and runs the multi-agent graph and serves
   the chat API the UI talks to.
-- **`ui`** — the only public face. The chat experience plus the `/admin` console;
+- **`ui`**: the only public face. The chat experience plus the `/admin` console;
   it also proxies admin calls to `ai` and to the host `trainer`.
-- **`ai`** — the local-inference engine. Serves GGUF models (downloaded or
+- **`ai`**: the local-inference engine. Serves GGUF models (downloaded or
   fine-tuned) over an OpenAI-compatible API. Its models live in the **`./models`
   host bind mount**, so imported/fine-tuned GGUFs and the `catalog.json` registry
-  survive `ai` restarts *and* image rebuilds — only `docker compose down -v` or
+  survive `ai` restarts *and* image rebuilds, only `docker compose down -v` or
   deleting the files removes them.
-- **`mcp`** — re-exposes the stateless tools to external MCP clients (below).
+- **`mcp`**: re-exposes the stateless tools to external MCP clients (below).
 
 The **`mcp`** service is an *additive* [FastMCP](https://modelcontextprotocol.io)
 server ([`cortex/tools/mcp.py`](cortex/tools/mcp.py)) that re-exposes Cortex's
 **stateless** tools (web search, page fetch, Wikipedia, crypto, product prices,
 booking search, time, calculator) over MCP for external
 clients (Claude Desktop, IDEs, other agents). The chat graph uses the **same**
-tools in-process, so this server is never in the assistant's critical path — it
+tools in-process, so this server is never in the assistant's critical path, it
 adds no latency and its downtime can't affect the app. Stateful tools (memory,
 knowledge base) that need the runtime store / DB session stay in-process only.
 
@@ -302,26 +302,26 @@ The `langgraph` service runs a compact, self-hosted FastAPI app
 ([`cortex/server`](cortex/server)) that implements the subset of the LangGraph
 Platform REST + SSE API the chat UI's `useStream` client speaks. It replaces
 the licensed LangGraph Platform image and the earlier in-memory `langgraph
-dev` runtime — **no LangSmith license and no Redis required.**
+dev` runtime, **no LangSmith license and no Redis required.**
 
-- **Durable state** — the graph is compiled with an `AsyncPostgresSaver`
+- **Durable state**: the graph is compiled with an `AsyncPostgresSaver`
   checkpointer and an `AsyncPostgresStore`, so chat threads, checkpoints, and
   long-term semantic memory all persist in Postgres (`db`). The server opens
   **three dedicated connection pools** (checkpointer / store / app-threads) so
   the parallel work in `spec_review` can't collide on one pinned connection
   (psycopg "another command is already in progress"). Conversations survive
   container restarts, image rebuilds, and version upgrades.
-- **Ports** — the server binds `8000` inside the container and is published as
+- **Ports**: the server binds `8000` inside the container and is published as
   `2024:8000`. The UI container reaches it at `http://langgraph:8000` over the
   compose network; host tooling and the eval suite use `http://localhost:2024`.
-- **Startup order** — the FastAPI lifespan opens a psycopg pool, runs the
+- **Startup order**: the FastAPI lifespan opens a psycopg pool, runs the
   checkpointer/store migrations, and compiles the graph before serving. It
   waits for `db` to be healthy and exposes a `/ok` health check that `ui`
   gates on (`depends_on: condition: service_healthy`).
-- **Schema** — the saver/store tables (`checkpoints`, `checkpoint_blobs`,
+- **Schema**: the saver/store tables (`checkpoints`, `checkpoint_blobs`,
   `checkpoint_writes`, `store`, `store_vectors`) plus a small `threads`
   metadata table are created automatically in the same `cortex` database as
-  the app tables — no manual migration step.
+  the app tables, no manual migration step.
 
 ### Bring the stack up / rebuild
 
@@ -353,7 +353,7 @@ docker compose exec langgraph /app/.venv/bin/python -m cortex.db.seed --embeddin
 
 ```bash
 docker compose down            # stop the stack (keeps all data)
-docker compose down -v         # also drop the pgdata volume — wipes the
+docker compose down -v         # also drop the pgdata volume, wipes the
                                # registry, KB, AND all chat threads
 ```
 
@@ -387,40 +387,40 @@ code and the durable server (the server normalizes the driver suffix).
 ## The self-trained domain specialist
 
 Cortex ships a **`specialist`** agent backed by a small model (Gemma 3 1B)
-fine-tuned on curated data across the **domains you choose** — a built-in
+fine-tuned on curated data across the **domains you choose**, a built-in
 **hardware** domain (gaming consoles, PC, and mobile/laptop processors) ships
 ready to train, and you can define your own domains and subdomains from the UI.
-It answers from its own weights — and when asked about something outside its
+It answers from its own weights, and when asked about something outside its
 trained domains (or it gets a fact wrong), `spec_review` logs a knowledge gap
 and hands off to the `researcher` for a **web-RAG** answer, so the user still
 gets an accurate one (see [Routing](#routing)). Its **identity and off-domain
-replies are domain-aware** — they reflect whatever you trained on, not a fixed
+replies are domain-aware**, they reflect whatever you trained on, not a fixed
 domain. The whole sources → dataset → train → register loop is driven from
 **Admin → Fine-Tuning**:
 
-1. **Manage Domains** — the built-in **hardware** domain is ready to train, or
+1. **Manage Domains**: the built-in **hardware** domain is ready to train, or
    create your own **domains → subdomains** (each with its own fields/schema)
    and tick which subdomains to include in the next run. **One model** is
    trained across every selected subdomain.
-2. **Sources** — upload PDFs or spec-sheet images, add URLs, or give a
+2. **Sources**: upload PDFs or spec-sheet images, add URLs, or give a
    **research topic** prompt (e.g. "Apple Silicon A- and M-series chip specs").
-3. **Import specs** — a **domain-aware smart import** reads every source and
+3. **Import specs**: a **domain-aware smart import** reads every source and
    proposes which domain/subdomain + schema + entities to add for you to
    **review and approve** before anything is written: AMD's DB via a JSON
    parser, uploaded docs via a vision model, and an LLM **scrape-agent** for any
-   other URL (it respects robots / anti-bot 403s — never evades them).
+   other URL (it respects robots / anti-bot 403s, never evades them).
    Web/topic search uses the same provider chain as the app
    (`FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily). Sources become *facts*, not
    invented Q&A.
-4. **Generate dataset** — **deterministically** expands the selected domains'
+4. **Generate dataset**: **deterministically** expands the selected domains'
    facts into spec / overview / comparison / buying-advice / off-domain-refusal
    / **domain-aware identity** examples → `train.jsonl` / `valid.jsonl`
    ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)). **View
    dataset** shows the generated pairs so you can eyeball them before training.
-5. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
+5. **Train → Convert & Register**: MLX LoRA fine-tune on the host, fuse,
    export to GGUF, and register it in the `ai` service under the `finetuned-`
    prefix (newest wins).
-6. **Knowledge gaps** — questions the specialist got wrong or wasn't trained on
+6. **Knowledge gaps**: questions the specialist got wrong or wasn't trained on
    are logged as gaps (by `spec_review`); "Research gaps" pulls specs from the
    web into `learned_facts.yaml`, and the next dataset → retrain bakes them into
    the model's weights.
@@ -433,7 +433,7 @@ bash setup.sh                                   # one-time: vendor llama.cpp
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8200
 ```
 
-The `ai` service also serves any GGUF from the Hugging Face catalog — search,
+The `ai` service also serves any GGUF from the Hugging Face catalog, search,
 download, and load models from **Admin → Local Models**.
 
 ---
@@ -465,9 +465,9 @@ uv run pytest evals/ -v
 
 Provided suites:
 
-- `evals/test_routing.py` — router classifies intents correctly
-- `evals/test_faithfulness.py` — researcher grounds answers in the KB
-- `evals/test_security.py` — direct prompt-injection resistance
+- `evals/test_routing.py`, router classifies intents correctly
+- `evals/test_faithfulness.py`, researcher grounds answers in the KB
+- `evals/test_security.py`, direct prompt-injection resistance
 
 The shared `evals/conftest.py` provides an `agent_runner` fixture that
 hits the running LangGraph API at `http://localhost:2024`. Add new test
@@ -485,7 +485,7 @@ PIIMiddleware("email",       strategy="redact", apply_to_output=True)
 
 Optional middleware shipped in `cortex/guardrails.py`:
 
-- `ToolAllowlistMiddleware(allowed_tools=...)` — hard-blocks any tool
+- `ToolAllowlistMiddleware(allowed_tools=...)`, hard-blocks any tool
   call whose name is not on the allowlist, defending against tool-name
   hallucinations.
 
@@ -555,20 +555,20 @@ ai-multi-agent-cortex/
 
 ## Adding new capabilities
 
-1. **New tool** — add a function in `cortex/tools/`, decorate with
+1. **New tool**: add a function in `cortex/tools/`, decorate with
    `@register_tool`, and import the module from `cortex/tools/__init__.py`.
    To add a tool **without code**, enable a prebuilt LangChain tool or register
    an external MCP server in **Admin → Tools**.
-2. **New agent** — for a graph-level agent, add a `---` document in
+2. **New agent**: for a graph-level agent, add a `---` document in
    `cortex/declarative/agents.yaml` with its `name` and `whitelisted_tools`,
    add a member to the `Agents` enum, and a node in `cortex/workflow.py`. For a
-   **custom agent with no code**, create one in **Admin → Agents** — it
+   **custom agent with no code**, create one in **Admin → Agents**, it
    auto-routes via the router by its description.
-3. **New routing label** — extend `Intent` in `cortex/workflow.py`,
+3. **New routing label**: extend `Intent` in `cortex/workflow.py`,
    update `_INTENT_TO_NODE`, add the label to `router.yaml`, and give the
    intent a candidate list in each profile of
    `cortex/declarative/auto_mode.yaml` so auto mode can serve it.
-4. **New model / provider** — no code change: add it in **Admin →
+4. **New model / provider**: no code change: add it in **Admin →
    Providers / Models**. Reference the model in `auto_mode.yaml` by its
    `model_id` to fold it into auto mode.
 

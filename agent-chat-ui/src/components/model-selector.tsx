@@ -166,7 +166,7 @@ export default function ModelSelector({
               className="h-8 max-w-[220px] cursor-pointer appearance-none truncate rounded-full border border-border bg-muted/50 pl-8 pr-8 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value={AUTO_MODEL_ID}>
-                ✨ Auto — best model per task
+                ✨ Auto, best model per task
               </option>
               {!loaded && <option value="">Loading…</option>}
               {loaded && models.length === 0 && (
@@ -174,7 +174,7 @@ export default function ModelSelector({
               )}
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.display_name} — {m.provider_name}
+                  {m.display_name}, {m.provider_name}
                   {m.is_default ? " (default)" : ""}
                 </option>
               ))}

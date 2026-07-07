@@ -133,12 +133,12 @@ const OUTCOME_STYLES: Record<string, string> = {
 const BASE_MODELS = [
   {
     id: "unsloth/gemma-3-1b-it",
-    label: "Gemma 3 1B — recommended (~2 GB, fast train + serve, no HF login)",
+    label: "Gemma 3 1B, recommended (~2 GB, fast train + serve, no HF login)",
     output: "finetuned-gemma3-1b-hardware",
   },
   {
     id: "google/gemma-4-e2b-it",
-    label: "Gemma 4 E2B — highest quality, 9.5 GB, slow on CPU",
+    label: "Gemma 4 E2B, highest quality, 9.5 GB, slow on CPU",
     output: "finetuned-gemma4-e2b-hardware",
   },
 ];
@@ -279,7 +279,7 @@ export default function FinetunePanel({
       const r = await fetch("/api/admin/trainer/sources", { headers: headers() });
       if (r.ok) setSources((await r.json()).sources ?? []);
     } catch {
-      /* trainer down — handled by refresh() */
+      /* trainer down, handled by refresh() */
     }
   }, [headers]);
 
@@ -288,7 +288,7 @@ export default function FinetunePanel({
       const r = await fetch("/api/admin/gaps", { headers: headers() });
       if (r.ok) setGaps((await r.json()).gaps ?? []);
     } catch {
-      /* db down — non-fatal */
+      /* db down, non-fatal */
     }
   }, [headers]);
 
@@ -314,7 +314,7 @@ export default function FinetunePanel({
         }
       }
     } catch {
-      /* trainer down — handled by refresh() */
+      /* trainer down, handled by refresh() */
     }
   }, [headers]);
 
@@ -406,7 +406,7 @@ export default function FinetunePanel({
       setProposal(null);
       setProposalDismissed(false);
       if (importTarget === "hardware:crawl") {
-        // Deep hardware crawl — writes directly to hardware (no review step).
+        // Deep hardware crawl, writes directly to hardware (no review step).
         await post("scrape", { sources: items, max_products: 30 });
       } else {
         // Domain-aware: propose a domain/subdomain + schema for review.
@@ -465,7 +465,7 @@ export default function FinetunePanel({
       const form = new FormData();
       form.append("file", file);
       const t = getAdminToken();
-      // No Content-Type header — the browser sets the multipart boundary.
+      // No Content-Type header, the browser sets the multipart boundary.
       const r = await fetch("/api/admin/trainer/sources/upload", {
         method: "POST",
         headers: { "X-Admin-Token": t || "" },
@@ -591,7 +591,7 @@ export default function FinetunePanel({
   };
 
   // Quick top-up: warm-start from the current adapters (resume=true) and train
-  // fewer iters — teaches newly-added facts without a full retrain. The base
+  // fewer iters, teaches newly-added facts without a full retrain. The base
   // is taken from the adapters' base_model.txt on the trainer side.
   const startTopUp = async () => {
     setBusy("train");
@@ -662,7 +662,7 @@ export default function FinetunePanel({
 
       // Register in the model registry so it appears in the chat dropdown.
       // The `finetuned-` model_id prefix is how the cortex specialist agent
-      // discovers this model — do not strip it.
+      // discovers this model, do not strip it.
       const provs = await fetch("/api/admin/providers", {
         headers: headers(),
       }).then((x) => x.json());
@@ -737,7 +737,7 @@ export default function FinetunePanel({
         );
       }
     } catch {
-      /* registry unavailable — ignore */
+      /* registry unavailable, ignore */
     }
   }, [headers]);
 
@@ -834,7 +834,7 @@ export default function FinetunePanel({
             <p className="font-medium">Trainer service is not reachable.</p>
             <p className="mt-1">
               The fine-tuning service runs on the host (MLX needs the Apple
-              Silicon GPU — it can’t run inside Docker). Start it with:
+              Silicon GPU, it can’t run inside Docker). Start it with:
             </p>
             <pre className="mt-2 rounded bg-amber-500/15 p-2 text-xs">
               cd trainer && uv run uvicorn app.main:app --host 0.0.0.0 --port 8200
@@ -853,7 +853,7 @@ export default function FinetunePanel({
         </div>
       )}
 
-      {/* 1 — Dataset */}
+      {/* 1, Dataset */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -890,12 +890,12 @@ export default function FinetunePanel({
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           Builds the chat-format Q&amp;A training set for the subdomains you
-          toggle on below — one model trains across all of them. Create your own
+          toggle on below, one model trains across all of them. Create your own
           domains/subdomains, add rows, or Smart-import sources. Web research
           needs a FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in your .env.
         </p>
 
-        {/* Import sources — Smart import routes them to any domain/subdomain */}
+        {/* Import sources, Smart import routes them to any domain/subdomain */}
         <div className="mt-4 rounded-md border border-dashed p-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-foreground">Sources</p>
@@ -928,7 +928,7 @@ export default function FinetunePanel({
             </ul>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground/70">
-              None yet — add PDFs, links, or a research topic, then Smart import
+              None yet, add PDFs, links, or a research topic, then Smart import
               routes them to a domain/subdomain (auto-detected, or the one you
               pick).
             </p>
@@ -1000,7 +1000,7 @@ export default function FinetunePanel({
                 )),
               )}
               <option value="hardware:crawl">
-                Hardware — deep crawl (direct)
+                Hardware, deep crawl (direct)
               </option>
             </select>
             <Button
@@ -1033,7 +1033,7 @@ export default function FinetunePanel({
         {phase === "importing" && (
           <p className="mt-3 text-sm text-muted-foreground">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
-            Analyzing sources —{" "}
+            Analyzing sources, {" "}
             <span className="font-mono">
               {status.scrape_current ?? "working\u2026"}
             </span>
@@ -1074,7 +1074,7 @@ export default function FinetunePanel({
               />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Fields: {proposal.fields.map((f) => f.key).join(", ") || "—"}
+              Fields: {proposal.fields.map((f) => f.key).join(", ") || "-"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {proposal.entities.length} entit
@@ -1142,7 +1142,7 @@ export default function FinetunePanel({
         {phase === "scraping" && (
           <p className="mt-3 text-sm text-muted-foreground">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
-            Importing specs {status.scrape_done ?? 0}/{status.scrape_total ?? "…"} —{" "}
+            Importing specs {status.scrape_done ?? 0}/{status.scrape_total ?? "…"}, {" "}
             <span className="font-mono">{status.scrape_current}</span>
           </p>
         )}
@@ -1152,7 +1152,7 @@ export default function FinetunePanel({
             Learned {status.products_learned ?? 0} product(s)
             {(status.scrape_errors?.length ?? 0) > 0 &&
               ` · skipped sources: ${status.scrape_errors!.join("; ").slice(0, 160)}`}
-            {" — now Generate dataset."}
+            {", now Generate dataset."}
           </p>
         )}
         {phase === "scrape_done" &&
@@ -1173,7 +1173,7 @@ export default function FinetunePanel({
                       {o.url}
                     </span>
                     {o.detail ? (
-                      <span className="text-muted-foreground"> — {o.detail}</span>
+                      <span className="text-muted-foreground">, {o.detail}</span>
                     ) : null}
                   </span>
                 </li>
@@ -1238,14 +1238,14 @@ export default function FinetunePanel({
               <p className="p-3 text-xs text-muted-foreground">
                 {preview.exists
                   ? "No pairs in this split."
-                  : "This split isn't generated yet — run Generate dataset (with your sources) first."}
+                  : "This split isn't generated yet, run Generate dataset (with your sources) first."}
               </p>
             )}
           </div>
         )}
       </section>
 
-      {/* Knowledge gaps — self-improvement loop */}
+      {/* Knowledge gaps, self-improvement loop */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1274,7 +1274,7 @@ export default function FinetunePanel({
         <p className="mt-2 text-sm text-muted-foreground">
           Questions the specialist couldn&apos;t answer are captured here
           automatically. Research looks up the missing specs on the web and
-          adds them to the training data — then Generate dataset → Train bakes
+          adds them to the training data, then Generate dataset → Train bakes
           them into the model&apos;s weights. The model never browses at answer
           time.
         </p>
@@ -1322,20 +1322,20 @@ export default function FinetunePanel({
           </ul>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground/70">
-            No gaps captured yet — they appear when users ask about hardware
+            No gaps captured yet, they appear when users ask about hardware
             the model doesn&apos;t know.
           </p>
         )}
         {gaps.some((g) => g.status === "researched") && (
           <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
             <RefreshCw className="mr-1 inline size-4" />
-            Researched gaps ready — run Generate dataset, then Train, then
+            Researched gaps ready, run Generate dataset, then Train, then
             Convert &amp; Register to teach the model.
           </p>
         )}
       </section>
 
-      {/* 2 — Train */}
+      {/* 2, Train */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1355,7 +1355,7 @@ export default function FinetunePanel({
                 disabled={jobRunning || !hasDataset || !hasAdapters}
                 title={
                   hasAdapters
-                    ? "Warm-start from the current adapters and train fewer iters (≈400 recommended) — teaches new facts without a full retrain"
+                    ? "Warm-start from the current adapters and train fewer iters (≈400 recommended), teaches new facts without a full retrain"
                     : "Run a full training once before a quick top-up"
                 }
               >
@@ -1448,15 +1448,15 @@ export default function FinetunePanel({
 
         <p className="mt-2 text-xs text-muted-foreground/70">
           {hasAdapters
-            ? "Only change the base / search Hugging Face to SWITCH base models. Retraining the existing model on the same base — a full “Start training” (fresh adapters) or a “Quick top-up” (warm-start) — needs no change here."
-            : "Choose the base model to train from — a preset, or “Search Hugging Face…” for any text-generation repo."}
+            ? "Only change the base / search Hugging Face to SWITCH base models. Retraining the existing model on the same base, a full “Start training” (fresh adapters) or a “Quick top-up” (warm-start), needs no change here."
+            : "Choose the base model to train from, a preset, or “Search Hugging Face…” for any text-generation repo."}
         </p>
 
         {showHf && (
           <div className="mt-3 rounded-md border bg-muted/30 p-3">
             <div className="flex items-center gap-2">
               <Input
-                placeholder="Search Hugging Face — e.g. Qwen3 4B instruct, Llama 3.2 3B"
+                placeholder="Search Hugging Face, e.g. Qwen3 4B instruct, Llama 3.2 3B"
                 value={hfQuery}
                 disabled={training}
                 onChange={(e) => setHfQuery(e.target.value)}
@@ -1541,15 +1541,15 @@ export default function FinetunePanel({
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
               <span>
-                Iteration {status.iter ?? 0} / {status.total_iters ?? "—"}
+                Iteration {status.iter ?? 0} / {status.total_iters ?? "-"}
               </span>
               <span>
                 Train loss:{" "}
-                {status.train_loss != null ? status.train_loss.toFixed(3) : "—"}
+                {status.train_loss != null ? status.train_loss.toFixed(3) : "-"}
               </span>
               <span>
                 Val loss:{" "}
-                {status.val_loss != null ? status.val_loss.toFixed(3) : "—"}
+                {status.val_loss != null ? status.val_loss.toFixed(3) : "-"}
               </span>
               {phase === "trained" && (
                 <span className="text-emerald-600 dark:text-emerald-400">
@@ -1560,7 +1560,7 @@ export default function FinetunePanel({
             </div>
             {phase === "trained" && (
               <p className="text-xs text-muted-foreground">
-                LoRA adapters saved (<code>adapters.safetensors</code>) — not a
+                LoRA adapters saved (<code>adapters.safetensors</code>), not a
                 servable model yet. Run <strong>Convert &amp; Register</strong>{" "}
                 below to fuse them into a GGUF the chat can load.
               </p>
@@ -1580,7 +1580,7 @@ export default function FinetunePanel({
         )}
       </section>
 
-      {/* 3 — Convert & register */}
+      {/* 3, Convert & register */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1628,7 +1628,7 @@ export default function FinetunePanel({
           <p className="mt-3 text-sm text-muted-foreground">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
             GGUF built
-            {status.gguf_filename ? ` (${status.gguf_filename})` : ""} — importing
+            {status.gguf_filename ? ` (${status.gguf_filename})` : ""}, importing
             into the local model service and registering it…
           </p>
         )}
@@ -1652,7 +1652,7 @@ export default function FinetunePanel({
         )}
       </section>
 
-      {/* 4 — Fine-tuned models */}
+      {/* 4, Fine-tuned models */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center gap-2">
           <Database className="size-4 text-muted-foreground" />
@@ -1682,7 +1682,7 @@ export default function FinetunePanel({
           </ul>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground/70">
-            No fine-tuned models registered yet — train one, then Convert &amp;
+            No fine-tuned models registered yet, train one, then Convert &amp;
             Register.
           </p>
         )}

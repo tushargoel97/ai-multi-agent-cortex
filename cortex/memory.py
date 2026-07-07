@@ -1,4 +1,4 @@
-"""Memory support — embeddings for the LangGraph store index + shared constants.
+"""Memory support, embeddings for the LangGraph store index + shared constants.
 
 Long-term memory lives in the LangGraph runtime store (namespace ``memories``),
 semantically indexed via the ``store.index`` config in langgraph.json which
@@ -28,7 +28,7 @@ async def aembed_texts(texts: list[str]) -> list[list[float]]:
 
     Uses the registry-aware embedding client (OpenAI key from the DB registry
     or env). On failure it returns zero vectors so memory writes still succeed
-    — semantic ranking degrades until embeddings are configured.
+, semantic ranking degrades until embeddings are configured.
     """
     texts = list(texts)
     try:
@@ -38,6 +38,6 @@ async def aembed_texts(texts: list[str]) -> list[list[float]]:
         return await asyncio.to_thread(client.embed_documents, texts)
     except Exception:  # noqa: BLE001
         logger.exception(
-            "Embedding failed — storing zero vectors (semantic memory search degraded)"
+            "Embedding failed, storing zero vectors (semantic memory search degraded)"
         )
         return [[0.0] * EMBED_DIMS for _ in texts]

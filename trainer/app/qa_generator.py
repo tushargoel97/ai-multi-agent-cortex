@@ -6,7 +6,7 @@ OpenAI (or any compatible endpoint) for higher-quality generation.
 
 Used by the scrape agent / gap research (``_chat`` in research.py) and by image
 source transcription (``transcribe_image``). The old raw-chunk Q&A-pair
-generator was removed — sources now become structured spec sheets in
+generator was removed, sources now become structured spec sheets in
 learned_facts.yaml via the scrape agent, not invented Q&A pairs.
 """
 
@@ -34,7 +34,7 @@ def _resolve_model(client: httpx.Client, base_url: str) -> str:
 
 _VISION_PROMPT = (
     "Transcribe this document image for a hardware-specs dataset. Output ALL "
-    "text, tables, and specifications exactly as shown — preserve every number, "
+    "text, tables, and specifications exactly as shown, preserve every number, "
     "unit, and model name, and reproduce tables row by row as plain text. Do "
     "not summarize or add anything not in the image; output only the transcription."
 )
@@ -44,7 +44,7 @@ def transcribe_image(image_bytes: bytes, mime: str) -> str:
     """Transcribe an image to text via the vision-capable QA model.
 
     Reuses the OpenAI-compatible endpoint (TRAINER_QA_*). The configured model
-    MUST accept image input (OpenAI gpt-4o, Gemini, a local VLM, …) — the
+    MUST accept image input (OpenAI gpt-4o, Gemini, a local VLM, …), the
     default local Gemma 1B cannot, so point TRAINER_QA_* at a vision model.
     """
     import base64
@@ -80,7 +80,7 @@ def transcribe_image(image_bytes: bytes, mime: str) -> str:
         text = resp.json()["choices"][0]["message"]["content"].strip()
     if not text:
         raise RuntimeError(
-            "Vision model returned no text — point TRAINER_QA_* at a model that "
+            "Vision model returned no text, point TRAINER_QA_* at a model that "
             "accepts images (e.g. OpenAI gpt-4o)."
         )
     return text

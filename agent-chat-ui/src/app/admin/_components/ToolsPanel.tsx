@@ -118,7 +118,7 @@ export default function ToolsPanel() {
       !(await confirm({
         title: `Delete "${t.name}"?`,
         description:
-          "It won't be re-added on restart — you can Restore it later.",
+          "It won't be re-added on restart, you can Restore it later.",
       }))
     )
       return;
@@ -328,7 +328,7 @@ export default function ToolsPanel() {
           ))}
           {tools.length === 0 && (
             <li className="px-3 py-4 text-sm text-muted-foreground">
-              No tools yet — the langgraph server seeds built-ins on startup.
+              No tools yet, the langgraph server seeds built-ins on startup.
             </li>
           )}
         </ul>

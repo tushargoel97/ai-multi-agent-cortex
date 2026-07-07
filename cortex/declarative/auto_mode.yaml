@@ -1,4 +1,4 @@
-# Auto mode: per-intent model candidates, tried in order — the first model
+# Auto mode: per-intent model candidates, tried in order: the first model
 # that is enabled in the registry (model + provider) wins. The keyword
 # `finetuned` resolves to the newest enabled `finetuned-*` local model.
 # `fast` is the utility tier (router classification, synthesizer, guardrails,

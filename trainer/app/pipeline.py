@@ -97,7 +97,7 @@ def start_training(
         # base recorded in base_model.txt and ignore any requested override.
         if not adapter_file.exists():
             raise FileNotFoundError(
-                f"no existing adapters at {adapter_file} — run a full train "
+                f"no existing adapters at {adapter_file}, run a full train "
                 "before a quick top-up"
             )
         marker = _base_model_marker()
@@ -142,7 +142,7 @@ def start_training(
         cmd += ["--resume-adapter-file", str(adapter_file)]
 
     settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
-    # Remember which base these adapters belong to — fusing against a
+    # Remember which base these adapters belong to, fusing against a
     # different base than trained silently produces a broken model.
     settings.adapters_dir.mkdir(parents=True, exist_ok=True)
     _base_model_marker().write_text(base)
@@ -180,7 +180,7 @@ def _watch_training(proc: subprocess.Popen) -> None:
             _status["phase"] = "trained"
         else:
             _status["phase"] = "error"
-            _status["error"] = f"training exited with code {code} — see log_tail"
+            _status["error"] = f"training exited with code {code}, see log_tail"
 
 
 def stop() -> bool:
@@ -355,7 +355,7 @@ def _run_gap_research(gaps: list[dict]) -> None:
                     if entry.get("exists", True):
                         summaries.append(f"{name}: specs learned")
                     else:
-                        summaries.append(f"{name}: not a real product — {entry.get('notes', '')[:80]}")
+                        summaries.append(f"{name}: not a real product, {entry.get('notes', '')[:80]}")
                 status = "researched" if summaries else "failed"
             except Exception as e:  # noqa: BLE001
                 log(f"  !! {type(e).__name__}: {e}")
@@ -381,11 +381,11 @@ def start_convert(output_name: str) -> None:
             raise JobConflictError(f"a job is already running (phase={_status['phase']})")
         if not (settings.adapters_dir / "adapters.safetensors").exists():
             raise FileNotFoundError(
-                f"no trained adapters at {settings.adapters_dir} — train first"
+                f"no trained adapters at {settings.adapters_dir}, train first"
             )
         if not settings.convert_script.exists():
             raise FileNotFoundError(
-                f"{settings.convert_script} missing — run `bash trainer/setup.sh` first"
+                f"{settings.convert_script} missing, run `bash trainer/setup.sh` first"
             )
         _reset("fusing", job="convert", output_name=output_name)
     threading.Thread(target=_run_convert, args=(output_name,), daemon=True).start()
@@ -396,7 +396,7 @@ def _sanitize_fused_tokenizer() -> None:
 
     Gemma 3 text checkpoints ship the family-shared tokenizer, which includes
     multimodal specials (e.g. <image_soft_token> at id 262144) beyond the text
-    model's embedding rows — llama.cpp's converter asserts on those.
+    model's embedding rows, llama.cpp's converter asserts on those.
     """
     import json
 
@@ -419,7 +419,7 @@ def _sanitize_fused_tokenizer() -> None:
     with _lock:
         _log(f"Dropped {len(over)} out-of-vocab tokenizer token(s): {sorted(dropped)}")
 
-    # Scrub every reference in tokenizer_config — transformers re-registers
+    # Scrub every reference in tokenizer_config, transformers re-registers
     # named special tokens at runtime (assigning fresh out-of-range ids) if
     # they are referenced but missing from the vocab.
     tc_path = settings.fused_dir / "tokenizer_config.json"
@@ -444,7 +444,7 @@ def _sanitize_fused_tokenizer() -> None:
 def _run_convert(output_name: str) -> None:
     gguf_path = settings.models_dir / f"{output_name}.gguf"
     # Write to a temp file and atomically rename: the ai service may have the
-    # old GGUF mmap'd (llama.cpp) — truncating that inode in place crashes it.
+    # old GGUF mmap'd (llama.cpp), truncating that inode in place crashes it.
     tmp_path = settings.models_dir / f"{output_name}.gguf.tmp"
     steps = [
         (
@@ -486,7 +486,7 @@ def _run_convert(output_name: str) -> None:
             if result.returncode != 0:
                 _snapshot_logs()
                 _status["phase"] = "error"
-                _status["error"] = f"{phase} failed (exit {result.returncode}) — see log_tail"
+                _status["error"] = f"{phase} failed (exit {result.returncode}), see log_tail"
                 return
 
     tmp_path.replace(gguf_path)

@@ -1,4 +1,4 @@
-"""Security tests — direct prompt-injection resistance.
+"""Security tests, direct prompt-injection resistance.
 
 Run:
     pytest evals/test_security.py -v

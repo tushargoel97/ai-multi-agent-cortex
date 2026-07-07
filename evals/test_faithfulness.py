@@ -1,4 +1,4 @@
-"""Faithfulness tests — researcher must ground answers in the local KB.
+"""Faithfulness tests, researcher must ground answers in the local KB.
 
 Run:
     pytest evals/test_faithfulness.py -v

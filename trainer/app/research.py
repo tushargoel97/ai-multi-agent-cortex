@@ -1,9 +1,9 @@
-"""Gap research — turn unanswered hardware questions into training facts.
+"""Gap research, turn unanswered hardware questions into training facts.
 
 For each knowledge gap: extract the product names the user asked about,
 search the web for their specs, distill the findings into a facts.yaml-style
 entry via the QA LLM, and append it to data/learned_facts.yaml. The next
-dataset generation + fine-tune bakes the knowledge into the model's weights —
+dataset generation + fine-tune bakes the knowledge into the model's weights, 
 the web is only ever used here, between training runs.
 """
 
@@ -87,7 +87,7 @@ def extract_product_names(question: str) -> list[str]:
         if isinstance(names, list) and names:
             return [str(n).strip() for n in names if str(n).strip()][:4]
     except Exception:  # noqa: BLE001
-        logger.exception("LLM name extraction failed — falling back to raw question")
+        logger.exception("LLM name extraction failed, falling back to raw question")
     return [question.strip()[:60]]
 
 
@@ -103,7 +103,7 @@ produce STRICT JSON for the product "{name}" with exactly these keys:
 Rules:
 - Ground values ONLY in the source text; use null when the text doesn't say.
 - "exists": false if the text indicates this exact product was never released
-  (e.g. the user misremembered a name) — then explain in "notes" and name the
+  (e.g. the user misremembered a name), then explain in "notes" and name the
   closest real product.
 - "aliases": short names people use (e.g. "PS5 Slim").
 - Output the JSON object only.
@@ -149,7 +149,7 @@ def research_product(name: str, on_log=None) -> dict | None:
 
 
 def _validate_entry(entry: dict, log) -> dict:
-    """Deterministic sanity checks — small distiller models garble units."""
+    """Deterministic sanity checks, small distiller models garble units."""
     tflops = entry.get("compute_tflops")
     if isinstance(tflops, (int, float)) and not (0.1 <= tflops <= 5000):
         log(f"  fix: implausible compute_tflops={tflops} → dropped")
@@ -228,7 +228,7 @@ def distill_products_from_text(
 
 
 def _builtin_variants() -> set[str]:
-    """All names+aliases in the curated facts.yaml — research must never
+    """All names+aliases in the curated facts.yaml, research must never
     override or contradict these (it once saved 'PS5 Pro exists: false')."""
     path = _learned_path().parent / "facts.yaml"
     if not path.exists():
@@ -266,7 +266,7 @@ _MAKER_PREFIXES = (
 
 def _derive_aliases(name: str) -> set[str]:
     """Common short names people actually type, derived deterministically from
-    the canonical product name — the LLM distiller tends to alias SKU part
+    the canonical product name, the LLM distiller tends to alias SKU part
     codes (APL1W10, SM8850-AC) instead, which no one searches for.
 
     'Apple A16 Bionic'                  → {'A16 Bionic', 'A16'}
@@ -318,7 +318,7 @@ def save_learned_entry(entry: dict) -> bool:
     """
     new_variants = _entry_variants(entry)
     if new_variants & _builtin_variants():
-        return False  # curated product — research must not duplicate/contradict it
+        return False  # curated product, research must not duplicate/contradict it
     existing = load_learned()
     replaced = [e for e in existing if _entry_variants(e) & new_variants]
     entries = [e for e in existing if not (_entry_variants(e) & new_variants)]
@@ -347,7 +347,7 @@ def save_learned_entry(entry: dict) -> bool:
 # subdomain (proposing a schema) or extracts into a subdomain the admin picked,
 # returning a PROPOSAL for review. ``apply_import`` writes the approved result:
 # new packs are created and rows appended to the pack's learned facts (hardware
-# rows merge into its learned layer — the same place spec import writes).
+# rows merge into its learned layer: the same place spec import writes).
 
 _IMPORT_MAX_TEXT = 16000
 
@@ -355,7 +355,7 @@ _AUTO_IMPORT_PROMPT = """You are organizing scraped content into a training taxo
 Existing domains → subdomains:
 {existing}
 
-From the SOURCE TEXT: (1) pick the best-fitting domain and subdomain — REUSE an
+From the SOURCE TEXT: (1) pick the best-fitting domain and subdomain, REUSE an
 existing one when the content matches, otherwise propose new snake_case names;
 (2) define 4-8 entity fields; (3) extract every distinct entity.
 
@@ -366,7 +366,7 @@ Reply with STRICT JSON only:
   "entities": [{{"name": "str", "aliases": ["str"], "<field_key>": "value"}}]}}
 
 Use "spec_table" only for hardware / numeric-spec items, else "prose". Copy
-values from the text; omit unknowns. "name" is implicit — never a field. Skip
+values from the text; omit unknowns. "name" is implicit, never a field. Skip
 entities with fewer than 2 known fields. No commentary.
 
 SOURCE TEXT:

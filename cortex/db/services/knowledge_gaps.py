@@ -22,7 +22,7 @@ REFUSAL_MARKERS = (
 )
 
 # Product-looking phrases: if the user names one and the answer never mentions
-# it, the model silently substituted something else — that's a gap too.
+# it, the model silently substituted something else: that's a gap too.
 _PRODUCT_RE = re.compile(
     r"\b(?:"
     r"ps5(?:\s+\w+)?|playstation\s*5(?:\s+\w+)?|xbox(?:\s+series)?(?:\s+\w+)?|"

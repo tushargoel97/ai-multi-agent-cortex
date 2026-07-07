@@ -1,4 +1,4 @@
-"""OpenTelemetry instrumentation — sends LangGraph traces to self-hosted Langfuse.
+"""OpenTelemetry instrumentation, sends LangGraph traces to self-hosted Langfuse.
 
 Call ``setup_tracing()`` once at process startup, before any LangChain/LangGraph
 objects are created.  Everything else is automatic: the LangSmith OTEL bridge
@@ -6,9 +6,9 @@ instruments every LLM call, tool invocation, and agent step via the standard
 OpenTelemetry SDK.
 
 Required env vars (set in .env):
-    LANGFUSE_HOST        — e.g. http://localhost:4000
-    LANGFUSE_PUBLIC_KEY  — e.g. pk-lf-local-public
-    LANGFUSE_SECRET_KEY  — e.g. sk-lf-local-secret
+    LANGFUSE_HOST, e.g. http://localhost:4000
+    LANGFUSE_PUBLIC_KEY, e.g. pk-lf-local-public
+    LANGFUSE_SECRET_KEY, e.g. sk-lf-local-secret
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def setup_tracing() -> None:
     """Configure the global OTEL TracerProvider to export spans to Langfuse.
 
-    Safe to call multiple times — subsequent calls are no-ops once the provider
+    Safe to call multiple times, subsequent calls are no-ops once the provider
     is already configured.
     """
     public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "").strip()
@@ -38,7 +38,7 @@ def setup_tracing() -> None:
 
     if not public_key or not secret_key:
         logger.warning(
-            "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY not set — tracing disabled."
+            "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY not set, tracing disabled."
         )
         return
 

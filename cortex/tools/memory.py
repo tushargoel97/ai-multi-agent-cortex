@@ -1,4 +1,4 @@
-"""Long-term memory tools — save/recall durable facts across chat threads.
+"""Long-term memory tools, save/recall durable facts across chat threads.
 
 Backed by the LangGraph runtime store (semantic index configured in
 langgraph.json). Memories survive restarts together with thread state.
@@ -33,12 +33,12 @@ class SaveMemoryInput(BaseModel):
 @register_tool(args_schema=SaveMemoryInput)
 async def save_memory(fact: str) -> str:
     """Persist a lasting fact about the user (name, preferences, projects,
-    hardware, goals) so future conversations — in any thread — can use it.
+    hardware, goals) so future conversations, in any thread, can use it.
     Call this when the user shares something worth remembering long-term."""
     try:
         store = get_store()
         await store.aput(MEMORY_NAMESPACE, str(uuid.uuid4()), {"content": fact})
-    except Exception:  # noqa: BLE001 — long-term store down; never break the agent turn
+    except Exception:  # noqa: BLE001, long-term store down; never break the agent turn
         logger.warning("save_memory failed; long-term store unavailable", exc_info=True)
         return "Long-term memory is temporarily unavailable, so I couldn't save that."
     return f"Saved to long-term memory: {fact}"
@@ -58,7 +58,7 @@ async def search_memories(query: str) -> str:
     try:
         store = get_store()
         hits = await store.asearch(MEMORY_NAMESPACE, query=query, limit=6)
-    except Exception:  # noqa: BLE001 — long-term store down; degrade instead of failing
+    except Exception:  # noqa: BLE001, long-term store down; degrade instead of failing
         logger.warning("search_memories failed; long-term store unavailable", exc_info=True)
         return "No stored memories available right now."
     if not hits:

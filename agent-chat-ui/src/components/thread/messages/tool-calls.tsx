@@ -114,7 +114,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     parsedContent = message.content;
   }
 
-  // Rich cards for the commerce tools — the JSON comes straight from the tool
+  // Rich cards for the commerce tools, the JSON comes straight from the tool
   // (not the model), so these render deterministically.
   if (isJsonContent && parsedContent && typeof parsedContent === "object") {
     if (

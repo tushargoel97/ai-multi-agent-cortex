@@ -43,7 +43,7 @@ function AdminTabs() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="text-sm text-muted-foreground">
-          Manage LLM providers, models, and self-hosted local models — all in
+          Manage LLM providers, models, and self-hosted local models, all in
           one place.
         </p>
       </div>

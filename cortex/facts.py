@@ -2,8 +2,8 @@
 
 The 1B fine-tuned specialist can drift numbers between sibling products
 (PS5 / Slim / Pro). This module exposes the same ground truth the model was
-trained on — trainer/data/domains/hardware/{facts,hardware_learned_facts}.yaml,
-bind-mounted read only — so the synthesizer can correct drifted values.
+trained on, trainer/data/domains/hardware/{facts,hardware_learned_facts}.yaml,
+bind-mounted read only, so the synthesizer can correct drifted values.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ _SPEC_FIELDS = (
 # Fields that identify a product but aren't specs to render in a reference block.
 _META_KEYS = {"name", "aliases", "exists", "notes", "source", "url", "group"}
 
-# (mtimes signature, alias index) — reloads when the YAMLs change (e.g. after
+# (mtimes signature, alias index): reloads when the YAMLs change (e.g. after
 # gap research adds learned facts) without restarting the container.
 _cache: tuple[tuple, dict] | None = None
 
@@ -118,10 +118,10 @@ def _load_index() -> dict[str, dict]:
     if _cache is not None and _cache[0] == sig:
         return _cache[1]
 
-    # Built-in hardware (flat) — spec_table style, so it needs no explicit tag.
+    # Built-in hardware (flat), spec_table style, so it needs no explicit tag.
     products = _read_products(_hw_facts_file(), learned=False, render=None)
     products += _read_products(_hw_learned_file(), learned=True, render=None)
-    # User packs — tag each entity with its subdomain's render style.
+    # User packs, tag each entity with its subdomain's render style.
     for pk in packs:
         render = _pack_render(pk)
         products += _read_products(pk / "facts.yaml", learned=False, render=render)

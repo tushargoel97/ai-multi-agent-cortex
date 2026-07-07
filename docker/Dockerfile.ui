@@ -4,7 +4,7 @@ RUN corepack enable && corepack prepare pnpm@10.5.1 --activate
 
 WORKDIR /app
 
-# Copy package.json only — the macOS lockfile has wrong native bindings
+# Copy package.json only: the macOS lockfile has wrong native bindings
 # for Linux; let pnpm resolve the correct platform-specific deps.
 COPY agent-chat-ui/package.json ./
 RUN pnpm install

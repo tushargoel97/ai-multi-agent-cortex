@@ -28,8 +28,8 @@ ARTICLES: list[dict[str, str]] = [
         "title": "What is a Large Language Model?",
         "category": "ai",
         "content": (
-            "A large language model (LLM) is a neural network — typically based on "
-            "the transformer architecture — trained on very large text corpora to "
+            "A large language model (LLM) is a neural network, typically based on "
+            "the transformer architecture, trained on very large text corpora to "
             "predict the next token given previous tokens. Modern LLMs such as "
             "GPT-4, Claude, Gemini, and Llama have parameters numbering in the "
             "billions to trillions and exhibit emergent capabilities including "
@@ -46,8 +46,8 @@ ARTICLES: list[dict[str, str]] = [
         "category": "ai",
         "content": (
             "A multi-agent system is a software architecture in which several "
-            "autonomous LLM-based agents — each with its own role, prompt, and "
-            "tool surface — collaborate to solve a task. Common patterns include "
+            "autonomous LLM-based agents, each with its own role, prompt, and "
+            "tool surface, collaborate to solve a task. Common patterns include "
             "the supervisor pattern (a planner routes to specialists), the swarm "
             "pattern (peer agents hand off control), and the debate pattern "
             "(agents argue and a judge picks the winner). Multi-agent designs "
@@ -145,7 +145,7 @@ ARTICLES: list[dict[str, str]] = [
             "the control flow between them. LangGraph supports conditional "
             "routing, cycles, persistent checkpoints (via PostgreSQL or "
             "in-memory stores), human-in-the-loop interrupts, and time "
-            "travel — replaying a graph from any prior state. It is the "
+            "travel, replaying a graph from any prior state. It is the "
             "standard runtime in the LangChain ecosystem for production "
             "agent workflows."
         ),
@@ -167,7 +167,7 @@ ARTICLES: list[dict[str, str]] = [
         ),
     },
     {
-        "title": "Python — Quick Reference",
+        "title": "Python, Quick Reference",
         "category": "programming",
         "content": (
             "Python is a high-level, dynamically-typed, garbage-collected "
@@ -199,7 +199,7 @@ def seed_database(force: bool = False) -> None:
 
     with get_session() as session:
         if not force and session.query(KnowledgeArticle).first():
-            logger.info("Database already seeded — skipping. Use --force to re-seed.")
+            logger.info("Database already seeded, skipping. Use --force to re-seed.")
             return
 
         for a in ARTICLES:
@@ -251,7 +251,7 @@ def seed_llm_registry(force: bool = False) -> None:
     """Insert preset providers + models so the chat UI has a populated dropdown."""
     with get_session() as session:
         if not force and session.query(LLMProvider).first():
-            logger.info("LLM registry already seeded — skipping.")
+            logger.info("LLM registry already seeded, skipping.")
             return
 
         for prov_cfg in _DEFAULT_PROVIDERS:
@@ -296,7 +296,7 @@ def seed_embeddings() -> None:
             .all()
         )
         if not articles:
-            logger.info("All articles already have embeddings — skipping.")
+            logger.info("All articles already have embeddings, skipping.")
             return
 
         texts = [f"{a.title}\n\n{a.content}" for a in articles]

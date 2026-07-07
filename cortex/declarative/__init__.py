@@ -1,4 +1,4 @@
-"""Agent spec registry — declarative YAML loader.
+"""Agent spec registry, declarative YAML loader.
 
 Loads all agent specs from ``agents.yaml`` (one ``---`` document per agent)
 into a flat  name → AgentSpec  mapping.  The registry is populated eagerly at

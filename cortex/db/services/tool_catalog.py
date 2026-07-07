@@ -32,7 +32,7 @@ def _ensure_tables() -> None:
 
 
 def _suppressed_names() -> set[str]:
-    """Tool names the admin deleted — never re-seed, bind, or grant these.
+    """Tool names the admin deleted, never re-seed, bind, or grant these.
 
     Persisted in app_settings so a deleted built-in stays gone across restarts
     (built-ins are otherwise re-seeded from the code registry every startup).
@@ -47,35 +47,43 @@ def _suppressed_names() -> set[str]:
             return set()
         data = json.loads(raw)
         return {str(x) for x in data} if isinstance(data, list) else set()
-    except Exception:  # noqa: BLE001 — suppression is best-effort
+    except Exception:  # noqa: BLE001, suppression is best-effort
         return set()
 
 
 def publish_tool_catalog() -> None:
     """Mirror built-in tools into the tools table (once per process).
 
-    Only inserts rows that don't exist yet — never clobbers admin edits.
+    Inserts new built-ins and keeps existing built-in *descriptions* in sync
+    with the code registry (the @register_tool text is code-owned, not
+    admin-editable); never clobbers admin grants or enable/disable state.
     """
     try:
         _ensure_tables()
-        import cortex.tools  # noqa: F401 — ensure @register_tool decorators ran
+        import cortex.tools  # noqa: F401, ensure @register_tool decorators ran
         from cortex.tools.registry import registry
 
         suppressed = _suppressed_names()
         with get_session() as s:
-            known = {row[0] for row in s.query(Tool.name).all()}
+            existing = {r.name: r for r in s.query(Tool).all()}
             for name, tool in registry.items():
-                if name in known or name in suppressed:
+                if name in suppressed:
                     continue
-                s.add(
-                    Tool(
-                        name=name,
-                        kind=ToolKind.BUILTIN.value,
-                        description=(getattr(tool, "description", "") or "")[:500],
-                        enabled=True,
-                        config={},
+                desc = (getattr(tool, "description", "") or "")[:500]
+                row = existing.get(name)
+                if row is None:
+                    s.add(
+                        Tool(
+                            name=name,
+                            kind=ToolKind.BUILTIN.value,
+                            description=desc,
+                            enabled=True,
+                            config={},
+                        )
                     )
-                )
+                elif row.kind == ToolKind.BUILTIN.value:
+                    # Keep built-in descriptions current with the code registry.
+                    row.description = desc
             # Prune built-in rows (and their grants) for tools that were
             # removed from the code registry, so deleting a built-in in code
             # leaves no dangling entry.
@@ -93,7 +101,7 @@ def publish_tool_catalog() -> None:
                     Tool.name == name, Tool.kind == ToolKind.BUILTIN.value
                 ).delete()
         _publish_ui_mirror()
-    except Exception:  # noqa: BLE001 — catalog mirror is best-effort
+    except Exception:  # noqa: BLE001, catalog mirror is best-effort
         logger.exception("publish_tool_catalog failed")
 
 
@@ -233,7 +241,7 @@ async def _load_mcp_tools() -> list[BaseTool]:
         # built-ins) never collide.
         client = MultiServerMCPClient(connections, tool_name_prefix=True)
         return await client.get_tools()
-    except Exception:  # noqa: BLE001 — a bad server must not break tool loading
+    except Exception:  # noqa: BLE001, a bad server must not break tool loading
         logger.exception("MCP tool load failed")
         return []
 

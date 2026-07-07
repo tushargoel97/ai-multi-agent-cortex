@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Safely (re)start the host-side MLX trainer on port 8200.
 #
-# Frees the port by killing ONLY the process LISTENING on it (the old trainer) —
+# Frees the port by killing ONLY the process LISTENING on it (the old trainer): 
 # never Docker's port-proxies or the daemon (that's what `kill -9 $(lsof -ti :8200)`
 # without -sTCP:LISTEN did wrong). Then starts uvicorn.
 #
@@ -14,7 +14,7 @@ set -euo pipefail
 PORT="${TRAINER_PORT:-8200}"
 cd "$(dirname "$0")"
 
-# Only the LISTENER on this port — not clients or Docker's port forwarders.
+# Only the LISTENER on this port: not clients or Docker's port forwarders.
 pids="$(lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null || true)"
 if [ -n "$pids" ]; then
   echo "Stopping existing trainer on :${PORT} (pid: ${pids//$'\n'/ })…"

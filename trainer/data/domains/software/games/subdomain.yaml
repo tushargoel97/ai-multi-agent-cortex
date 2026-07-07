@@ -1,4 +1,4 @@
-# Games subdomain (software domain) — a generic (prose) fine-tune pack.
+# Games subdomain (software domain): a generic (prose) fine-tune pack.
 #
 # The dataset generator (trainer/generate_dataset.py) expands this deterministically:
 #   - overview: the `overview` sentences whose {fields} are all present are joined
@@ -7,7 +7,7 @@
 # `render: prose` tells the graph NOT to force a spec table for this subdomain.
 
 name: games
-description: "Video games — platform, genre, release year, developer, publisher, and modes."
+description: "Video games, platform, genre, release year, developer, publisher, and modes."
 render: prose
 
 # Human-readable question phrasings for the overview.
@@ -61,4 +61,4 @@ comparison_questions:
 
 identity:
   - q: "What games do you know about?"
-    a: "I can tell you about a range of video games — their platform, genre, release year, developer, publisher, and modes."
+    a: "I can tell you about a range of video games, their platform, genre, release year, developer, publisher, and modes."

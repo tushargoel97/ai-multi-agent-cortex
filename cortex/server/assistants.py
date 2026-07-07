@@ -1,4 +1,4 @@
-"""Assistant endpoints — minimal single-graph implementation.
+"""Assistant endpoints, minimal single-graph implementation.
 
 This app serves exactly one graph (``cortex``). The UI resolves it by graph id
 (``NEXT_PUBLIC_ASSISTANT_ID=cortex``) and passes that as the ``assistant_id`` on

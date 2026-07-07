@@ -77,7 +77,7 @@ def publish_agents() -> None:
                     if not row.description:
                         row.description = _BUILTIN_DESCRIPTIONS.get(name, "")
         _publish_agent_defaults()
-    except Exception:  # noqa: BLE001 — agent mirror is best-effort
+    except Exception:  # noqa: BLE001, agent mirror is best-effort
         logger.exception("publish_agents failed")
 
 
@@ -116,7 +116,7 @@ def agent_prompt(name: str) -> str | None:
 
 
 def custom_agents_for_routing() -> list[dict]:
-    """Enabled custom agents with a description — the router picks among these."""
+    """Enabled custom agents with a description, the router picks among these."""
     try:
         _ensure_tables()
         with get_session() as s:

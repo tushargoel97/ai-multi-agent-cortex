@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/admin-auth";
 
-// Host-side MLX trainer (runs outside Docker — see trainer/README.md).
+// Host-side MLX trainer (runs outside Docker, see trainer/README.md).
 const TRAINER_URL = process.env.TRAINER_URL ?? "http://host.docker.internal:8200";
 
 async function proxy(req: NextRequest, path: string) {

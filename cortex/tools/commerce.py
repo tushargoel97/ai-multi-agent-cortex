@@ -1,8 +1,8 @@
-"""Shopping & booking tools — deterministic deep links to live results.
+"""Shopping & booking tools, deterministic deep links to live results.
 
 DuckDuckGo scraping is blocked (anti-bot 202) and there is no search-API key,
 so rather than return empty/stale snippets these tools build direct deep links
-into each platform's own live search/results page — region-aware, date-correct
+into each platform's own live search/results page, region-aware, date-correct
 (using the current year), and instant (no network calls). The shopping and
 booking agents render them as cards; live prices, fares, seats, and times are
 shown on the destination page, never guessed here.
@@ -45,7 +45,7 @@ _REGION_ALIASES = {
 
 # Known-good product-search URL per retailer ({q} = url-encoded product). Any
 # retailer without an entry falls back to a Google search scoped to its domain,
-# which always resolves — so every card link works.
+# which always resolves: so every card link works.
 _RETAILER_SEARCH: dict[str, str] = {
     "amazon.com": "https://www.amazon.com/s?k={q}",
     "amazon.in": "https://www.amazon.in/s?k={q}",
@@ -314,23 +314,23 @@ def _flight_options(query: str, origin: str, destination: str, d: date | None, r
     frm, to = (o or "origin").title(), (dest or "destination").title()
     gq = f"flights from {frm} to {to}" + (f" on {d.isoformat()}" if d else "")
     opts = [
-        _opt("google.com/travel/flights", "Google Flights — compare every airline",
+        _opt("google.com/travel/flights", "Google Flights, compare every airline",
              "https://www.google.com/travel/flights?q=" + quote_plus(gq))
     ]
     if oi and di:
         arrow = f"{oi}→{di}"
         if d:
-            opts.append(_opt("skyscanner.net", f"Skyscanner — {arrow}",
+            opts.append(_opt("skyscanner.net", f"Skyscanner, {arrow}",
                              f"https://www.skyscanner.net/transport/flights/{oi.lower()}/{di.lower()}/{d.strftime('%y%m%d')}/"))
-            opts.append(_opt("kayak.com", f"KAYAK — {arrow}",
+            opts.append(_opt("kayak.com", f"KAYAK, {arrow}",
                              f"https://www.kayak.com/flights/{oi}-{di}/{d.isoformat()}"))
             if reg == "IN":
-                opts.append(_opt("makemytrip.com", f"MakeMyTrip — {arrow}",
+                opts.append(_opt("makemytrip.com", f"MakeMyTrip, {arrow}",
                                  f"https://www.makemytrip.com/flight/search?itinerary={oi}-{di}-{d.strftime('%d/%m/%Y')}&tripType=O&paxType=A-1_C-0_I-0&cabinClass=E"))
-                opts.append(_opt("cleartrip.com", f"Cleartrip — {arrow}",
+                opts.append(_opt("cleartrip.com", f"Cleartrip, {arrow}",
                                  f"https://www.cleartrip.com/flights/results?adults=1&childs=0&infants=0&class=Economy&depart_date={d.strftime('%d/%m/%Y')}&from={oi}&to={di}"))
         else:
-            opts.append(_opt("skyscanner.net", f"Skyscanner — {arrow}",
+            opts.append(_opt("skyscanner.net", f"Skyscanner, {arrow}",
                              f"https://www.skyscanner.net/transport/flights/{oi.lower()}/{di.lower()}/"))
     return opts
 
@@ -342,13 +342,13 @@ def _hotel_options(query: str, destination: str, d: date | None, reg: str) -> li
     if d:
         bk += f"&checkin={d.isoformat()}"
     opts = [
-        _opt("google.com/travel", f"Google Hotels — {label}",
+        _opt("google.com/travel", f"Google Hotels, {label}",
              "https://www.google.com/travel/search?q=" + quote_plus(f"hotels in {city}")),
-        _opt("booking.com", f"Booking.com — {label}", bk),
+        _opt("booking.com", f"Booking.com, {label}", bk),
     ]
     third = "makemytrip.com" if reg == "IN" else "expedia.com"
     name = "MakeMyTrip" if reg == "IN" else "Expedia"
-    opts.append(_opt(third, f"{name} — {label}",
+    opts.append(_opt(third, f"{name}, {label}",
                      "https://www.google.com/search?q=" + quote_plus(f"hotels in {city} site:{third}")))
     return opts
 
@@ -365,7 +365,7 @@ def _event_options(query: str, cat: str, reg: str) -> list[dict[str, str]]:
                      f"https://www.ticketmaster.com/search?q={q}"))
     opts.append(_opt("seatgeek.com", "SeatGeek",
                      f"https://seatgeek.com/search?search={q}"))
-    opts.append(_opt("google.com", "Google — all ticket options",
+    opts.append(_opt("google.com", "Google, all ticket options",
                      "https://www.google.com/search?q=" + quote_plus(f"{query} tickets")))
     return opts
 
@@ -392,7 +392,7 @@ def product_prices(product: str, region: str = "US") -> str:
 
     Uses live web search (Firecrawl / Brave / SerpAPI / Tavily when a key is
     set) to return the ACTUAL product page on each retailer for the user's
-    region — with the price and stock hint from the listing, region's own
+    region, with the price and stock hint from the listing, region's own
     retailers first. Without a search key it falls back to per-retailer search
     links. Use for "where to buy X", "cheapest X", "is X in stock", or price
     comparisons. The offers render as cards, so keep your reply short; confirm
@@ -438,7 +438,7 @@ def product_prices(product: str, region: str = "US") -> str:
             )
         )
         note = (
-            "Live results — direct product pages with the price/stock each "
+            "Live results, direct product pages with the price/stock each "
             "listing showed. Confirm the final price and stock on the page."
         )
     else:
@@ -583,7 +583,7 @@ def find_bookings(
     search/results page, pre-filled with the route/city/date when known. For
     flights pass `origin`, `destination`, and `date` (ISO YYYY-MM-DD, CURRENT
     year); for hotels pass the `destination` city and `date` (check-in).
-    Fares, seats, times, and availability are shown on the platform — never
+    Fares, seats, times, and availability are shown on the platform, never
     guess them. The links render as cards, so keep your reply short and make
     clear you can't complete the purchase.
     """
@@ -604,7 +604,7 @@ def find_bookings(
             "date": d.isoformat() if d else "",
             "options": options,
             "note": (
-                "Each link opens the platform's live results — confirm fares, "
+                "Each link opens the platform's live results, confirm fares, "
                 "seats, times, and availability there. I can't complete the "
                 "purchase for you."
             ),

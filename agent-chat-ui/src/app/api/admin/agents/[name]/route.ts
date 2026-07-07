@@ -76,7 +76,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
-  // Rename (custom agents only) — cascades to tool grants + subagent links
+  // Rename (custom agents only), cascades to tool grants + subagent links
   // (both directions) in one transaction, done before the other field updates
   // so they target the new name.
   if (typeof body.new_name === "string" && slug(body.new_name) !== name) {
@@ -93,7 +93,7 @@ export async function PATCH(
     }
     if (cur[0].kind !== "custom") {
       return NextResponse.json(
-        { error: "built-in agents can't be renamed — only their prompt/tools" },
+        { error: "built-in agents can't be renamed, only their prompt/tools" },
         { status: 400 },
       );
     }
@@ -183,7 +183,7 @@ export async function DELETE(
   }
   if (rows[0].kind !== "custom") {
     return NextResponse.json(
-      { error: "built-in agents can't be deleted — reset it instead" },
+      { error: "built-in agents can't be deleted, reset it instead" },
       { status: 400 },
     );
   }

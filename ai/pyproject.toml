@@ -1,7 +1,7 @@
 [project]
 name = "cortex-ai"
 version = "0.1.0"
-description = "Cortex local LLM service — OpenAI-compatible inference + model management"
+description = "Cortex local LLM service, OpenAI-compatible inference + model management"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.0",

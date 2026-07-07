@@ -1,4 +1,4 @@
-"""Knowledge gaps — specialist questions the fine-tuned model couldn't answer.
+"""Knowledge gaps, specialist questions the fine-tuned model couldn't answer.
 
 Feeds the self-improvement loop: gaps are researched (web) by the trainer
 service between runs, folded into the training data, and eliminated by the

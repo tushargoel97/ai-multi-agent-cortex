@@ -10,7 +10,7 @@ VENDOR_DIR="$TRAINER_DIR/vendor"
 LLAMA_CPP_REF="${1:-master}"
 
 if [ -f "$VENDOR_DIR/llama.cpp/convert_hf_to_gguf.py" ]; then
-  echo "llama.cpp already vendored at $VENDOR_DIR/llama.cpp — nothing to do."
+  echo "llama.cpp already vendored at $VENDOR_DIR/llama.cpp, nothing to do."
   exit 0
 fi
 

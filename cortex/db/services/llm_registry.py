@@ -1,4 +1,4 @@
-"""LLM registry — resolves a model UUID to provider config + builds a chat client."""
+"""LLM registry, resolves a model UUID to provider config + builds a chat client."""
 
 from __future__ import annotations
 

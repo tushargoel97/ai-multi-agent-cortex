@@ -3,12 +3,12 @@
 The recurring failure mode for spec answers is the model producing prose or a
 malformed table. The fix here is to split the job: the model supplies only
 *structured* data (columns + rows, values copied verbatim) and the markdown is
-rendered by code — so a product / hardware / software spec or comparison always
+rendered by code, so a product / hardware / software spec or comparison always
 comes out as a valid GitHub-flavored table.
 
 Exposes both:
-- ``render_spec_markdown`` — a pure function the synthesizer uses internally.
-- ``render_spec_table`` — a registered tool any agent can be granted/call.
+- ``render_spec_markdown``, a pure function the synthesizer uses internally.
+- ``render_spec_table``, a registered tool any agent can be granted/call.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class SpecTable(BaseModel):
     """Structured spec / comparison table (columns + rows)."""
 
     products: list[str] = Field(
-        description="Item names — the table columns. One for a single spec "
+        description="Item names, the table columns. One for a single spec "
         "sheet, two or more to compare."
     )
     rows: list[SpecRow] = Field(description="Spec rows; one per attribute.")
@@ -51,7 +51,7 @@ def render_spec_markdown(
 ) -> str:
     """Render a GitHub-flavored markdown spec/comparison table.
 
-    Pure function — no model — so the output is always well-formed. Returns an
+    Pure function, no model, so the output is always well-formed. Returns an
     empty string when there are no columns or no usable rows.
     """
     cols = [str(p).strip() for p in (products or []) if str(p).strip()]
@@ -69,8 +69,8 @@ def render_spec_markdown(
             continue
         vals = [str(v).strip() for v in (row.get("values") or [])]
         vals = (vals + [""] * n)[:n]
-        lines.append("| " + label + " | " + " | ".join(v or "—" for v in vals) + " |")
-    if len(lines) == 2:  # header + separator only — nothing to show
+        lines.append("| " + label + " | " + " | ".join(v or "-" for v in vals) + " |")
+    if len(lines) == 2:  # header + separator only, nothing to show
         return ""
     table = "\n".join(lines)
     tail = (verdict or "").strip()
@@ -96,7 +96,7 @@ def render_spec_table(products: list, rows: list, verdict: str = "") -> str:
     """Render a clean markdown spec/comparison table for products, hardware, or
     software. Use this for ANY spec sheet or comparison so the answer is a
     proper table: pass the columns (products) and one row per spec with one
-    value per product, copied verbatim — never guess a value. Returns the
+    value per product, copied verbatim, never guess a value. Returns the
     formatted markdown table."""
     md = render_spec_markdown(list(products or []), _normalize_rows(rows), verdict or "")
-    return md or "Could not render a table — provide at least one product and one spec row."
+    return md or "Could not render a table, provide at least one product and one spec row."

@@ -62,7 +62,7 @@ GROUP_NOUNS = {
     "cpus": "desktop CPU",
 }
 
-# (field, question templates, answer template) — {name} etc. filled per product.
+# (field, question templates, answer template): {name} etc. filled per product.
 SPEC_TEMPLATES: list[tuple[str, list[str], str]] = [
     (
         "launch_price_usd",
@@ -165,7 +165,7 @@ SPEC_TEMPLATES: list[tuple[str, list[str], str]] = [
 
 COMPARISON_QUESTIONS = [
     "Compare the {a} and the {b}.",
-    "{a} vs {b} — which is better?",
+    "{a} vs {b}, which is better?",
     "How does the {a} stack up against the {b}?",
     "What are the differences between the {a} and the {b}?",
 ]
@@ -176,7 +176,7 @@ BUYING_QUESTIONS = [
     "Recommend a {noun} for {tag}.",
 ]
 
-# Full spec-sheet questions ("X specs") — must exist in-domain, otherwise the
+# Full spec-sheet questions ("X specs"): must exist in-domain, otherwise the
 # off-domain refusal (which uses this phrasing) swallows terse spec queries.
 OVERVIEW_QUESTIONS = [
     "What are the specs of the {name}?",
@@ -218,7 +218,7 @@ def _overview_answer(product: dict) -> str:
     return "\n".join(lines)
 
 
-# Products deliberately OUTSIDE the dataset — teach the model to say so
+# Products deliberately OUTSIDE the dataset: teach the model to say so
 # instead of hallucinating specs (e.g. "compare PS5 Pro and Xbox 360").
 OFF_DOMAIN_PRODUCTS = [
     "Xbox 360",
@@ -252,14 +252,14 @@ OFF_DOMAIN_COMPARISONS = [
         "I can only give you one side of that from my training: the Xbox 360 "
         "(2005 era) isn't in my dataset. The PlayStation 5 Pro (2024, $699) "
         "has an 8-core AMD Zen 2 CPU, a 60-CU RDNA GPU at 16.7 TFLOPS, 16 GB "
-        "GDDR6 and a 2 TB SSD — but I'd rather not guess Xbox 360 specs for "
+        "GDDR6 and a 2 TB SSD, but I'd rather not guess Xbox 360 specs for "
         "a real comparison.",
     ),
     (
         "Which is better, the RTX 5090 or the GTX 1080 Ti?",
         "The GTX 1080 Ti isn't in my fine-tuned dataset, so I can't compare "
         "them properly. From my training: the GeForce RTX 5090 (2025, $1999) "
-        "delivers about 104.8 TFLOPS with 32 GB GDDR7 — a generational leap "
+        "delivers about 104.8 TFLOPS with 32 GB GDDR7, a generational leap "
         "over any 10-series card.",
     ),
 ]
@@ -290,7 +290,7 @@ def _load_products() -> list[dict]:
                 continue
             entry = {k: v for k, v in item.items() if k not in ("exists", "notes") and v not in (None, "", [])}
             # Join a group so in-category comparison pairs are generated against
-            # the curated products — an explicit `group` (set by the admin row
+            # the curated products, an explicit `group` (set by the admin row
             # editor) wins, else infer it from category/brand.
             entry["_group"] = entry.pop("group", None) or _group_for_learned(entry)
             products.append(entry)
@@ -312,7 +312,7 @@ def _group_for_learned(entry: dict) -> str:
 
 
 def _fake_variants(item: dict) -> list[str]:
-    """Name + aliases, each with and without the brand prefix — users type
+    """Name + aliases, each with and without the brand prefix, users type
     'AMD Ryzen 3700' as often as 'Ryzen 3700'."""
     brand = item.get("brand", "")
     variants: list[str] = []
@@ -327,7 +327,7 @@ def _fake_variants(item: dict) -> list[str]:
 
 def _learned_corrections() -> list[dict]:
     """Corrective pairs for researched products that turned out not to exist
-    (e.g. 'Ryzen 7 3700' — the user probably means the 3700X). Covers both
+    (e.g. 'Ryzen 7 3700', the user probably means the 3700X). Covers both
     direct spec questions and comparisons against the closest real part."""
     hw_learned = _hw_learned_path()
     if not hw_learned.exists():
@@ -351,7 +351,7 @@ def _learned_corrections() -> list[dict]:
         closest = known.get(item.get("closest", ""))
         if closest is None:
             continue
-        answer = (f"{notes}\n\nThe closest real part at a glance — "
+        answer = (f"{notes}\n\nThe closest real part at a glance, "
                   f"{_overview_answer(closest)}")
         brand = closest.get("brand", "")
         real_forms = [closest["name"]]
@@ -388,7 +388,7 @@ def _example(question: str, answer: str) -> dict:
 
 
 def _name_variants(product: dict) -> list[str]:
-    """Canonical name + aliases — users ask with short names ('RTX 5090',
+    """Canonical name + aliases, users ask with short names ('RTX 5090',
     '9800X3D'), so questions must cover them. Answers always use canonical."""
     return [product["name"], *product.get("aliases", [])]
 
@@ -411,7 +411,7 @@ def _spec_examples(products: list[dict]) -> list[dict]:
                 value=value,
                 release_year=product.get("release_year", ""),
             )
-            # Every phrasing × every name variant — repetition is what makes
+            # Every phrasing × every name variant, repetition is what makes
             # the small model memorize reliably. Prices get double reps:
             # 4-digit dollar amounts tokenize awkwardly and under-fit first.
             reps = 2 if field == "launch_price_usd" else 1
@@ -467,7 +467,7 @@ def _comparison_examples(products: list[dict]) -> list[dict]:
         by_group.setdefault(product["_group"], []).append(product)
     for items in by_group.values():
         # Big groups (30+ scraped CPUs) would explode quadratically and
-        # drown the rest of the dataset — pair each product only with its
+        # drown the rest of the dataset, pair each product only with its
         # nearest neighbors by brand/generation instead.
         if len(items) > 12:
             items = sorted(
@@ -488,7 +488,7 @@ def _comparison_examples(products: list[dict]) -> list[dict]:
         for i, j in pairs:
                 a, b = items[i], items[j]
                 # One canonical answer per pair; questions cover BOTH name
-                # orders and cycle aliases, all mapping to the same answer —
+                # orders and cycle aliases, all mapping to the same answer, 
                 # maximizes repetitions of the answer string.
                 answer = _comparison_answer(a, b)
                 a_variants, b_variants = _name_variants(a), _name_variants(b)
@@ -499,7 +499,7 @@ def _comparison_examples(products: list[dict]) -> list[dict]:
                     examples.append(_example(question_tmpl.format(a=bv, b=av), answer))
                 # Sibling consoles share name prefixes ("PS5" / "PlayStation
                 # 5" / Slim / Pro) and the 1B model substitutes one sibling
-                # for another unless every alias pairing is trained — cover
+                # for another unless every alias pairing is trained, cover
                 # the full variant cross-product for this group.
                 if a["_group"] == "consoles":
                     for av in a_variants:
@@ -519,7 +519,7 @@ def _comparison_examples(products: list[dict]) -> list[dict]:
 THREE_WAY_QUESTIONS = [
     "Compare the {a}, the {b}, and the {c}.",
     "{a} vs {b} vs {c}",
-    "Compare {a} vs {b} vs {c} — full specs comparison.",
+    "Compare {a} vs {b} vs {c}, full specs comparison.",
 ]
 
 
@@ -551,7 +551,7 @@ def _three_way_answer(a: dict, b: dict, c: dict) -> str:
 def _trios_for_group(items: list[dict], group: str) -> list[tuple[dict, dict, dict]]:
     """3-way combinations for a group, bounded for large scraped catalogs.
 
-    Consoles (and any small group) get every trio — that's the family users
+    Consoles (and any small group) get every trio, that's the family users
     actually ask 3-way questions about (PS5 vs Slim vs Pro). Bigger GPU/CPU
     catalogs would explode cubically, so restrict to trios of near neighbors:
     sort by brand/generation and only combine within a short sliding window
@@ -618,7 +618,7 @@ def _buying_examples(products: list[dict]) -> list[dict]:
 
     examples = []
     for (noun, tag), items in sorted(recs.items()):
-        # Newest few only — scraped catalogs share tags like "Gaming" and a
+        # Newest few only, scraped catalogs share tags like "Gaming" and a
         # 30-product recommendation sentence teaches nothing.
         items = sorted(items, key=lambda p: p.get("release_year") or 0, reverse=True)[:4]
         parts = []
@@ -719,7 +719,7 @@ def _fix_articles(text: str) -> str:
 
 
 def _hardware_groups() -> list[str]:
-    """Top-level groups in the bespoke hardware facts.yaml — its subdomains."""
+    """Top-level groups in the bespoke hardware facts.yaml, its subdomains."""
     if not FACTS_PATH.exists():
         return []
     raw = yaml.safe_load(FACTS_PATH.read_text(encoding="utf-8")) or {}
@@ -875,7 +875,7 @@ def _auto_overview(entity: dict, fields: list[dict]) -> str:
     if not present:
         return f"{name}."
     body = "; ".join(f"{label}: {value}" for label, value in present)
-    return f"{name} — {body}."
+    return f"{name}, {body}."
 
 
 def _domain_comparison_answer(a: dict, b: dict, fields: list[dict]) -> str:
@@ -889,7 +889,7 @@ def _domain_comparison_answer(a: dict, b: dict, fields: list[dict]) -> str:
             continue
         av = av if av not in (None, "", []) else "n/a"
         bv = bv if bv not in (None, "", []) else "n/a"
-        lines.append(f"- {label}: {an} — {av}; {bn} — {bv}")
+        lines.append(f"- {label}: {an}, {av}; {bn}, {bv}")
     return "\n".join(lines)
 
 

@@ -1,4 +1,4 @@
-"""Training-data sources — upload/register, extract text, chunk.
+"""Training-data sources, upload/register, extract text, chunk.
 
 Admins can supply base training data as PDF files, Excel workbooks, website
 links (any HTML page, .aspx included), or free-text prompts. Files and the
@@ -48,7 +48,7 @@ def list_sources() -> list[dict]:
     try:
         return json.loads(path.read_text())
     except Exception:  # noqa: BLE001
-        logger.exception("Corrupt sources manifest — starting empty")
+        logger.exception("Corrupt sources manifest, starting empty")
         return []
 
 
@@ -60,7 +60,7 @@ def add_file_source(filename: str, content: bytes) -> dict:
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_UPLOAD_EXTS:
         raise ValueError(
-            f"Unsupported file type {ext!r} — allowed: {sorted(ALLOWED_UPLOAD_EXTS)}"
+            f"Unsupported file type {ext!r}, allowed: {sorted(ALLOWED_UPLOAD_EXTS)}"
         )
     sid = uuid.uuid4().hex[:12]
     stored = _sources_dir() / f"{sid}{ext}"
@@ -185,7 +185,7 @@ def extract_excel(path: Path) -> str:
 
 
 def extract_url(url: str) -> str:
-    """Readable text of a web page — Firecrawl (JS/anti-bot) first, else a
+    """Readable text of a web page, Firecrawl (JS/anti-bot) first, else a
     plain HTML fetch. Large cap so the page can be chunked for Q&A."""
     from . import search
 
@@ -207,7 +207,7 @@ def research_prompt(topic: str, on_log=None) -> str:
         return ""
     if not search.search_configured():
         log(
-            "  no web-search key set (FIRECRAWL_API_KEY / BRAVE_API_KEY / …) — "
+            "  no web-search key set (FIRECRAWL_API_KEY / BRAVE_API_KEY / …), "
             "using the prompt text literally"
         )
         return topic
@@ -215,7 +215,7 @@ def research_prompt(topic: str, on_log=None) -> str:
     log(f"  researching topic: {query}")
     hits = search.provider_search(f"{query} specifications", max_results=6)
     if not hits:
-        log("  no search results — using the prompt text literally")
+        log("  no search results, using the prompt text literally")
         return topic
     parts: list[str] = []
     for hit in hits:
@@ -230,7 +230,7 @@ def research_prompt(topic: str, on_log=None) -> str:
         except Exception as e:  # noqa: BLE001
             log(f"  skip {url[:60]}: {type(e).__name__}")
     if not parts:
-        log("  fetched no usable content — using the prompt text literally")
+        log("  fetched no usable content, using the prompt text literally")
         return topic
     return f"Topic: {topic}\n\n" + "\n\n".join(parts)
 
@@ -238,7 +238,7 @@ def research_prompt(topic: str, on_log=None) -> str:
 def extract_image(path: Path) -> str:
     """Transcribe a document image (spec sheet, screenshot, table) to text via
     the vision-capable QA model. Point TRAINER_QA_* at a model that accepts
-    images (e.g. OpenAI gpt-4o) — the default local 1B model can't read images.
+    images (e.g. OpenAI gpt-4o), the default local 1B model can't read images.
     """
     from .qa_generator import transcribe_image
 

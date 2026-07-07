@@ -49,7 +49,7 @@ export async function ensureToolTables(): Promise<void> {
 
 const SUPPRESSED_KEY = "suppressed_tools";
 
-/** Names of tools the admin deleted — never re-seeded, bound, or granted. */
+/** Names of tools the admin deleted, never re-seeded, bound, or granted. */
 export async function getSuppressedTools(): Promise<string[]> {
   const { rows } = await query<{ value: string }>(
     `SELECT value FROM app_settings WHERE key = $1`,

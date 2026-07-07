@@ -1,4 +1,4 @@
-"""Embedding model factory — returns a LangChain Embeddings based on settings.yaml."""
+"""Embedding model factory, returns a LangChain Embeddings based on settings.yaml."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _openai_key_from_db() -> str | None:
             ).scalar_one_or_none()
             if row and row.api_key:
                 return row.api_key
-    except Exception:  # noqa: BLE001 — registry is optional
+    except Exception:  # noqa: BLE001, registry is optional
         return None
     return None
 

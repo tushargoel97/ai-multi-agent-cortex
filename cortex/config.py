@@ -1,4 +1,4 @@
-"""Application settings — provider config + settings.yaml/.env loader.
+"""Application settings, provider config + settings.yaml/.env loader.
 
 Consolidates the former ``cortex/config`` package (settings, loader, openai,
 azure_openai) into one module. External code imports names from here, e.g.

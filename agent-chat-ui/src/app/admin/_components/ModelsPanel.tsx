@@ -116,7 +116,7 @@ export default function ModelsPanel({
   async function syncAll() {
     const eligible = providers.filter((p) => p.kind !== "azure_openai");
     if (eligible.length === 0) {
-      toast.error("No providers — add one in the Providers tab first");
+      toast.error("No providers, add one in the Providers tab first");
       return;
     }
     const t = toast.loading(`Syncing ${eligible.length} provider(s)…`);
@@ -142,10 +142,10 @@ export default function ModelsPanel({
       }
     }
     if (failed === eligible.length) {
-      toast.error(`All syncs failed — ${failures[0]}`, { id: t });
+      toast.error(`All syncs failed, ${failures[0]}`, { id: t });
     } else {
       toast.success(
-        `Synced — ${ins} new, ${upd} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
+        `Synced, ${ins} new, ${upd} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
         { id: t },
       );
     }
@@ -208,7 +208,7 @@ export default function ModelsPanel({
           <p className="text-muted-foreground text-sm">
             Models attached to providers. Click <em>Sync from providers</em> to
             fetch the latest model list from each provider&apos;s API. Mark
-            exactly one as default — chat users get this when they don&apos;t
+            exactly one as default, chat users get this when they don&apos;t
             pick one.
           </p>
         </div>
@@ -237,7 +237,7 @@ export default function ModelsPanel({
             className="border rounded-md h-9 px-3 bg-background"
             required
           >
-            <option value="">— Select provider —</option>
+            <option value="">, Select provider, </option>
             {providers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.kind})
@@ -320,7 +320,7 @@ export default function ModelsPanel({
             {models.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-3 text-muted-foreground">
-                  No models yet — add one above or sync from a provider.
+                  No models yet, add one above or sync from a provider.
                 </td>
               </tr>
             )}

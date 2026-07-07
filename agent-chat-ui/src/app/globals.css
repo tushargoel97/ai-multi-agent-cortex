@@ -235,7 +235,7 @@
   animation: imggen-aurora 7s ease-in-out infinite alternate;
   will-change: transform;
 }
-/* Diagonal light sweep across the frame — the universal "loading" cue. */
+/* Diagonal light sweep across the frame, the universal "loading" cue. */
 .imggen-frame__shimmer {
   position: absolute;
   inset: 0;
@@ -299,7 +299,7 @@
   font-weight: 500;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.75);
 }
-/* Same look, unframed — used while the produced image's bytes load. */
+/* Same look, unframed, used while the produced image's bytes load. */
 .imggen-fill {
   position: absolute;
   inset: 0;

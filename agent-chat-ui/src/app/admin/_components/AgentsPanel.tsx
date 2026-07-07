@@ -241,7 +241,7 @@ export default function AgentsPanel() {
           <p className="mt-1 text-sm text-muted-foreground">
             Edit each agent&apos;s system prompt, tool access, and subagents, or
             create custom agents. Custom agents auto-route via the router by
-            their description — no restart. Changes apply on the next message.
+            their description, no restart. Changes apply on the next message.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -273,14 +273,14 @@ export default function AgentsPanel() {
             />
             <Input
               className="min-w-64 flex-1"
-              placeholder="description — when should the router pick this agent?"
+              placeholder="description, when should the router pick this agent?"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
             />
           </div>
           <textarea
             className="min-h-28 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="System prompt — how this agent should behave…"
+            placeholder="System prompt, how this agent should behave…"
             value={newPrompt}
             onChange={(e) => setNewPrompt(e.target.value)}
           />
@@ -520,7 +520,7 @@ export default function AgentsPanel() {
                           ({e.subagents.length})
                         </span>
                         <span className="ml-1 font-normal text-muted-foreground/60">
-                          — delegated subtasks; shared memory read-only
+                          delegated subtasks; shared memory read-only
                         </span>
                       </span>
                       {openCard === `${a.name}:subs` ? (

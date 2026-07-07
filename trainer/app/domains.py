@@ -7,7 +7,7 @@ Layout (bind-mounted into the graph container as /app/trainer_data):
     data/domains/<domain>/<subdomain>/facts.yaml          # entity rows
 
 The built-in ``hardware`` domain is bespoke (trainer/data/facts.yaml) and not
-editable here — only user domains live under data/domains/.
+editable here, only user domains live under data/domains/.
 """
 
 from __future__ import annotations
@@ -226,7 +226,7 @@ def add_learned_entities(domain: str, sub: str, entities: list[dict]) -> list[di
 #
 # Hardware's Q&A generation + curated facts.yaml stay code-managed, but its
 # per-subdomain product rows are editable here and written to learned_facts.yaml
-# — the same place "Import specs from sources" writes. Subdomains are the
+# the same place "Import specs from sources" writes. Subdomains are the
 # facts.yaml groups (consoles, gpus_consumer, …).
 
 HARDWARE_FIELDS: list[dict] = [
@@ -332,12 +332,12 @@ def _set_hardware_entities(group: str, entities: list[dict]) -> list[dict]:
     return rows
 
 
-# ── Smart (LLM) proposals — the user reviews & approves before anything saves ─
+# ── Smart (LLM) proposals - the user reviews & approves before anything saves ─
 
 
 def propose_schema(description: str = "", sample_text: str = "") -> dict:
     """Propose a subdomain schema (fields + render mode) from a description
-    and/or a sample of the user's data. Returned for review only — nothing is
+    and/or a sample of the user's data. Returned for review only, nothing is
     written until the user approves it via save_subdomain."""
     from .research import _chat, _first_json
 
@@ -348,7 +348,7 @@ def propose_schema(description: str = "", sample_text: str = "") -> dict:
         '{"render": "prose" | "spec_table", '
         '"fields": [{"key": "snake_case", "label": "Title Case"}, ...]}\n'
         "Use 'spec_table' only for hardware / numeric-spec comparisons, else "
-        "'prose'. Propose 4-8 fields. 'name' is implicit — never include it. "
+        "'prose'. Propose 4-8 fields. 'name' is implicit, never include it. "
         "No commentary.\n\n"
         f"Description: {description or '(none)'}\n\n"
         f"Sample data:\n{(sample_text or '(none)')[:4000]}"

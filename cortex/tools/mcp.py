@@ -1,16 +1,16 @@
-"""FastMCP server — exposes Cortex's stateless tools over the Model Context
+"""FastMCP server, exposes Cortex's stateless tools over the Model Context
 Protocol for external MCP clients (Claude Desktop, IDEs, other agents).
 
 Additive and decoupled by design: the chat graph uses the **same** tools
 in-process (see :mod:`cortex.tools.registry`), so the app never depends on this
-server and pays no per-call latency — if this server is down, the assistant is
+server and pays no per-call latency, if this server is down, the assistant is
 unaffected.
 
 Stateful tools are intentionally NOT exposed here because they need process-local
 context the graph provides:
 
-* ``save_memory`` / ``search_memories`` — require the LangGraph runtime store.
-* ``search_knowledge_base`` — requires the Postgres/pgvector session + embeddings.
+* ``save_memory`` / ``search_memories``, require the LangGraph runtime store.
+* ``search_knowledge_base``, requires the Postgres/pgvector session + embeddings.
 
 Everything else (web search, page fetch, Wikipedia, crypto, product prices,
 booking search, time, calculator) is pure network/compute and is
@@ -26,7 +26,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from langchain_mcp_adapters.tools import to_fastmcp
 
-import cortex.tools  # noqa: F401 — importing the package registers every tool
+import cortex.tools  # noqa: F401, importing the package registers every tool
 from cortex.tools.registry import registry
 
 # Stateful tools that need process-local context (runtime store / DB session).

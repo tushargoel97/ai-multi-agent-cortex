@@ -1,10 +1,10 @@
-"""Wire-format helpers — speak the LangGraph Platform serialization the SDK expects.
+"""Wire-format helpers, speak the LangGraph Platform serialization the SDK expects.
 
 The ``@langchain/langgraph-sdk`` client deserializes messages as plain dicts
 keyed by ``type`` (``"ai"``/``"human"``/``"tool"``/``"system"``), NOT the
 LangChain "lc-constructor" envelope. Message *chunks* are first coerced to full
 messages so their ``type`` is the base type (``"ai"``) rather than
-``"AIMessageChunk"`` — matching the reference server (langgraph-api/stream.mts).
+``"AIMessageChunk"``, matching the reference server (langgraph-api/stream.mts).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from langchain_core.messages import (
 )
 
 # Tags that mark internal LLM calls whose tokens must never surface in the UI
-# stream (guardrail screen_prompt, summary refresh — see cortex/workflow.py).
+# stream (guardrail screen_prompt, summary refresh: see cortex/workflow.py).
 NOSTREAM_TAGS = {"langsmith:nostream", "nostream"}
 
 

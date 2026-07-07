@@ -1,4 +1,4 @@
-# Building a Solid Coding Agent — Design & Roadmap
+# Building a Solid Coding Agent: Design & Roadmap
 
 Companion plan for the `coder` agent in Cortex. This lays out the vision and a
 phased roadmap; the scaffolding (Phase 0) is already implemented.
@@ -6,11 +6,11 @@ phased roadmap; the scaffolding (Phase 0) is already implemented.
 ## Goal
 
 A coding specialist that answers programming questions and produces
-correct, production-quality code — and, over time, can *act* on a codebase
+correct, production-quality code, and, over time, can *act* on a codebase
 (run code, edit files, run tests) safely and verifiably, all driven from the
 chat UI with the same observability/guardrails as the rest of Cortex.
 
-## Phase 0 — Specialist chat agent (DONE)
+## Phase 0: Specialist chat agent (DONE)
 
 Shipped now:
 
@@ -20,7 +20,7 @@ Shipped now:
   writing/debugging/refactoring/algorithms/SQL/regex/shell to `coding_task`
   and keeps pure math/logic on `reasoning_task`.
 - **Shares the `synthesize` node, safely.** `coder → synthesize → END`, but
-  the synthesizer handles code **deterministically** — it never lets the
+  the synthesizer handles code **deterministically**, it never lets the
   fast-tier model rewrite code (which could silently corrupt it). It runs a
   parse-only syntax sanity check (Python via `ast`, JSON via `json`) and
   appends a heads-up when a *complete* code block is broken (snippets /
@@ -44,7 +44,7 @@ and the per-intent list is editable in Admin → Models → Auto-mode candidates
 `claude-fable-5` must be registered under the Anthropic provider to be used;
 until then it's skipped gracefully.
 
-## Phase 1 — Grounding & project context
+## Phase 1: Grounding & project context
 
 - **Attach files/repo context.** Let the user paste or upload files (the UI
   already supports multimodal blocks); feed relevant snippets to the coder.
@@ -53,7 +53,7 @@ until then it's skipped gracefully.
 - **Structured output for edits.** Return unified diffs / per-file patches in a
   parseable shape the UI can render and (later) apply.
 
-## Phase 2 — Execution (make it "act")
+## Phase 2: Execution (make it "act")
 
 - **Sandboxed code runner.** A dedicated, network-isolated container service
   (like `ai`/`trainer`) exposing `run_code(language, source, stdin)` with hard
@@ -66,7 +66,7 @@ until then it's skipped gracefully.
 - **File edits.** `apply_patch` against a workspace copy, always diff-preview +
   approve before write. Never touch paths outside the workspace.
 
-## Phase 3 — Quality & trust
+## Phase 3: Quality & trust
 
 - **Evals.** Add `evals/test_coding.py` (HumanEval-style prompts + a few repo
   tasks); wire into the eval suite. Track pass@1 per model to tune the
@@ -74,7 +74,7 @@ until then it's skipped gracefully.
 - **Guardrails.** Tool allowlist (`ToolAllowlistMiddleware`) so the coder can
   never call anything outside its set; secret-scanning on outputs; refuse
   malware / exploitation requests (extend the image guardrail pattern to code).
-- **Observability.** Every tool call already exports an OTel span (Langfuse) —
+- **Observability.** Every tool call already exports an OTel span (Langfuse), 
   add cost/latency dashboards per coding model.
 
 ## Guardrails & safety (non-negotiable)

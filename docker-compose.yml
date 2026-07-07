@@ -29,7 +29,7 @@ services:
       - .env
     environment:
       # App code + the durable server both read Postgres from here (the server
-      # normalizes the psycopg2 driver suffix — see cortex/server/runtime.py).
+      # normalizes the psycopg2 driver suffix, see cortex/server/runtime.py).
       DATABASE_URL: postgresql+psycopg2://cortex:cortex@db:5432/cortex
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
@@ -46,7 +46,7 @@ services:
       db:
         condition: service_healthy
 
-  # Additive FastMCP server — exposes Cortex's stateless tools over MCP for
+  # Additive FastMCP server: exposes Cortex's stateless tools over MCP for
   # external clients (Claude Desktop, IDEs, other agents). Decoupled from the
   # chat app: the graph uses the same tools in-process, so this is never in the
   # assistant's hot path and its downtime can't affect it. Stateful tools
@@ -79,7 +79,7 @@ services:
       LANGGRAPH_API_URL: http://langgraph:8000
       DATABASE_URL: postgresql://cortex:cortex@db:5432/cortex
       LOCAL_AI_URL: http://ai:8100
-      # Host-side MLX fine-tuning service (trainer/ — runs on the host, not in Docker)
+      # Host-side MLX fine-tuning service (trainer/, runs on the host, not in Docker)
       TRAINER_URL: http://host.docker.internal:8200
     volumes:
       - ./generated_images:/app/generated_images:ro

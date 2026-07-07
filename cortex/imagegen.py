@@ -3,7 +3,7 @@
 Two guardrail layers keep output safe:
   A. A fast-tier LLM screens the request BEFORE any image API call; explicit
      "disallowed" verdicts always block. If the guardrail model itself is
-     unavailable the request proceeds — layer B still applies.
+     unavailable the request proceeds, layer B still applies.
   B. Strict Gemini safetySettings on the generate call; a safety block from
      the API becomes a polite refusal, not an error.
 
@@ -71,7 +71,7 @@ async def screen_prompt(prompt: str) -> tuple[bool, str]:
     """Layer A: LLM pre-flight. Returns (allowed, reason)."""
     resolved = resolve_auto_model("fast")
     if resolved is None:
-        return True, "guardrail model unavailable — relying on API safety settings"
+        return True, "guardrail model unavailable, relying on API safety settings"
     try:
         model = build_client_from_resolved(resolved)
         # Tag so LangGraph's `messages` stream mode never surfaces this internal
@@ -88,9 +88,9 @@ async def screen_prompt(prompt: str) -> tuple[bool, str]:
         if verdict.get("allowed") is False:
             return False, str(verdict.get("reason", "not allowed"))
         return True, ""
-    except Exception:  # noqa: BLE001 — infra failure fails open (layer B remains)
-        logger.exception("Image guardrail screening failed — proceeding to layer B")
-        return True, "guardrail error — relying on API safety settings"
+    except Exception:  # noqa: BLE001, infra failure fails open (layer B remains)
+        logger.exception("Image guardrail screening failed, proceeding to layer B")
+        return True, "guardrail error, relying on API safety settings"
 
 
 def _safe_thread_id(thread_id: str) -> str:
@@ -109,7 +109,7 @@ async def generate_image(prompt: str, thread_id: str) -> ImageResult:
             status="refused",
             detail=(
                 "I can't generate that image: "
-                f"{reason}. I'm happy to create something else — safe-for-work "
+                f"{reason}. I'm happy to create something else, safe-for-work "
                 "scenes, products, fictional characters, logos, and art styles "
                 "are all fair game."
             ),
@@ -121,7 +121,7 @@ async def generate_image(prompt: str, thread_id: str) -> ImageResult:
         return ImageResult(
             status="error",
             detail=(
-                "No Google or OpenAI API key is configured — image generation "
+                "No Google or OpenAI API key is configured, image generation "
                 "needs one. Add a key in Admin → Providers."
             ),
         )
@@ -156,7 +156,7 @@ async def generate_image(prompt: str, thread_id: str) -> ImageResult:
                     model_used=model_id,
                 )
             filename = f"{_safe_thread_id(thread_id)}_{int(time.time() * 1000)}.png"
-            # File IO off the event loop — langgraph dev rejects blocking calls.
+            # File IO off the event loop, langgraph dev rejects blocking calls.
             await asyncio.to_thread(_save_png, filename, image_b64)
             return ImageResult(
                 status="ok",

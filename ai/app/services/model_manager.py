@@ -24,7 +24,7 @@ MODEL_CATALOG: dict[str, dict] = {
     "gemma-3-1b": {
         "repo_id": "ggml-org/gemma-3-1b-it-GGUF",
         "filename": "gemma-3-1b-it-Q8_0.gguf",
-        "description": "Google Gemma 3 1B — fast, minimal RAM.",
+        "description": "Google Gemma 3 1B, fast, minimal RAM.",
         "size_mb": 1020,
         "context_length": 8192,
         "parameters": "1B",
@@ -33,7 +33,7 @@ MODEL_CATALOG: dict[str, dict] = {
     "llama-3.2-3b": {
         "repo_id": "bartowski/Llama-3.2-3B-Instruct-GGUF",
         "filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        "description": "Meta Llama 3.2 3B — well-rounded small model.",
+        "description": "Meta Llama 3.2 3B, well-rounded small model.",
         "size_mb": 2048,
         "context_length": 4096,
         "parameters": "3B",
@@ -42,7 +42,7 @@ MODEL_CATALOG: dict[str, dict] = {
     "phi-4-mini": {
         "repo_id": "bartowski/phi-4-mini-instruct-GGUF",
         "filename": "phi-4-mini-instruct-Q4_K_M.gguf",
-        "description": "Microsoft Phi-4 Mini — top reasoning at 3.8B.",
+        "description": "Microsoft Phi-4 Mini, top reasoning at 3.8B.",
         "size_mb": 2400,
         "context_length": 8192,
         "parameters": "3.8B",
@@ -51,7 +51,7 @@ MODEL_CATALOG: dict[str, dict] = {
     "llama-3.1-8b": {
         "repo_id": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
         "filename": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-        "description": "Meta Llama 3.1 8B — flagship 8B instruct.",
+        "description": "Meta Llama 3.1 8B, flagship 8B instruct.",
         "size_mb": 4920,
         "context_length": 8192,
         "parameters": "8B",
@@ -72,7 +72,7 @@ def _load_custom_catalog() -> None:
         with open(_CUSTOM_CATALOG_PATH) as f:
             MODEL_CATALOG.update(json.load(f))
     except Exception:
-        logger.exception("Could not read %s — ignoring", _CUSTOM_CATALOG_PATH)
+        logger.exception("Could not read %s, ignoring", _CUSTOM_CATALOG_PATH)
 
 
 def _persist_custom_entry(name: str, info: dict) -> None:
@@ -82,7 +82,7 @@ def _persist_custom_entry(name: str, info: dict) -> None:
             with open(_CUSTOM_CATALOG_PATH) as f:
                 custom = json.load(f)
         except Exception:
-            logger.exception("Could not read %s — rewriting", _CUSTOM_CATALOG_PATH)
+            logger.exception("Could not read %s, rewriting", _CUSTOM_CATALOG_PATH)
     custom[name] = info
     os.makedirs(MODELS_DIR, exist_ok=True)
     with open(_CUSTOM_CATALOG_PATH, "w") as f:
@@ -117,7 +117,7 @@ def import_local_model(
     path = os.path.join(MODELS_DIR, filename)
     if not os.path.exists(path):
         raise FileNotFoundError(f"No file {filename!r} in {MODELS_DIR}")
-    # The file may be a retrained replacement of an already-loaded model —
+    # The file may be a retrained replacement of an already-loaded model, 
     # drop the in-memory instance so the next load reads the new weights.
     if _loaded_model_name == name:
         _llm = None
@@ -183,7 +183,7 @@ def _is_primary_shard(f: str) -> bool:
 
 def _pick_best_gguf(filenames: list[str]) -> str | None:
     # Modern repos keep quants in sub-folders and split large models into
-    # multi-part shards — accept both (only the first shard is the entry point).
+    # multi-part shards, accept both (only the first shard is the entry point).
     gguf = [
         f for f in filenames
         if f.endswith(".gguf") and "mmproj" not in f.lower()
@@ -348,7 +348,7 @@ async def delete_model(name: str) -> bool:
     if not p:
         return False
     os.remove(p)
-    # Multi-part GGUFs sit next to their sibling shards — remove the whole set.
+    # Multi-part GGUFs sit next to their sibling shards, remove the whole set.
     shard = _SHARD_RE.search(p)
     if shard:
         import glob

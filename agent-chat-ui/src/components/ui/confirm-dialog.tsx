@@ -28,7 +28,7 @@ const ConfirmContext = React.createContext<ConfirmFn | null>(null);
 /**
  * App-wide in-UI confirmation dialog. Wrap the app once with this provider,
  * then call `const confirm = useConfirm()` and `await confirm({ title, ... })`
- * — a drop-in, promise-based replacement for the browser `confirm()`.
+ *, a drop-in, promise-based replacement for the browser `confirm()`.
  *
  * Standard: prefer this over `window.confirm` for every confirmation.
  */

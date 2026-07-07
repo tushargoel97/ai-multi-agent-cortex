@@ -138,7 +138,7 @@ export default function DomainBuilder({
     if (!(await confirm({
       title: `Delete domain "${name}"?`,
       description:
-        "This permanently deletes the domain folder and every subdomain inside it — schemas, curated rows, and imported data.",
+        "This permanently deletes the domain folder and every subdomain inside it, schemas, curated rows, and imported data.",
       confirmText: "Delete",
     })))
       return;
@@ -186,7 +186,7 @@ export default function DomainBuilder({
     if (!(await confirm({
       title: `Delete subdomain "${name}"?`,
       description:
-        "This permanently deletes the subdomain's files — its schema, curated rows, and imported data.",
+        "This permanently deletes the subdomain's files, its schema, curated rows, and imported data.",
       confirmText: "Delete",
     })))
       return;
@@ -344,8 +344,8 @@ export default function DomainBuilder({
             </h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create your own knowledge domains — define a subdomain&apos;s fields
-            or let the assistant propose a schema — add rows, and train. The
+            Create your own knowledge domains, define a subdomain&apos;s fields
+            or let the assistant propose a schema, add rows, and train. The
             built-in Hardware domain&apos;s rows are editable too (its fields and
             answer style are fixed).
           </p>
@@ -477,7 +477,7 @@ export default function DomainBuilder({
                   {d.subdomains.length === 0 && (
                     <p className="text-xs text-muted-foreground/70">
                       No subdomains yet
-                      {d.builtin ? "." : " — add one with the Subdomain button."}
+                      {d.builtin ? "." : ", add one with the Subdomain button."}
                     </p>
                   )}
                   {d.subdomains.map((s) => (
@@ -637,7 +637,7 @@ function SubdomainEditor({
       {/* Smart schema proposal */}
       <div className="mt-3 rounded border border-dashed p-2">
         <p className="text-xs font-medium text-foreground">
-          Schema — define fields, or let the assistant propose them
+          Schema, define fields, or let the assistant propose them
         </p>
         <textarea
           className="mt-1 min-h-14 w-full rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -677,7 +677,7 @@ function SubdomainEditor({
         </div>
         {edit.fields.length === 0 && (
           <p className="mt-1 text-xs text-muted-foreground/70">
-            No fields yet — add some or propose a schema above.
+            No fields yet, add some or propose a schema above.
           </p>
         )}
         <div className="mt-1 space-y-2">
@@ -704,7 +704,7 @@ function SubdomainEditor({
               {showTemplates && (
                 <div className="mt-2 space-y-1 pl-1">
                   <Input
-                    placeholder="Questions (one per line uses {name}) — comma separated"
+                    placeholder="Questions (one per line uses {name}), comma separated"
                     value={(f.questions ?? []).join(" | ")}
                     onChange={(e) =>
                       setField(i, {
@@ -716,7 +716,7 @@ function SubdomainEditor({
                     }
                   />
                   <Input
-                    placeholder="Answer template — uses {name} and {value}"
+                    placeholder="Answer template, uses {name} and {value}"
                     value={f.answer ?? ""}
                     onChange={(e) => setField(i, { answer: e.target.value })}
                   />
@@ -767,7 +767,7 @@ function SubdomainEditor({
         </div>
         {edit.entities.length === 0 ? (
           <p className="mt-1 text-xs text-muted-foreground/70">
-            No entries yet — add one, or use Smart import to fill them.
+            No entries yet, add one, or use Smart import to fill them.
           </p>
         ) : (
           <div className="mt-2 max-h-[26rem] space-y-2 overflow-auto pr-1">

@@ -1,4 +1,4 @@
-"""Cortex Trainer — host-side MLX LoRA fine-tuning service (Apple Silicon).
+"""Cortex Trainer, host-side MLX LoRA fine-tuning service (Apple Silicon).
 
 Runs OUTSIDE Docker (MLX needs the Apple GPU). The agent-chat-ui admin panel
 reaches it through the Next.js proxy at /api/admin/trainer/* which forwards to
@@ -48,7 +48,7 @@ class TrainRequest(BaseModel):
 
 class DatasetRequest(BaseModel):
     # Training selection as 'domain/subdomain' tokens (e.g. 'hardware/consoles',
-    # 'software/games') — see GET /admin/domains for the hierarchy.
+    # 'software/games'), see GET /admin/domains for the hierarchy.
     subdomains: list[str] | None = None
     # Whole-domain tokens (all their subdomains); back-compat with the earlier
     # flat domain selector.
@@ -81,7 +81,7 @@ class GapResearchRequest(BaseModel):
 
 class ScrapeRequest(BaseModel):
     # URLs (any vendor page) and/or uploaded source ids. TechPowerUp is NOT a
-    # default — it usually 403s bots; add it explicitly to try it.
+    # default, it usually 403s bots; add it explicitly to try it.
     sources: list[str] = [
         "https://www.amd.com/en/products/specifications/processors.html",
     ]
@@ -110,7 +110,7 @@ def dataset_generate(req: DatasetRequest | None = None) -> dict:
 
     This is deterministic and instant. Sources (URLs/PDFs/images) become
     structured spec sheets in learned_facts.yaml via the scrape agent
-    (POST /admin/scrape) BEFORE this step — not by inventing Q&A from raw
+    (POST /admin/scrape) BEFORE this step, not by inventing Q&A from raw
     text. Run 'Import specs from sources' first, then 'Generate dataset'.
     """
     req = req or DatasetRequest()
@@ -173,7 +173,7 @@ def domain_propose_schema(req: SchemaProposeRequest) -> dict:
     """Smart schema proposal (fields + render mode) for the user to review."""
     try:
         return dom.propose_schema(req.description, req.sample_text)
-    except Exception as e:  # noqa: BLE001 — LLM/endpoint best-effort
+    except Exception as e:  # noqa: BLE001, LLM/endpoint best-effort
         raise HTTPException(502, f"Schema proposal failed: {e}")
 
 
@@ -299,7 +299,7 @@ def dataset_preview(split: str = "train", limit: int = 300) -> dict:
                     "",
                 )
                 pairs.append({"q": q, "a": a})
-            except Exception:  # noqa: BLE001 — flag the bad line, keep going
+            except Exception:  # noqa: BLE001, flag the bad line, keep going
                 pairs.append({"q": "", "a": f"[unparseable] {line[:200]}"})
     return {
         "split": split,
@@ -361,7 +361,7 @@ def scrape_specs(req: ScrapeRequest) -> dict:
     by_id = {s["id"]: s for s in list_sources()}
     resolved: list = []
     for item in req.sources:
-        if item in by_id:  # uploaded source — pass its (type-aware) entry dict
+        if item in by_id:  # uploaded source, pass its (type-aware) entry dict
             resolved.append(by_id[item])
         else:
             resolved.append(item)  # a raw URL string
@@ -448,7 +448,7 @@ def gaps_learned() -> dict:
 @app.post("/admin/train")
 def train(req: TrainRequest) -> dict:
     if not (settings.data_dir / "train.jsonl").exists():
-        raise HTTPException(status_code=400, detail="dataset missing — generate it first")
+        raise HTTPException(status_code=400, detail="dataset missing, generate it first")
     try:
         pipeline.start_training(
             req.iters,
@@ -557,7 +557,7 @@ def hf_search(q: str, limit: int = 20) -> dict:
 @app.delete("/admin/artifacts")
 def clear_artifacts() -> dict:
     """Delete the LoRA adapters + fused working dirs. They are base-specific
-    (tied to base_model.txt) and can't be reused to train a different base —
+    (tied to base_model.txt) and can't be reused to train a different base, 
     the next full train recreates them. The registered GGUF is removed
     separately via the ai service. Refuses while a job is running.
     """

@@ -1,4 +1,4 @@
-"""Auto mode — resolve the model for an intent from the active profile.
+"""Auto mode, resolve the model for an intent from the active profile.
 
 The chat UI sends the sentinel ``model_id: "auto"``; the router classifies the
 message and each agent node asks this module for the model matching its
@@ -56,7 +56,7 @@ def _load_overrides() -> dict:
         data = json.loads(raw)
     except (ValueError, TypeError):
         logger.warning(
-            "%s is not valid JSON — ignoring overrides", OVERRIDES_SETTING_KEY
+            "%s is not valid JSON, ignoring overrides", OVERRIDES_SETTING_KEY
         )
         return {}
     return data if isinstance(data, dict) else {}
@@ -84,7 +84,7 @@ def publish_defaults() -> None:
     """Mirror the packaged YAML defaults into app_settings (once per process).
 
     The admin UI talks only to Postgres, so this is how it learns the shipped
-    candidate lists. Best-effort — the graph must never fail over a UI mirror.
+    candidate lists. Best-effort, the graph must never fail over a UI mirror.
     """
     global _defaults_published
     if _defaults_published:
@@ -92,7 +92,7 @@ def publish_defaults() -> None:
     _defaults_published = True
     try:
         set_setting(DEFAULTS_SETTING_KEY, json.dumps(_yaml_profiles()))
-    except Exception:  # noqa: BLE001 — cosmetic mirror for the UI, never fatal
+    except Exception:  # noqa: BLE001, cosmetic mirror for the UI, never fatal
         logger.exception("Could not publish auto-mode defaults to app_settings")
 
 
@@ -113,7 +113,7 @@ def resolve_auto_model(intent: str) -> ResolvedModel | None:
                 resolved = resolve_fine_tuned_model()
             else:
                 resolved = resolve_by_model_id(model_id)
-        except Exception:  # noqa: BLE001 — registry hiccup: try next candidate
+        except Exception:  # noqa: BLE001, registry hiccup: try next candidate
             logger.exception("auto-mode candidate %r failed to resolve", model_id)
             continue
         if resolved is not None:

@@ -1,4 +1,4 @@
-# Guardrails in LangChain — Middleware for Trustworthy LLM Agents
+# Guardrails in LangChain: Middleware for Trustworthy LLM Agents
 
 > Companion document to the **AI Multi-Agent Cortex** project. The
 > examples below all reference the agents shipped in this repository
@@ -9,9 +9,9 @@
 1. [What Are Guardrails?](#1-what-are-guardrails)
 2. [How LangChain Implements Guardrails](#2-how-langchain-implements-guardrails)
 3. [Middleware Architecture](#3-middleware-architecture)
-4. [What We Built — Our Implementation](#4-what-we-built--our-implementation)
+4. [What We Built: Our Implementation](#4-what-we-built-our-implementation)
 5. [Built-in Middleware Reference](#5-built-in-middleware-reference)
-6. [Custom Middleware — Going Beyond Built-ins](#6-custom-middleware--going-beyond-built-ins)
+6. [Custom Middleware: Going Beyond Built-ins](#6-custom-middleware-going-beyond-built-ins)
 7. [Other Guardrail Approaches](#7-other-guardrail-approaches)
 8. [Guardrail Strategy Matrix](#8-guardrail-strategy-matrix)
 
@@ -42,7 +42,7 @@ guardrail (`ToolAllowlistMiddleware`).
 
 ## 2. How LangChain Implements Guardrails
 
-LangChain organises guardrails as **middleware** — small, composable
+LangChain organises guardrails as **middleware**, small, composable
 classes that wrap an agent's lifecycle hooks. The agent runtime calls
 your middleware at three points:
 
@@ -112,14 +112,14 @@ agent = create_agent(
 ```
 
 Middleware run **in order** for `before_model` and `wrap_tool_call`, and
-in **reverse order** for `after_model` — the same convention as
+in **reverse order** for `after_model`, the same convention as
 ASGI/Express middleware. Place defensive middleware (PII, allowlist) at
 the outer edges and policy middleware (HITL, business rules) closer to
 the model.
 
 ---
 
-## 4. What We Built — Our Implementation
+## 4. What We Built: Our Implementation
 
 Cortex applies the same default middleware stack to every specialist
 agent (`generalist`, `researcher`, `reasoner`, `prompt_cacher`). The
@@ -168,7 +168,7 @@ def _build_agent(agent_id: Agents, *, with_pii: bool = True):
 `cortex/guardrails.py` ships an additional middleware that you can wire
 in when you need stricter tool control:
 
-- **`ToolAllowlistMiddleware`** — hard-blocks any tool call whose name
+- **`ToolAllowlistMiddleware`**: hard-blocks any tool call whose name
   is not on the allowlist. Even if the LLM hallucinates a tool name or
   is tricked by a prompt-injection payload into calling something it
   shouldn't, the runtime never invokes anything outside the explicit
@@ -200,7 +200,7 @@ useful ones for Cortex-style assistants are:
 | `RetryMiddleware`               | Retries on transient errors with exponential backoff                                           |
 | `LoggingMiddleware`             | Structured logging of every model and tool call                                                |
 
-### `PIIMiddleware` — what we use
+### `PIIMiddleware`: what we use
 
 ```python
 PIIMiddleware(
@@ -213,10 +213,10 @@ PIIMiddleware(
 
 When the model writes a credit-card number into a response, the
 middleware replaces it with `[REDACTED_CREDIT_CARD]` before the message
-is returned to the user — protecting against accidental leakage from
+is returned to the user, protecting against accidental leakage from
 retrieved context, hallucinated examples, or test data.
 
-### `HumanInTheLoopMiddleware` — when to add it
+### `HumanInTheLoopMiddleware`: when to add it
 
 Cortex doesn't enable HITL by default because none of its current tools
 have side effects: searching a vector DB or Wikipedia is read-only, and
@@ -239,7 +239,7 @@ human, and the run resumes only after a decision is recorded.
 
 ---
 
-## 6. Custom Middleware — Going Beyond Built-ins
+## 6. Custom Middleware: Going Beyond Built-ins
 
 The middleware contract is small enough that custom guardrails are
 typically a few dozen lines. The pattern below is the one used by
@@ -290,13 +290,13 @@ gracefully (typically by apologising and choosing a different tool).
 
 ### Other middleware ideas you might add to Cortex
 
-- **Cost cap** — track token usage in `before_model` and short-circuit
+- **Cost cap**: track token usage in `before_model` and short-circuit
   with an error message once a per-thread budget is exceeded.
-- **Topic guard** — call a small classifier in `before_model` and
+- **Topic guard**: call a small classifier in `before_model` and
   refuse off-topic queries (e.g. anything outside science / coding).
-- **Schema validator** — run the model's structured output through a
+- **Schema validator**: run the model's structured output through a
   Pydantic model in `after_model` and re-prompt on validation failure.
-- **Prompt-injection classifier** — score the user's message in
+- **Prompt-injection classifier**: score the user's message in
   `before_model` and require a HITL approval if the score is high.
 
 ---
@@ -306,7 +306,7 @@ gracefully (typically by apologising and choosing a different tool).
 Middleware is the cleanest layer, but it isn't the only one. A
 production stack typically combines several:
 
-### Layer A — Pydantic schema validation (free, instant)
+### Layer A: Pydantic schema validation (free, instant)
 
 Tool argument schemas are the cheapest guardrail. They run before the
 tool body and reject malformed calls with a structured error that the
@@ -320,10 +320,10 @@ class CalculatorInput(BaseModel):
     )
 ```
 
-### Layer B — Prompt-level rules
+### Layer B: Prompt-level rules
 
 Embed safety rules directly in the system prompt. Cheap, but not
-sufficient on its own — a determined prompt-injection payload can talk
+sufficient on its own, a determined prompt-injection payload can talk
 the model out of obeying. Treat this as defence-in-depth, not the only
 line.
 
@@ -338,22 +338,22 @@ system_prompt: |
   4. If neither source has the answer, say so plainly. Do NOT fabricate.
 ```
 
-### Layer C — Deterministic middleware
+### Layer C: Deterministic middleware
 
 Hard-coded business rules with no LLM involved (rate limits, allowlists,
 hard caps). Always run, instant, infinitely auditable.
 `ToolAllowlistMiddleware` is a small example.
 
-### Layer D — Human-in-the-loop interrupts
+### Layer D: Human-in-the-loop interrupts
 
 The most expensive but highest-trust guardrail. Use sparingly for the
 small number of actions that justify a human-speed pause.
 
-### Layer E — Output-side LLM judge
+### Layer E: Output-side LLM judge
 
 Run a small classifier model on the agent's final response to score
 toxicity, faithfulness, or schema compliance, and re-prompt or block on
-failure. Slower and probabilistic — best deployed as a sampled audit
+failure. Slower and probabilistic, best deployed as a sampled audit
 rather than a synchronous gate, unless the use-case is high-risk.
 
 ---
@@ -366,7 +366,7 @@ rather than a synchronous gate, unless the use-case is high-risk.
 | **Prompt rules**     | System prompt instructions                | Zero overhead | Depends on LLM | `researcher.yaml` "never answer from memory alone"       |
 | **PII redaction**    | `PIIMiddleware`                           | ~ms           | No             | `credit_card`, `email` redaction on every agent          |
 | **Tool allowlist**   | Custom middleware (`wrap_tool_call`)      | Instant       | No             | `ToolAllowlistMiddleware` (opt-in)                       |
-| **HITL**             | `HumanInTheLoopMiddleware`                | Human-speed   | Yes (human)    | (Not used today — wire on any future side-effecting tool) |
+| **HITL**             | `HumanInTheLoopMiddleware`                | Human-speed   | Yes (human)    | (Not used today, wire on any future side-effecting tool) |
 | **Output judge**     | Post-hoc LLM classifier or DeepEval `GEval` | LLM call      | Yes            | Eval suites in `evals/`                                  |
 
 ### Defence in depth
@@ -374,11 +374,11 @@ rather than a synchronous gate, unless the use-case is high-risk.
 A production agent should combine layers, not rely on one:
 
 ```
-Layer A:  Pydantic schemas              — argument shape (always on)
-Layer B:  Prompt rules                  — desired behaviour (always on)
-Layer C:  Deterministic middleware      — hard limits (always on)
-Layer D:  HITL interrupts               — human approval for risky writes
-Layer E:  Output-side judges in evals   — regression detection in CI
+Layer A:  Pydantic schemas, argument shape (always on)
+Layer B:  Prompt rules, desired behaviour (always on)
+Layer C:  Deterministic middleware, hard limits (always on)
+Layer D:  HITL interrupts, human approval for risky writes
+Layer E:  Output-side judges in evals, regression detection in CI
 ```
 
 The Cortex repo demonstrates Layers A, B, C, and E today. Layer D is
@@ -390,5 +390,5 @@ ready to plug in as soon as you add a side-effecting tool.
 
 - [LangChain Middleware reference](https://python.langchain.com/docs/concepts/middleware)
 - [LangGraph human-in-the-loop guide](https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/wait-user-input/)
-- [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/) — taxonomy of LLM-application risks
+- [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/), taxonomy of LLM-application risks
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)

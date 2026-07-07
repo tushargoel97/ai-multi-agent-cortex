@@ -1,7 +1,7 @@
 """Web search + page fetch for the trainer (prompt-topic and gap research).
 
-Uses a real search API when a key is configured — Firecrawl → Brave → SerpAPI →
-Tavily — and Firecrawl also powers JS/anti-bot-safe page fetches. Falls back to
+Uses a real search API when a key is configured, Firecrawl → Brave → SerpAPI →
+Tavily, and Firecrawl also powers JS/anti-bot-safe page fetches. Falls back to
 DuckDuckGo HTML + a plain httpx fetch, which are frequently rate-limited. Keys
 come from the environment (the same names the main app uses); config._load_dotenv
 makes the repo .env available to the host trainer.
@@ -161,7 +161,7 @@ def _html_fetch(url: str, max_chars: int) -> str:
 
 
 def fetch_page(url: str, max_chars: int = 6000) -> str:
-    """Readable page text — Firecrawl (JS + anti-bot) first, else plain HTML."""
+    """Readable page text, Firecrawl (JS + anti-bot) first, else plain HTML."""
     fc = _env("FIRECRAWL_API_KEY")
     if fc:
         try:

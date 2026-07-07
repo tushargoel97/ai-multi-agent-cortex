@@ -159,7 +159,7 @@ export function AssistantMessage({
   if (routingIntent) {
     let chipModel = getRoutingModel(message);
     if (routingIntent === "image_generation") {
-      // The real image model is only known after generation — read it from the
+      // The real image model is only known after generation, read it from the
       // image-result message that follows this router marker, not a pre-guess.
       const idx = thread.messages.findIndex((m) => m.id === message?.id);
       const result =
@@ -214,7 +214,7 @@ export function AssistantMessage({
                     {formatTokens(usage.output_tokens ?? 0)} out tokens
                   </span>
                   {cachedTokens(usage) > 0 && (
-                    <span title="Prompt-cache hits — these input tokens were served from cache">
+                    <span title="Prompt-cache hits, these input tokens were served from cache">
                       · ⚡{formatTokens(cachedTokens(usage))} cached
                     </span>
                   )}

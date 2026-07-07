@@ -3,7 +3,7 @@
 `langgraph dev` keeps threads in in-memory pickles that don't survive
 upgrades or graph-shape changes. This sidecar loops over the public
 LangGraph API and upserts every thread's state (messages, summary, title
-metadata) into the `thread_backups` table as plain JSON — format-proof by
+metadata) into the `thread_backups` table as plain JSON, format-proof by
 construction. When the server comes up empty (fresh volume, incompatible
 pickle) and backups exist, they are restored through the same API.
 
@@ -79,7 +79,7 @@ def _backup(conn, threads: list[dict]) -> int:
                 ),
             )
             saved += 1
-        # Reconcile deletions — but only while the server actually has
+        # Reconcile deletions, but only while the server actually has
         # threads. An empty server means a wipe, and the backups are then
         # exactly what we must NOT delete.
         if live_ids:
@@ -114,7 +114,7 @@ async def _restore(client: httpx.AsyncClient, conn) -> int:
             )
             resp.raise_for_status()
             restored += 1
-        except Exception:  # noqa: BLE001 — keep restoring the rest
+        except Exception:  # noqa: BLE001, keep restoring the rest
             logger.exception("Restore failed for thread %s", row["thread_id"])
     return restored
 
@@ -144,7 +144,7 @@ async def main() -> None:
                     if backup_count and not seen_nonempty:
                         n = await _restore(client, conn)
                         logger.info(
-                            "Server was empty — restored %s/%s thread(s) from backup",
+                            "Server was empty, restored %s/%s thread(s) from backup",
                             n,
                             backup_count,
                         )
@@ -152,14 +152,14 @@ async def main() -> None:
                         with conn.cursor() as cur:
                             cur.execute("DELETE FROM thread_backups")
                         logger.info(
-                            "All threads deleted by user — cleared %s backup(s)",
+                            "All threads deleted by user, cleared %s backup(s)",
                             backup_count,
                         )
                 else:
                     seen_nonempty = True
                     _backup(conn, threads)
             except (httpx.HTTPError, psycopg2.Error) as e:
-                logger.warning("Backup tick failed (%s) — retrying", e)
+                logger.warning("Backup tick failed (%s), retrying", e)
                 try:
                     conn.close()
                 except Exception:  # noqa: BLE001

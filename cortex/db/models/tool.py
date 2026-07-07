@@ -1,4 +1,4 @@
-"""Tool control — available tools, MCP servers, and per-agent tool grants.
+"""Tool control, available tools, MCP servers, and per-agent tool grants.
 
 Admin-UI managed. Built-in tools (``cortex.tools.registry``) are mirrored here
 so they can be enabled/disabled; admins can also add prebuilt LangChain tools
@@ -58,7 +58,7 @@ class MCPServer(Base):
 
 
 class Tool(Base):
-    """A tool the agents can be granted — built-in, LangChain catalog, or MCP."""
+    """A tool the agents can be granted, built-in, LangChain catalog, or MCP."""
 
     __tablename__ = "tools"
 

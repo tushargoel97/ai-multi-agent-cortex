@@ -2,13 +2,13 @@
 
 Two paths:
 
-1. **Per-request (preferred)** — pass the LangGraph ``RunnableConfig``; we read the
+1. **Per-request (preferred)**: pass the LangGraph ``RunnableConfig``; we read the
    chat-UI-selected ``model_id`` (a ``LLMModel`` UUID) from
    ``config["configurable"]`` and resolve provider/credentials from the database.
    Optional ``local_base_url`` and ``local_api_key`` keys let an end-user plug
    their own local LLM endpoint without editing the registry.
 
-2. **Fallback** — if no model_id is supplied (or DB lookup fails), fall back to
+2. **Fallback**: if no model_id is supplied (or DB lookup fails), fall back to
    the default ``LLMModel`` row marked ``is_default=True``. If no default row
    exists either, fall back to the static ``settings.yaml`` provider.
 """
@@ -100,13 +100,13 @@ def get_chat_client(
                 resolved = resolve_auto_model(auto_intent or FAST_TIER)
                 if resolved is not None:
                     return build_client_from_resolved(resolved)
-        except Exception:  # noqa: BLE001 — auto mode must never kill a run
+        except Exception:  # noqa: BLE001, auto mode must never kill a run
             pass
     local_base_url = configurable.get("local_base_url")
     local_api_key = configurable.get("local_api_key")
     local_model_name = configurable.get("local_model_name")
 
-    # User-supplied local LLM endpoint (chat-UI "Use local LLM" toggle) — short-circuit.
+    # User-supplied local LLM endpoint (chat-UI "Use local LLM" toggle), short-circuit.
     if local_base_url:
         kwargs: dict = {
             "model": local_model_name or "local-model",
@@ -128,7 +128,7 @@ def get_chat_client(
                 local_base_url_override=local_base_url,
                 local_api_key_override=local_api_key,
             )
-    except Exception:  # noqa: BLE001 — registry is optional, fall through
+    except Exception:  # noqa: BLE001, registry is optional, fall through
         pass
 
     return _from_settings(settings)

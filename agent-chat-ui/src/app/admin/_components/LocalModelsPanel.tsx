@@ -377,7 +377,7 @@ export default function LocalModelsPanel({
       <div className="text-xs text-muted-foreground">
         Currently loaded:{" "}
         <code>
-          {loaded ?? "(none — load a model to enable self-hosted chat)"}
+          {loaded ?? "(none, load a model to enable self-hosted chat)"}
         </code>
       </div>
     </div>

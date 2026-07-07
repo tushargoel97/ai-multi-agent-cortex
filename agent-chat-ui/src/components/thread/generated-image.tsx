@@ -17,7 +17,7 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   const imgRef = useRef<HTMLImageElement>(null);
 
   // An image that finished loading (e.g. from cache) before React attached
-  // onLoad won't fire it — detect that on mount so it doesn't stay blank.
+  // onLoad won't fire it, detect that on mount so it doesn't stay blank.
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
       setLoaded(true);

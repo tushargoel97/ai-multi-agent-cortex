@@ -2,4 +2,4 @@
 # sibling folders (games/, …), each with its own subdomain.yaml + facts.yaml.
 
 name: software
-description: "Software titles — games, apps, and operating systems."
+description: "Software titles, games, apps, and operating systems."

@@ -2,8 +2,8 @@
 
 Wikipedia REST and CoinGecko work with no key. Live web search prefers a real
 search API when a key is set (``BRAVE_API_KEY``, ``SERPAPI_API_KEY``, or
-``TAVILY_API_KEY``) and falls back to DuckDuckGo scraping — which is frequently
-blocked, so a key is strongly recommended. Stdlib only — no new dependencies.
+``TAVILY_API_KEY``) and falls back to DuckDuckGo scraping, which is frequently
+blocked, so a key is strongly recommended. Stdlib only, no new dependencies.
 """
 
 from __future__ import annotations
@@ -326,7 +326,7 @@ class WebSearchInput(BaseModel):
 def _http_json(
     url: str, *, headers: dict | None = None, data: dict | None = None, timeout: float = 10.0
 ) -> dict:
-    """Minimal JSON helper — POST when ``data`` is given, else GET."""
+    """Minimal JSON helper, POST when ``data`` is given, else GET."""
     body = json.dumps(data).encode() if data is not None else None
     h = {"User-Agent": _BROWSER_UA, "Accept": "application/json"}
     if data is not None:
@@ -423,7 +423,7 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
     """Search the live internet and return combined results.
 
     Use this for ANY question that needs **current / up-to-date / recent**
-    information that may not be in Wikipedia or the local knowledge base —
+    information that may not be in Wikipedia or the local knowledge base, 
     news, prices, scores, releases, weather, stock/crypto quotes, recent
     events, product specs, etc. Returns a JSON document with the top results
     (title, url, snippet) and, optionally, extracted page text for each.
@@ -446,7 +446,7 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
                 "query": query,
                 "results": [],
                 "note": (
-                    "No results — the free DuckDuckGo backend is blocked. Set "
+                    "No results, the free DuckDuckGo backend is blocked. Set "
                     "FIRECRAWL_API_KEY (or BRAVE_API_KEY / SERPAPI_API_KEY / "
                     "TAVILY_API_KEY) to enable real web search."
                 ),

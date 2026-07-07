@@ -1,4 +1,4 @@
-"""Agents — DB-editable system prompts for built-ins and admin-created agents.
+"""Agents, DB-editable system prompts for built-ins and admin-created agents.
 
 Built-in agents (from ``cortex/declarative/agents.yaml``) are mirrored here so
 their system prompts can be edited from the admin UI; custom agents are created
@@ -38,7 +38,7 @@ class Agent(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     system_prompt: Mapped[str] = mapped_column(Text, default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # True once an admin edits a built-in's prompt — stops the startup sync
+    # True once an admin edits a built-in's prompt, stops the startup sync
     # from overwriting their edit with the packaged YAML.
     edited: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -47,7 +47,7 @@ class Agent(Base):
 
 
 class AgentSubagent(Base):
-    """Delegation grant — ``agent_name`` (parent) may call ``subagent_name`` as a
+    """Delegation grant, ``agent_name`` (parent) may call ``subagent_name`` as a
     tool. One level only: a subagent doesn't get its own subagents at runtime,
     so there's no delegation recursion. Subagents share the parent's long-term
     memory read-only (they recall it but never persist via ``save_memory``)."""

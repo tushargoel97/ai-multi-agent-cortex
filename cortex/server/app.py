@@ -1,9 +1,9 @@
-"""FastAPI application — durable, self-hosted LangGraph runtime (Path 2B).
+"""FastAPI application, durable, self-hosted LangGraph runtime (Path 2B).
 
 Startup wires a shared psycopg3 pool to an ``AsyncPostgresSaver`` (checkpoints /
 threads) and an ``AsyncPostgresStore`` (semantic long-term memory), then compiles
-the Cortex graph against them. All state is durable in Postgres — surviving
-restarts, rebuilds, and upgrades — with no LangSmith license and no Redis.
+the Cortex graph against them. All state is durable in Postgres, surviving
+restarts, rebuilds, and upgrades, with no LangSmith license and no Redis.
 
 Served by uvicorn: ``uvicorn cortex.server.app:app --host 0.0.0.0 --port 8000``.
 """
@@ -91,17 +91,51 @@ async def lifespan(app: FastAPI):
 
         publish_tool_catalog()
         await refresh_dynamic_tools()
-    except Exception:  # noqa: BLE001 — tool catalog is additive, never fatal
+    except Exception:  # noqa: BLE001, tool catalog is additive, never fatal
         logger.exception("Tool catalog init failed")
 
     try:
         from cortex.db.services.agents import publish_agents
 
         publish_agents()
-    except Exception:  # noqa: BLE001 — agent mirror is additive, never fatal
+    except Exception:  # noqa: BLE001, agent mirror is additive, never fatal
         logger.exception("Agent init failed")
 
-    logger.info("Cortex durable server ready — Postgres persistence, no license/Redis.")
+    # Idempotent self-heal: panel text (tool / agent / model / provider / KB
+    # descriptions and prompts) seeded into Postgres BEFORE the em-dash sweep
+    # still renders U+2014 in the admin UI even though the source is clean.
+    # Reword it to a comma on startup; only rows that still hold one are touched.
+    try:
+        from sqlalchemy import text as _text
+
+        from cortex.db.engine import engine as _engine
+
+        _EM = "\u2014"
+        _targets = [
+            ("tools", "description"),
+            ("agents", "description"),
+            ("agents", "system_prompt"),
+            ("llm_models", "display_name"),
+            ("llm_providers", "name"),
+            ("knowledge_articles", "title"),
+            ("knowledge_articles", "content"),
+        ]
+        for _t, _c in _targets:
+            stmt = _text(
+                f"UPDATE {_t} SET {_c} = "
+                f"regexp_replace({_c}, :pat, ', ', 'g') WHERE {_c} LIKE :like"
+            )
+            try:
+                with _engine.begin() as _conn:
+                    _conn.execute(
+                        stmt, {"pat": r"\s*" + _EM + r"\s*", "like": f"%{_EM}%"}
+                    )
+            except Exception:  # noqa: BLE001, a missing table/column is harmless
+                pass
+    except Exception:  # noqa: BLE001, cleanup is best-effort, never fatal
+        logger.exception("em-dash DB cleanup failed")
+
+    logger.info("Cortex durable server ready, Postgres persistence, no license/Redis.")
     try:
         yield
     finally:

@@ -10,7 +10,7 @@ Tool-less `synthesize` node appended after the factual agents:
 `specialist | researcher | reasoner → synthesize → END` (generalist unchanged).
 
 - Input: last human question + the agent's final answer.
-- Rewrites **presentation only** — hard rule: never add/remove/alter facts, numbers,
+- Rewrites **presentation only**, hard rule: never add/remove/alter facts, numbers,
   prices, names, or citations.
   - Hardware specs/comparisons → markdown table (specs as rows, products as columns)
     plus a one-line verdict.
@@ -52,11 +52,11 @@ Tool-less `synthesize` node appended after the factual agents:
 - New router intent `image_generation` → new `imagegen` node ("Image Artist").
 - Guardrail A (pre-flight): fast-tier LLM classifies the prompt; sexual/NSFW content,
   nudity, minors, graphic violence, hate symbols, and real-person likeness are refused
-  politely — the image API is never called. Infrastructure failure of the guardrail
+  politely, the image API is never called. Infrastructure failure of the guardrail
   fails open because Guardrail B still applies; explicit "disallowed" always blocks.
 - Generate: Google `generateContent` with `responseModalities: ["TEXT","IMAGE"]` and
   strict `safetySettings`. Model candidates from auto_mode.yaml, tried in order
-  (gemini-3-pro-image → gemini-3.1-flash-image → gemini-2.5-flash-image) — the free-tier
+  (gemini-3-pro-image → gemini-3.1-flash-image → gemini-2.5-flash-image), the free-tier
   key may 429 on the pro image model.
 - Guardrail B (post): Gemini safety block → friendly refusal instead of an error.
 - Storage: PNG written to `generated_images/` (new bind mount, gitignored) named

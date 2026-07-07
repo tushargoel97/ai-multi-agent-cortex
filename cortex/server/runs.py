@@ -1,4 +1,4 @@
-"""Run streaming — the core SSE endpoint the chat UI consumes.
+"""Run streaming, the core SSE endpoint the chat UI consumes.
 
 Maps ``graph.astream(stream_mode=["values","messages","updates","custom"])`` onto
 the LangGraph Platform SSE event protocol that ``@langchain/langgraph-sdk``'s
@@ -117,7 +117,7 @@ async def _stream(thread_id: str | None, body: dict) -> AsyncIterator[str]:
                 yield sse("updates", chunk)
             elif mode == "custom":
                 yield sse("custom", chunk)
-    except Exception as exc:  # noqa: BLE001 — surface as a stream error, don't 500
+    except Exception as exc:  # noqa: BLE001, surface as a stream error, don't 500
         logger.exception("Run failed for thread %s", thread_id)
         yield sse("error", {"error": type(exc).__name__, "message": str(exc)})
     finally:

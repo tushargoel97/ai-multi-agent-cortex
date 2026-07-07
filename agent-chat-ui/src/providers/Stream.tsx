@@ -65,7 +65,7 @@ async function autoTitleThread(
   let meta: Record<string, unknown> = {};
   let firstHuman: { content?: unknown } | undefined;
 
-  // The first checkpoint may take a while to commit (model latency) — retry
+  // The first checkpoint may take a while to commit (model latency), retry
   // instead of giving up and leaving the thread as "Chat <uuid>".
   for (const delay of [600, 2000, 5000, 10000]) {
     await sleep(delay);

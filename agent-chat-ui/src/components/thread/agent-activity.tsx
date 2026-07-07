@@ -175,7 +175,7 @@ function lastRoutingIntent(messages: Message[]): string | null {
   return null;
 }
 
-/** Internal LLM outputs that must never render as chat bubbles — e.g. the
+/** Internal LLM outputs that must never render as chat bubbles, e.g. the
  *  image safety-guardrail verdict ({"allowed": ...}). Belt-and-suspenders for
  *  when the backend `langsmith:nostream` tag doesn't fully suppress them. */
 export function isInternalNoiseMessage(message: Message): boolean {
@@ -199,7 +199,7 @@ function deriveActivity(messages: Message[]): Activity | null {
     return { label: "Routing your request", icon: Zap };
   }
 
-  // Image generation is one long node with no streamed tokens — keep a
+  // Image generation is one long node with no streamed tokens, keep a
   // prominent card up for the whole wait, keyed off the routing marker.
   // Only the finished image (markdown image) clears it; internal messages
   // like the safety-guardrail verdict must NOT hide it.
@@ -229,7 +229,7 @@ function deriveActivity(messages: Message[]): Activity | null {
       const name = toolCalls[toolCalls.length - 1]?.name ?? "";
       return TOOL_ACTIVITY[name] ?? { label: `Running ${name || "a tool"}`, icon: Bot };
     }
-    // Streaming visible text — no status needed.
+    // Streaming visible text, no status needed.
     if (getContentString(last.content).length > 0) return null;
     return { label: "Thinking", icon: Bot };
   }
@@ -248,7 +248,7 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const Icon = activity.icon;
 
   // Image generation gets a dedicated framed loader (a 3D dotted grid flowing
-  // in blue/purple) instead of the compact status row — the same box shape the
+  // in blue/purple) instead of the compact status row, the same box shape the
   // finished image will fill.
   if (activity.intent === "image_generation") {
     return (

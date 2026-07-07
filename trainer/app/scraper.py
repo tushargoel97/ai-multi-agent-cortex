@@ -2,7 +2,7 @@
 
 Two deterministic paths stay because they beat generic crawling:
   - AMD's official database (amd.com) embeds the whole processor catalog as
-    HTML-escaped JSON — one fetch, no anti-bot wall (scrape_amd).
+    HTML-escaped JSON, one fetch, no anti-bot wall (scrape_amd).
   - Uploaded documents (Intel comparison-chart PDFs, spreadsheets) via
     import_document (deterministic chart parser first, LLM distillation next).
 Every other URL is crawled by the built-in scrape agent (run_scrape_agent,
@@ -212,7 +212,7 @@ def parse_product(url: str, page: str) -> dict | None:
 
 # ── AMD official spec database ──────────────────────────────────────────────
 # https://www.amd.com/en/products/specifications/processors.html embeds the
-# ENTIRE processor database as HTML-escaped JSON product objects — one fetch,
+# ENTIRE processor database as HTML-escaped JSON product objects: one fetch,
 # no per-product crawling, and no anti-bot wall (unlike TechPowerUp).
 
 _AMD_PRODUCT_ANCHOR = '"model":"amd-site/models/processors"'
@@ -280,7 +280,7 @@ def scrape_amd(client: httpx.Client, url: str, limit: int, on_progress) -> dict:
         family = str(_amd_val(els, "family") or "")
         form = str(els.get("formFactor", {}).get("value") or "")
         if not title or "Ryzen" not in family or "Desktops" not in form:
-            continue  # consumer desktop CPUs only — skip EPYC/embedded/mobile
+            continue  # consumer desktop CPUs only, skip EPYC/embedded/mobile
         launch = str(_amd_val(els, "launchDate") or "")
         year_m = re.search(r"(19|20)\d{2}", launch)
         candidates.append((int(year_m.group(0)) if year_m else 0, title, els))
@@ -364,7 +364,7 @@ def import_document(entry: dict, limit: int, on_progress, on_log=None) -> list[d
     Text extraction is delegated to sources.extract_source so every source
     type is handled correctly (images are OCR'd by the vision model, sheets
     parsed, PDFs read). The extracted text is then LLM-distilled into spec
-    entries — the same dynamic path used for arbitrary web pages, so no
+    entries, the same dynamic path used for arbitrary web pages, so no
     per-vendor parsers are needed.
     """
     from app import sources as src
@@ -450,7 +450,7 @@ def scrape(
 # ── Intelligent crawl agent (merged from scrape_agent) ───────────────────────
 #
 # LLM-driven index/leaf crawl for dynamic spec import: probes fetchability
-# (robots.txt + anti-bot 403s — never evaded), classifies each page as INDEX
+# (robots.txt + anti-bot 403s: never evaded), classifies each page as INDEX
 # (follow product links) or LEAF (extract specs), distills entries, validates
 # them, and reports a per-URL outcome. Crawl budgets bound the work.
 
@@ -458,7 +458,7 @@ DEFAULT_MAX_PAGES = 20
 DEFAULT_MAX_DEPTH = 2
 DEFAULT_DELAY_S = 2.0
 
-# Honest, identifiable UA — the agent must never masquerade to evade anti-bot.
+# Honest, identifiable UA: the agent must never masquerade to evade anti-bot.
 _UA = "cortex-trainer-scraper/0.1 (+ai-multi-agent-cortex; respects robots.txt)"
 _ACCEPT = {
     "User-Agent": _UA,
@@ -479,7 +479,7 @@ class ScrapeBudget:
 
 
 class _Blocked(Exception):
-    """The page declined us (anti-bot 403/429, or non-HTML) — do not retry."""
+    """The page declined us (anti-bot 403/429, or non-HTML), do not retry."""
 
 
 def _strip_tags(fragment: str) -> str:
@@ -493,7 +493,7 @@ _CELL_RE = re.compile(r"<(?:th|td)\b[^>]*>(.*?)</(?:th|td)>", re.DOTALL | re.IGN
 
 def _tables_to_rows(page: str) -> str:
     """Render HTML <table>s as pipe-delimited rows so the distiller can still
-    map specs to products in comparison charts — plain flattening collapses the
+    map specs to products in comparison charts, plain flattening collapses the
     grid (products-as-columns) into an unusable run of words."""
     blocks: list[str] = []
     for table in _TABLE_RE.findall(page):
@@ -538,7 +538,7 @@ def _candidate_links(page: str, base_url: str, limit: int = 100) -> list[tuple[s
         url, _ = urldefrag(urljoin(base_url, href))
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https") or parsed.netloc != base.netloc:
-            continue  # same-site only — a spec import shouldn't wander the web
+            continue  # same-site only, a spec import shouldn't wander the web
         if url in seen or url == base_url:
             continue
         anchor = re.sub(r"\s+", " ", _strip_tags(inner)).strip()[:80]
@@ -562,7 +562,7 @@ def _robots_allows(client: httpx.Client, url: str, cache: dict, log) -> bool:
                 rp.parse(resp.text.splitlines())
             else:
                 rp.allow_all = True  # no robots → allowed
-        except Exception:  # noqa: BLE001 — unreachable robots → allowed
+        except Exception:  # noqa: BLE001, unreachable robots → allowed
             rp.allow_all = True
         cache[origin] = rp
     try:
@@ -574,7 +574,7 @@ def _robots_allows(client: httpx.Client, url: str, cache: dict, log) -> bool:
 def _agent_fetch(client: httpx.Client, url: str) -> str:
     resp = client.get(url, headers=_ACCEPT, timeout=25.0, follow_redirects=True)
     if resp.status_code in (401, 403, 429):
-        # Anti-bot wall or rate limit — report and move on, never evade.
+        # Anti-bot wall or rate limit, report and move on, never evade.
         raise _Blocked(f"HTTP {resp.status_code} (anti-bot / not permitted)")
     resp.raise_for_status()
     ctype = resp.headers.get("content-type", "").lower()
@@ -590,7 +590,7 @@ product's spec page, or an article containing product specs to extract).
 If INDEX, choose up to {k} links that most likely lead to individual hardware
 product spec pages (CPUs, GPUs, gaming consoles). Prefer product detail pages;
 ignore navigation, category, pagination, login, cart and marketing links. Copy
-chosen links VERBATIM from the candidate list — never invent a URL.
+chosen links VERBATIM from the candidate list, never invent a URL.
 
 Return STRICT JSON only, no prose:
 {{"page_type": "index" | "leaf", "product_links": ["<url>", ...], "reason": "<short>"}}
@@ -599,14 +599,14 @@ URL: {url}
 Page title: {title}
 Text preview: {preview}
 
-Candidate links (anchor — url):
+Candidate links (anchor, url):
 {links}"""
 
 
 def _classify(
     url: str, title: str, preview: str, links: list[tuple[str, str]], k: int, log
 ) -> dict:
-    links_block = "\n".join(f"- {a or '(no text)'} — {u}" for a, u in links[:80]) or "(none)"
+    links_block = "\n".join(f"- {a or '(no text)'}, {u}" for a, u in links[:80]) or "(none)"
     try:
         raw = _chat(
             _CLASSIFY_PROMPT.format(
@@ -618,8 +618,8 @@ def _classify(
             )
         )
         data = _first_json(raw)
-    except Exception as e:  # noqa: BLE001 — classifier failure → treat as leaf
-        log(f"  classify failed ({type(e).__name__}) — treating as leaf")
+    except Exception as e:  # noqa: BLE001, classifier failure → treat as leaf
+        log(f"  classify failed ({type(e).__name__}), treating as leaf")
         return {"page_type": "leaf", "product_links": [], "reason": "classifier error"}
     if not isinstance(data, dict) or data.get("page_type") not in ("index", "leaf"):
         return {"page_type": "leaf", "product_links": [], "reason": "unparseable"}
@@ -635,7 +635,7 @@ def _extract_leaf(url: str, page: str, text: str, cap: int, log) -> list[dict]:
         entry = parse_product(url, page)
         if entry:
             return [_validate_entry(entry, log)]
-    except Exception:  # noqa: BLE001 — deterministic parse is best-effort
+    except Exception:  # noqa: BLE001, deterministic parse is best-effort
         pass
     return distill_products_from_text(text, cap, on_log=log)
 
