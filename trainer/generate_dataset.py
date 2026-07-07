@@ -20,10 +20,16 @@ import yaml
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 FACTS_PATH = DATA_DIR / "facts.yaml"
-LEARNED_FACTS_PATH = DATA_DIR / "learned_facts.yaml"  # from gap research
 DOMAINS_DIR = DATA_DIR / "domains"  # generic add-on domain packs (games, …)
 SEED = 42
 VALID_FRACTION = 0.1
+
+
+def _hw_learned_path() -> Path:
+    """Hardware domain-level learned facts; falls back to the legacy name."""
+    new = DATA_DIR / "hardware_learned_facts.yaml"
+    old = DATA_DIR / "learned_facts.yaml"
+    return new if new.exists() else old
 
 # Human noun used in buying-advice questions, per facts.yaml group.
 GROUP_NOUNS = {
@@ -277,8 +283,9 @@ def _load_products() -> list[dict]:
             products.append(item)
     # Gap-researched products (self-improvement loop). Entries with
     # exists=false are handled separately as corrective answers.
-    if LEARNED_FACTS_PATH.exists():
-        learned = (yaml.safe_load(LEARNED_FACTS_PATH.read_text()) or {}).get("learned", [])
+    hw_learned = _hw_learned_path()
+    if hw_learned.exists():
+        learned = (yaml.safe_load(hw_learned.read_text()) or {}).get("learned", [])
         # Dedupe against curated names AND aliases (research may return
         # "PS5 Pro" for the curated "PlayStation 5 Pro").
         known = {v.lower() for p in products for v in _name_variants(p)}
@@ -331,9 +338,10 @@ def _learned_corrections() -> list[dict]:
     """Corrective pairs for researched products that turned out not to exist
     (e.g. 'Ryzen 7 3700' — the user probably means the 3700X). Covers both
     direct spec questions and comparisons against the closest real part."""
-    if not LEARNED_FACTS_PATH.exists():
+    hw_learned = _hw_learned_path()
+    if not hw_learned.exists():
         return []
-    learned = (yaml.safe_load(LEARNED_FACTS_PATH.read_text()) or {}).get("learned", [])
+    learned = (yaml.safe_load(hw_learned.read_text()) or {}).get("learned", [])
     known: dict[str, dict] = {p["name"]: p for p in learned if p.get("exists", True)}
     facts = yaml.safe_load(FACTS_PATH.read_text()) or {}
     for group in facts.values():
@@ -822,7 +830,9 @@ def _load_pack_entities(pack_dir: Path) -> list[dict]:
         for group in (yaml.safe_load(facts.read_text(encoding="utf-8")) or {}).values():
             if isinstance(group, list):
                 entities.extend(group)
-    learned = pack_dir / "learned_facts.yaml"
+    learned = pack_dir / f"{pack_dir.name}_learned_facts.yaml"
+    if not learned.exists():
+        learned = pack_dir / "learned_facts.yaml"
     if learned.exists():
         data = yaml.safe_load(learned.read_text(encoding="utf-8")) or {}
         for item in data.get("learned", []):

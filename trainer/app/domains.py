@@ -51,6 +51,28 @@ def _write_yaml(path: Path, data: dict) -> None:
     )
 
 
+def _migrate(new: Path, old: Path) -> Path:
+    """Prefer the new {name}_learned_facts.yaml; rename the legacy file once."""
+    if not new.exists() and old.exists():
+        try:
+            old.rename(new)
+        except OSError:
+            return old
+    return new
+
+
+def _hw_learned_path() -> Path:
+    return _migrate(
+        settings.data_dir / "hardware_learned_facts.yaml",
+        settings.data_dir / "learned_facts.yaml",
+    )
+
+
+def _pack_learned_path(domain: str, sub: str) -> Path:
+    d = _sub_dir(domain, sub)
+    return _migrate(d / f"{_slug(sub)}_learned_facts.yaml", d / "learned_facts.yaml")
+
+
 # ── Domains ──────────────────────────────────────────────────────────────────
 
 
@@ -167,6 +189,29 @@ def set_entities(domain: str, sub: str, entities: list[dict]) -> list[dict]:
     return clean
 
 
+def add_learned_entities(domain: str, sub: str, entities: list[dict]) -> list[dict]:
+    """Append imported rows to a subdomain's learned_facts.yaml (merged by name;
+    the curated facts.yaml is left untouched). Used by smart import."""
+    path = _pack_learned_path(domain, sub)
+    data = _read_yaml(path)
+    by_name: dict[str, dict] = {
+        str(e.get("name", "")).lower(): e
+        for e in data.get("learned", [])
+        if e.get("name")
+    }
+    for e in entities or []:
+        name = str(e.get("name", "")).strip()
+        if not name:
+            continue
+        row = {k: v for k, v in e.items() if v not in (None, "", [])}
+        row["name"] = name
+        row["exists"] = True
+        by_name[name.lower()] = row
+    rows = list(by_name.values())
+    _write_yaml(path, {"learned": rows})
+    return rows
+
+
 # ── Built-in hardware rows (editable layer → learned_facts.yaml) ─────────────
 #
 # Hardware's Q&A generation + curated facts.yaml stay code-managed, but its
@@ -193,7 +238,6 @@ HARDWARE_FIELDS: list[dict] = [
 ]
 
 _HW_FACTS = settings.data_dir / "facts.yaml"
-_HW_LEARNED = settings.data_dir / "learned_facts.yaml"
 
 
 def _hw_groups() -> list[str]:
@@ -227,7 +271,7 @@ def _coerce(value, typ: str):
 def _hardware_subdomain(group: str) -> dict:
     if group not in _hw_groups():
         raise ValueError("Unknown hardware subdomain.")
-    learned = _read_yaml(_HW_LEARNED).get("learned", [])
+    learned = _read_yaml(_hw_learned_path()).get("learned", [])
     editable = [
         i for i in learned if i.get("exists", True) and _hw_group_of(i) == group
     ]
@@ -248,7 +292,7 @@ def _hardware_subdomain(group: str) -> dict:
 def _set_hardware_entities(group: str, entities: list[dict]) -> list[dict]:
     if group not in _hw_groups():
         raise ValueError("Unknown hardware subdomain.")
-    data = _read_yaml(_HW_LEARNED)
+    data = _read_yaml(_hw_learned_path())
     learned = data.get("learned", [])
     # Preserve other subdomains' rows and all "doesn't exist" corrections.
     keep = [
@@ -269,7 +313,7 @@ def _set_hardware_entities(group: str, entities: list[dict]) -> list[dict]:
                 row[key] = val
         rows.append(row)
     data["learned"] = keep + rows
-    _write_yaml(_HW_LEARNED, data)
+    _write_yaml(_hw_learned_path(), data)
     return rows
 
 

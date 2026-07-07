@@ -22,11 +22,17 @@ from . import search
 
 logger = logging.getLogger(__name__)
 
-LEARNED_FACTS_PATH = None  # resolved lazily from settings
-
 
 def _learned_path():
-    return settings.data_dir / "learned_facts.yaml"
+    """Hardware domain-level learned facts (migrates the legacy name once)."""
+    new = settings.data_dir / "hardware_learned_facts.yaml"
+    old = settings.data_dir / "learned_facts.yaml"
+    if not new.exists() and old.exists():
+        try:
+            old.rename(new)
+        except OSError:
+            return old
+    return new
 
 
 # ── LLM helpers (same OpenAI-compatible endpoint as qa_generator) ───────────
@@ -326,3 +332,188 @@ def save_learned_entry(entry: dict) -> bool:
         yaml.safe_dump({"learned": entries}, sort_keys=False, allow_unicode=True)
     )
     return True
+
+
+# ── Smart, domain-aware import (sources → any domain/subdomain) ──────────────
+#
+# Reads the selected sources and either auto-detects the best-fit domain +
+# subdomain (proposing a schema) or extracts into a subdomain the admin picked,
+# returning a PROPOSAL for review. ``apply_import`` writes the approved result:
+# new packs are created and rows appended to the pack's learned facts (hardware
+# rows merge into its learned layer — the same place spec import writes).
+
+_IMPORT_MAX_TEXT = 16000
+
+_AUTO_IMPORT_PROMPT = """You are organizing scraped content into a training taxonomy.
+Existing domains → subdomains:
+{existing}
+
+From the SOURCE TEXT: (1) pick the best-fitting domain and subdomain — REUSE an
+existing one when the content matches, otherwise propose new snake_case names;
+(2) define 4-8 entity fields; (3) extract every distinct entity.
+
+Reply with STRICT JSON only:
+{{"domain": "snake_case", "subdomain": "snake_case",
+  "render": "prose" | "spec_table",
+  "fields": [{{"key": "snake_case", "label": "Title Case"}}],
+  "entities": [{{"name": "str", "aliases": ["str"], "<field_key>": "value"}}]}}
+
+Use "spec_table" only for hardware / numeric-spec items, else "prose". Copy
+values from the text; omit unknowns. "name" is implicit — never a field. Skip
+entities with fewer than 2 known fields. No commentary.
+
+SOURCE TEXT:
+{text}"""
+
+_EXTRACT_IMPORT_PROMPT = """Extract every distinct entity from the SOURCE TEXT as
+STRICT JSON: {{"entities": [{{"name": "str", "aliases": ["str"], ...}}]}}. Use
+ONLY these fields: {fields}. Copy values from the text; omit unknowns. Skip
+entities with fewer than 2 known fields. At most 40 entities. No commentary.
+
+SOURCE TEXT:
+{text}"""
+
+
+def _import_gather_text(items: list, on_log) -> str:
+    from . import sources
+
+    parts: list[str] = []
+    for item in items:
+        try:
+            if isinstance(item, str):
+                text, label = sources.extract_url(item), item
+            else:
+                text = sources.extract_source(item, on_log=on_log)
+                label = item.get("name") or item.get("url") or item.get("id", "source")
+            if text and len(text.strip()) > 40:
+                parts.append(f"[{label}]\n{text.strip()}")
+                on_log(f"read {label}")
+            else:
+                on_log(f"skip {label}: no usable text")
+        except Exception as e:  # noqa: BLE001
+            on_log(f"skip source: {type(e).__name__}: {e}")
+    return "\n\n".join(parts)
+
+
+def _existing_taxonomy() -> str:
+    import generate_dataset
+
+    lines = [
+        f"- {d['name']}: "
+        + (", ".join(s["name"] for s in d.get("subdomains", [])) or "(none)")
+        for d in generate_dataset.available_domains()
+    ]
+    return "\n".join(lines) or "(none)"
+
+
+def _subdomain_exists(domain: str, sub: str) -> bool:
+    import generate_dataset
+
+    for d in generate_dataset.available_domains():
+        if d["name"] == domain:
+            return any(s["name"] == sub for s in d.get("subdomains", []))
+    return False
+
+
+def _clean_import_entities(raw, fields: list[dict]) -> list[dict]:
+    keys = {f.get("key") for f in fields}
+    out: list[dict] = []
+    for e in raw or []:
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name", "")).strip()
+        if not name:
+            continue
+        row: dict = {"name": name}
+        aliases = e.get("aliases")
+        if isinstance(aliases, list) and aliases:
+            row["aliases"] = [str(a).strip() for a in aliases if str(a).strip()]
+        for key, value in e.items():
+            if key in keys and value not in (None, "", []):
+                row[key] = value
+        out.append(row)
+    return out
+
+
+def propose(items: list, target: str, on_log=None) -> dict:
+    """Return a reviewable import proposal (domain/subdomain/render/fields/
+    entities). ``target`` is 'auto' (LLM detects) or 'domain/subdomain'."""
+    from . import domains
+
+    log = on_log or (lambda _m: None)
+    text = _import_gather_text(items, log)
+    if not text.strip():
+        raise ValueError("No readable text from the selected sources.")
+
+    if not target or target == "auto":
+        log("classifying + extracting (LLM)…")
+        data = _first_json(
+            _chat(_AUTO_IMPORT_PROMPT.format(existing=_existing_taxonomy(), text=text[:_IMPORT_MAX_TEXT]))
+        ) or {}
+        domain = domains._slug(data.get("domain") or "misc")
+        subdomain = domains._slug(data.get("subdomain") or "items")
+        render = "spec_table" if data.get("render") == "spec_table" else "prose"
+        fields = domains._normalize_fields(data.get("fields"))
+        entities = _clean_import_entities(data.get("entities"), fields)
+    else:
+        domain, _, subdomain = target.partition("/")
+        domain, subdomain = domains._slug(domain), domains._slug(subdomain)
+        cfg = domains.get_subdomain(domain, subdomain)
+        fields = cfg.get("fields") or []
+        render = cfg.get("render", "prose")
+        log("extracting entities (LLM)…")
+        keys = ", ".join(f["key"] for f in fields) or "name"
+        data = _first_json(
+            _chat(_EXTRACT_IMPORT_PROMPT.format(fields=keys, text=text[:_IMPORT_MAX_TEXT]))
+        ) or {}
+        entities = _clean_import_entities(data.get("entities"), fields)
+
+    log(f"proposed {len(entities)} entities → {domain}/{subdomain}")
+    return {
+        "domain": domain,
+        "subdomain": subdomain,
+        "render": render,
+        "fields": fields,
+        "entities": entities,
+        "new_subdomain": not _subdomain_exists(domain, subdomain),
+    }
+
+
+def _apply_hardware_import(group: str, entities: list[dict]) -> dict:
+    from . import domains
+
+    if group not in domains._hw_groups():
+        raise ValueError(f"'{group}' is not a hardware subdomain.")
+    by_name: dict[str, dict] = {
+        str(e.get("name", "")).lower(): e
+        for e in domains.get_subdomain("hardware", group)["entities"]
+    }
+    for e in entities:
+        name = str(e.get("name", "")).strip()
+        if name:
+            by_name[name.lower()] = e
+    rows = domains.set_entities("hardware", group, list(by_name.values()))
+    return {"domain": "hardware", "subdomain": group, "count": len(entities), "total": len(rows)}
+
+
+def apply_import(proposal: dict) -> dict:
+    """Persist an approved proposal: create the subdomain if new and append the
+    rows to its learned layer (hardware merges into its learned facts)."""
+    from . import domains
+
+    domain = domains._slug(proposal.get("domain", ""))
+    sub = domains._slug(proposal.get("subdomain", ""))
+    if not domain or not sub:
+        raise ValueError("Proposal is missing a domain/subdomain.")
+    entities = proposal.get("entities") or []
+    if domain == "hardware":
+        return _apply_hardware_import(sub, entities)
+    if not _subdomain_exists(domain, sub):
+        domains.save_subdomain(
+            domain,
+            sub,
+            render=proposal.get("render", "prose"),
+            fields=proposal.get("fields") or [],
+        )
+    rows = domains.add_learned_entities(domain, sub, entities)
+    return {"domain": domain, "subdomain": sub, "count": len(entities), "total": len(rows)}

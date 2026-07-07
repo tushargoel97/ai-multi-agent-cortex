@@ -380,6 +380,47 @@ def scrape_specs(req: ScrapeRequest) -> dict:
     return {"status": "started", "sources": resolved, "max_products": req.max_products}
 
 
+class SmartImportRequest(BaseModel):
+    sources: list[str] = []
+    target: str = "auto"  # "auto" or "domain/subdomain"
+
+
+@app.post("/admin/import/propose")
+def import_propose(req: SmartImportRequest) -> dict:
+    """Domain-aware import: read the selected sources and propose which
+    domain/subdomain + schema + entities to add (reviewed before writing)."""
+    from app.sources import list_sources
+
+    by_id = {s["id"]: s for s in list_sources()}
+    resolved: list = [by_id.get(item, item) for item in req.sources]
+    try:
+        pipeline.start_smart_import(resolved, req.target or "auto")
+    except pipeline.JobConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "started"}
+
+
+class ImportApplyRequest(BaseModel):
+    domain: str
+    subdomain: str
+    render: str = "prose"
+    fields: list[dict] = []
+    entities: list[dict] = []
+
+
+@app.post("/admin/import/apply")
+def import_apply(req: ImportApplyRequest) -> dict:
+    """Persist an approved import proposal (creates the subdomain if new)."""
+    from . import research
+
+    try:
+        return research.apply_import(req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/admin/gaps/research")
 def gaps_research(req: GapResearchRequest) -> dict:
     try:

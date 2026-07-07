@@ -37,6 +37,19 @@ _META_KEYS = {"name", "aliases", "exists", "notes", "source", "url", "group"}
 _cache: tuple[tuple, dict] | None = None
 
 
+def _hw_learned_file() -> Path:
+    """Hardware domain-level learned facts; falls back to the legacy name."""
+    new = FACTS_DIR / "hardware_learned_facts.yaml"
+    old = FACTS_DIR / "learned_facts.yaml"
+    return new if new.exists() else old
+
+
+def _pack_learned_file(pack: Path) -> Path:
+    new = pack / f"{pack.name}_learned_facts.yaml"
+    old = pack / "learned_facts.yaml"
+    return new if new.exists() else old
+
+
 def _pack_dirs() -> list[Path]:
     """Every subdomain pack dir under <FACTS_DIR>/domains/<domain>/<subdomain>/."""
     base = FACTS_DIR / "domains"
@@ -46,6 +59,7 @@ def _pack_dirs() -> list[Path]:
             for sub_dir in sorted(p for p in domain_dir.iterdir() if p.is_dir()):
                 if (
                     (sub_dir / "facts.yaml").exists()
+                    or (sub_dir / f"{sub_dir.name}_learned_facts.yaml").exists()
                     or (sub_dir / "learned_facts.yaml").exists()
                     or (sub_dir / "subdomain.yaml").exists()
                 ):
@@ -79,11 +93,11 @@ def _read_products(path: Path, *, learned: bool, render: str | None) -> list[dic
 def _load_index() -> dict[str, dict]:
     global _cache
     packs = _pack_dirs()
-    sig_paths = [FACTS_DIR / "facts.yaml", FACTS_DIR / "learned_facts.yaml"]
+    sig_paths = [FACTS_DIR / "facts.yaml", _hw_learned_file()]
     for pk in packs:
         sig_paths += [
             pk / "facts.yaml",
-            pk / "learned_facts.yaml",
+            _pack_learned_file(pk),
             pk / "subdomain.yaml",
         ]
     sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in sig_paths)
@@ -92,15 +106,13 @@ def _load_index() -> dict[str, dict]:
 
     # Built-in hardware (flat) — spec_table style, so it needs no explicit tag.
     products = _read_products(FACTS_DIR / "facts.yaml", learned=False, render=None)
-    products += _read_products(
-        FACTS_DIR / "learned_facts.yaml", learned=True, render=None
-    )
+    products += _read_products(_hw_learned_file(), learned=True, render=None)
     # User packs — tag each entity with its subdomain's render style.
     for pk in packs:
         render = _pack_render(pk)
         products += _read_products(pk / "facts.yaml", learned=False, render=render)
         products += _read_products(
-            pk / "learned_facts.yaml", learned=True, render=render
+            _pack_learned_file(pk), learned=True, render=render
         )
 
     index: dict[str, dict] = {}

@@ -32,11 +32,21 @@ import {
   Eye,
   ChevronRight,
   Layers,
+  Sparkles,
 } from "lucide-react";
 
 interface LossPoint {
   iter: number;
   train_loss: number;
+}
+
+interface ImportProposal {
+  domain: string;
+  subdomain: string;
+  render: string;
+  fields: { key: string; label: string }[];
+  entities: Record<string, unknown>[];
+  new_subdomain?: boolean;
 }
 
 interface TrainerStatus {
@@ -71,6 +81,8 @@ interface TrainerStatus {
     detail?: string;
     products?: string[];
   }[];
+  import_target?: string;
+  import_proposal?: ImportProposal | null;
 }
 
 interface DatasetSplit {
@@ -142,6 +154,7 @@ const BUSY_PHASES = [
   "converting",
   "researching",
   "scraping",
+  "importing",
 ];
 
 function fmtParams(n?: number | null): string | null {
@@ -216,6 +229,10 @@ export default function FinetunePanel({
   );
   const [showBuilder, setShowBuilder] = useState(false);
   const domainsInit = useRef(false);
+  const [importTarget, setImportTarget] = useState("auto");
+  const [proposal, setProposal] = useState<ImportProposal | null>(null);
+  const [proposalDismissed, setProposalDismissed] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [baseModel, setBaseModel] = useState(BASE_MODELS[0].id);
   const [iters, setIters] = useState(600);
   const [batchSize, setBatchSize] = useState(4);
@@ -341,6 +358,18 @@ export default function FinetunePanel({
     return () => clearInterval(t);
   }, [refresh, refreshSources, refreshGaps, refreshDomains]);
 
+  // Capture a fresh import proposal once (the 2s poll must not clobber edits).
+  useEffect(() => {
+    if (
+      status.phase === "import_proposed" &&
+      status.import_proposal &&
+      !proposal &&
+      !proposalDismissed
+    ) {
+      setProposal(status.import_proposal);
+    }
+  }, [status.phase, status.import_proposal, proposal, proposalDismissed]);
+
   const post = useCallback(
     async (path: string, body?: object) => {
       const r = await fetch(`/api/admin/trainer/${path}`, {
@@ -382,21 +411,51 @@ export default function FinetunePanel({
   // Dynamic spec import: every URL / uploaded document in the sources list
   // is dispatched by the trainer (AMD DB parser, Intel-chart parser, generic
   // LLM distillation; TechPowerUp only if it doesn't 403).
-  const importSpecs = async () => {
-    setBusy("scrape");
+  const runImport = async () => {
+    setBusy("import");
     setError(null);
     try {
       const items = sources.map((s) => (s.type === "url" ? s.url! : s.id));
       if (items.length === 0) {
         throw new Error("Add a URL or upload a document first.");
       }
-      await post("scrape", { sources: items, max_products: 30 });
+      setProposal(null);
+      setProposalDismissed(false);
+      if (importTarget === "hardware:crawl") {
+        // Deep hardware crawl — writes directly to hardware (no review step).
+        await post("scrape", { sources: items, max_products: 30 });
+      } else {
+        // Domain-aware: propose a domain/subdomain + schema for review.
+        await post("import/propose", { sources: items, target: importTarget });
+      }
       await refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(null);
     }
+  };
+
+  const applyProposal = async () => {
+    if (!proposal) return;
+    setApplying(true);
+    setError(null);
+    try {
+      await post("import/apply", proposal);
+      setProposal(null);
+      setProposalDismissed(true);
+      await refresh();
+      await refreshDomains();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const discardProposal = () => {
+    setProposal(null);
+    setProposalDismissed(true);
   };
 
   const generateDataset = async () => {
@@ -942,15 +1001,43 @@ export default function FinetunePanel({
               <MessageSquarePlus className="mr-1 size-4" /> Add
             </Button>
           </div>
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={importSpecs}
-              disabled={jobRunning || sources.length === 0}
-              title="Import specs from every URL/document above into structured spec sheets (hardware learned_facts.yaml): deterministic AMD/Intel parsers, and the intelligent scrape agent for any other URL. Run this BEFORE Generate dataset."
-              className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+            <label className="text-xs text-muted-foreground">Import into</label>
+            <select
+              value={importTarget}
+              onChange={(e) => setImportTarget(e.target.value)}
+              disabled={jobRunning}
+              className="rounded-full border border-border bg-background px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              Import specs from sources ({sources.length})
-            </button>
+              <option value="auto">Auto-detect (any domain)</option>
+              {domains.flatMap((d) =>
+                d.subdomains.map((s) => (
+                  <option
+                    key={`${d.name}/${s.name}`}
+                    value={`${d.name}/${s.name}`}
+                  >
+                    {d.name} / {s.label}
+                  </option>
+                )),
+              )}
+              <option value="hardware:crawl">
+                Hardware — deep crawl (direct)
+              </option>
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={runImport}
+              disabled={jobRunning || sources.length === 0}
+              title="Read the sources and (Auto-detect) propose a domain/subdomain + schema to review, or extract into the chosen subdomain. Deep crawl imports hardware directly."
+            >
+              {busy === "import" ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1 size-4" />
+              )}
+              Smart import ({sources.length})
+            </Button>
           </div>
         </div>
 
@@ -1056,6 +1143,115 @@ export default function FinetunePanel({
           )}
         </div>
 
+        {phase === "importing" && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            <Loader2 className="mr-1 inline size-4 animate-spin" />
+            Analyzing sources —{" "}
+            <span className="font-mono">
+              {status.scrape_current ?? "working\u2026"}
+            </span>
+          </p>
+        )}
+        {proposal && (
+          <div className="mt-3 rounded-md border border-primary/30 bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Sparkles className="size-4 text-foreground" />
+              <p className="text-sm font-medium text-foreground">
+                Proposed import
+              </p>
+              {proposal.new_subdomain && (
+                <span className="rounded-full bg-emerald-500/15 px-2 text-[10px] text-emerald-600">
+                  new subdomain
+                </span>
+              )}
+              <span className="rounded-full bg-muted px-2 text-[10px] text-muted-foreground">
+                {proposal.render === "spec_table" ? "table" : "prose"}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Save into</span>
+              <Input
+                value={proposal.domain}
+                onChange={(e) =>
+                  setProposal({ ...proposal, domain: e.target.value })
+                }
+                className="h-8 max-w-[10rem]"
+              />
+              <span className="text-muted-foreground">/</span>
+              <Input
+                value={proposal.subdomain}
+                onChange={(e) =>
+                  setProposal({ ...proposal, subdomain: e.target.value })
+                }
+                className="h-8 max-w-[10rem]"
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Fields: {proposal.fields.map((f) => f.key).join(", ") || "—"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {proposal.entities.length} entit
+              {proposal.entities.length === 1 ? "y" : "ies"} found
+            </p>
+            {proposal.entities.length > 0 && (
+              <div className="mt-1 max-h-56 overflow-auto rounded border">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr className="text-left text-muted-foreground">
+                      <th className="p-1">name</th>
+                      {proposal.fields.map((f) => (
+                        <th key={f.key} className="p-1">
+                          {f.key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proposal.entities.slice(0, 50).map((row, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="p-1 font-medium text-foreground">
+                          {String(row.name ?? "")}
+                        </td>
+                        {proposal.fields.map((f) => (
+                          <td key={f.key} className="p-1 text-muted-foreground">
+                            {String((row[f.key] as unknown) ?? "")}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={applyProposal}
+                disabled={
+                  applying ||
+                  !proposal.domain.trim() ||
+                  !proposal.subdomain.trim() ||
+                  proposal.entities.length === 0
+                }
+              >
+                {applying ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-1 size-4" />
+                )}
+                Approve &amp; save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={discardProposal}
+                disabled={applying}
+              >
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
         {phase === "scraping" && (
           <p className="mt-3 text-sm text-muted-foreground">
             <Loader2 className="mr-1 inline size-4 animate-spin" />

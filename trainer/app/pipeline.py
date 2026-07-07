@@ -50,6 +50,7 @@ def _busy() -> bool:
         "converting",
         "researching",
         "scraping",
+        "importing",
     }
 
 
@@ -267,6 +268,47 @@ def _run_scrape(
             _snapshot_logs()
             _status["phase"] = "error"
             _status["error"] = f"scrape failed: {e}"
+
+
+def start_smart_import(source_items: list, target: str) -> None:
+    """Domain-aware import of the selected sources into a reviewable proposal
+    (background). ``target`` is 'auto' or 'domain/subdomain'."""
+    with _lock:
+        if _busy():
+            raise JobConflictError(f"a job is already running (phase={_status['phase']})")
+        if not source_items:
+            raise ValueError("no sources selected")
+        _reset(
+            "importing",
+            job="import",
+            import_target=target,
+            import_proposal=None,
+            scrape_current="reading sources\u2026",
+        )
+    threading.Thread(
+        target=_run_smart_import, args=(source_items, target), daemon=True
+    ).start()
+
+
+def _run_smart_import(source_items: list, target: str) -> None:
+    from . import research
+
+    def on_log(msg: str) -> None:
+        with _lock:
+            _log(msg)
+            _status["scrape_current"] = msg
+
+    try:
+        proposal = research.propose(source_items, target, on_log=on_log)
+        with _lock:
+            _snapshot_logs()
+            _status["import_proposal"] = proposal
+            _status["phase"] = "import_proposed"
+    except Exception as e:  # noqa: BLE001
+        with _lock:
+            _snapshot_logs()
+            _status["phase"] = "error"
+            _status["error"] = f"smart import failed: {e}"
 
 
 def start_gap_research(gaps: list[dict]) -> None:
