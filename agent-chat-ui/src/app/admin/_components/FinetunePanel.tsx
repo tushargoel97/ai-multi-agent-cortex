@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
-import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
-import { cn } from "@/lib/utils";
 import DomainBuilder, { type DomainInfo } from "./DomainBuilder";
 import {
   Database,
@@ -30,8 +28,6 @@ import {
   RefreshCw,
   Zap,
   Eye,
-  ChevronRight,
-  Layers,
   Sparkles,
 } from "lucide-react";
 
@@ -224,10 +220,6 @@ export default function FinetunePanel({
   const [promptInput, setPromptInput] = useState("");
   const [domains, setDomains] = useState<DomainInfo[]>([]);
   const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
-  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(
-    new Set(),
-  );
-  const [showBuilder, setShowBuilder] = useState(false);
   const domainsInit = useRef(false);
   const [importTarget, setImportTarget] = useState("auto");
   const [proposal, setProposal] = useState<ImportProposal | null>(null);
@@ -340,14 +332,6 @@ export default function FinetunePanel({
       return Array.from(set);
     });
   };
-
-  const toggleExpand = (name: string) =>
-    setExpandedDomains((prev) => {
-      const set = new Set(prev);
-      if (set.has(name)) set.delete(name);
-      else set.add(name);
-      return set;
-    });
 
   useEffect(() => {
     refresh();
@@ -905,21 +889,16 @@ export default function FinetunePanel({
           </div>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Builds the chat-format Q&amp;A training set for the selected
-          subdomains — one model trains across all of them. Expand a domain to
-          pick subdomains, or create your own under “Manage domains”. Hardware
-          also takes your own sources (PDFs, Excel, links, or a web research
-          topic). Web research needs a FIRECRAWL_API_KEY (or
-          BRAVE/SERPAPI/TAVILY) in your .env.
+          Builds the chat-format Q&amp;A training set for the subdomains you
+          toggle on below — one model trains across all of them. Create your own
+          domains/subdomains, add rows, or Smart-import sources. Web research
+          needs a FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in your .env.
         </p>
 
-        {/* Hardware sources — imported into the built-in Hardware domain */}
+        {/* Import sources — Smart import routes them to any domain/subdomain */}
         <div className="mt-4 rounded-md border border-dashed p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">Hardware sources</p>
-            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
-              built-in Hardware domain
-            </span>
+            <p className="text-sm font-medium text-foreground">Sources</p>
           </div>
           {sources.length > 0 ? (
             <ul className="mt-2 space-y-1">
@@ -949,9 +928,9 @@ export default function FinetunePanel({
             </ul>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground/70">
-              None yet — add PDFs, links, or a research topic to expand the
-              built-in Hardware knowledge. Custom domains get their data under
-              “Manage domains”.
+              None yet — add PDFs, links, or a research topic, then Smart import
+              routes them to a domain/subdomain (auto-detected, or the one you
+              pick).
             </p>
           )}
 
@@ -1041,107 +1020,15 @@ export default function FinetunePanel({
           </div>
         </div>
 
-        {/* Training domains — hierarchical domain → subdomain selector */}
-        <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-foreground">
-              Training domains
-            </span>
-            <span className="text-xs text-muted-foreground/70">
-              expand a domain to pick subdomains
-            </span>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="ml-auto"
-              onClick={() => setShowBuilder((v) => !v)}
-            >
-              <Layers className="mr-1 size-4" />
-              {showBuilder ? "Done" : "Manage domains"}
-            </Button>
-          </div>
-
-          <div className="space-y-1">
-            {domains.map((d) => {
-              const keys = d.subdomains.map((s) => `${d.name}/${s.name}`);
-              const selected = keys.filter((k) => selectedSubs.includes(k));
-              const allOn = keys.length > 0 && selected.length === keys.length;
-              const expanded = expandedDomains.has(d.name);
-              return (
-                <div key={d.name} className="rounded-md border">
-                  <div className="flex items-center gap-2 px-2 py-1.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(d.name)}
-                      className="text-muted-foreground"
-                      title={expanded ? "Collapse" : "Expand"}
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "size-4 transition-transform",
-                          expanded && "rotate-90",
-                        )}
-                      />
-                    </button>
-                    <Switch
-                      checked={allOn}
-                      disabled={jobRunning || keys.length === 0}
-                      onCheckedChange={() => toggleDomainAll(d)}
-                    />
-                    <span className="text-sm font-medium capitalize text-foreground">
-                      {d.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground/70">
-                      {selected.length}/{keys.length}
-                    </span>
-                    {selected.length > 0 && !allOn && (
-                      <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                        partial
-                      </span>
-                    )}
-                    {d.builtin && (
-                      <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                        built-in
-                      </span>
-                    )}
-                  </div>
-                  {expanded && (
-                    <div className="flex flex-col gap-2 border-t px-2 py-2 pl-8">
-                      {d.subdomains.length === 0 && (
-                        <span className="text-xs text-muted-foreground/70">
-                          No subdomains yet — add one under “Manage domains”.
-                        </span>
-                      )}
-                      {d.subdomains.map((s) => {
-                        const key = `${d.name}/${s.name}`;
-                        return (
-                          <label
-                            key={key}
-                            className="flex items-center gap-2"
-                            title={s.description}
-                          >
-                            <Switch
-                              checked={selectedSubs.includes(key)}
-                              disabled={jobRunning}
-                              onCheckedChange={() => toggleSub(key)}
-                            />
-                            <span className="capitalize text-foreground">
-                              {s.label}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {showBuilder && (
-            <DomainBuilder domains={domains} onChanged={refreshDomains} />
-          )}
-        </div>
+        {/* Domains, subdomains & training selection */}
+        <DomainBuilder
+          domains={domains}
+          onChanged={refreshDomains}
+          selectedSubs={selectedSubs}
+          onToggleSub={toggleSub}
+          onToggleDomain={toggleDomainAll}
+          selectDisabled={jobRunning}
+        />
 
         {phase === "importing" && (
           <p className="mt-3 text-sm text-muted-foreground">

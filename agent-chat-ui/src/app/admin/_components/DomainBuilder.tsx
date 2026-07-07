@@ -70,9 +70,17 @@ const blankEdit = (domain: string): EditState => ({
 export default function DomainBuilder({
   domains,
   onChanged,
+  selectedSubs,
+  onToggleSub,
+  onToggleDomain,
+  selectDisabled,
 }: {
   domains: DomainInfo[];
   onChanged: () => void;
+  selectedSubs: string[];
+  onToggleSub: (key: string) => void;
+  onToggleDomain: (d: DomainInfo) => void;
+  selectDisabled?: boolean;
 }) {
   const confirm = useConfirm();
   const [newDomain, setNewDomain] = useState("");
@@ -395,6 +403,9 @@ export default function DomainBuilder({
       <ul className="space-y-2">
         {domains.map((d) => {
           const open = openDomains.has(d.name);
+          const keys = d.subdomains.map((s) => `${d.name}/${s.name}`);
+          const selCount = keys.filter((k) => selectedSubs.includes(k)).length;
+          const allOn = keys.length > 0 && selCount === keys.length;
           return (
             <li key={d.name} className="rounded-md border">
               <div className="flex items-center gap-2 px-3 py-2">
@@ -421,22 +432,38 @@ export default function DomainBuilder({
                     {d.subdomains.length === 1 ? "" : "s"}
                   </span>
                 </button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setOpenDomains((p) => new Set(p).add(d.name));
-                    setEdit(blankEdit(d.name));
-                  }}
-                >
-                  <Plus className="mr-1 size-4" /> Subdomain
-                </Button>
-                {!d.builtin && (
-                  <DeleteButton
-                    onClick={() => deleteDomain(d.name)}
-                    title="Delete domain"
+                <div className="flex shrink-0 items-center gap-2">
+                  {keys.length > 0 && (
+                    <span
+                      className="text-[10px] tabular-nums text-muted-foreground/70"
+                      title="Subdomains selected for training"
+                    >
+                      {selCount}/{keys.length}
+                    </span>
+                  )}
+                  <Switch
+                    checked={allOn}
+                    disabled={selectDisabled || keys.length === 0}
+                    onCheckedChange={() => onToggleDomain(d)}
+                    title="Include all subdomains in training"
                   />
-                )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setOpenDomains((p) => new Set(p).add(d.name));
+                      setEdit(blankEdit(d.name));
+                    }}
+                  >
+                    <Plus className="mr-1 size-4" /> Subdomain
+                  </Button>
+                  {!d.builtin && (
+                    <DeleteButton
+                      onClick={() => deleteDomain(d.name)}
+                      title="Delete domain"
+                    />
+                  )}
+                </div>
               </div>
               {open && (
                 <div className="space-y-1 border-t px-3 py-3">
@@ -459,6 +486,16 @@ export default function DomainBuilder({
                           {(s.fields ?? []).join(", ")}
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
+                          <Switch
+                            checked={selectedSubs.includes(
+                              `${d.name}/${s.name}`,
+                            )}
+                            disabled={selectDisabled}
+                            onCheckedChange={() =>
+                              onToggleSub(`${d.name}/${s.name}`)
+                            }
+                            title="Include in training"
+                          />
                           <Button
                             size="icon"
                             variant="ghost"
