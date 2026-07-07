@@ -394,8 +394,13 @@ export default function AgentsPanel() {
                 {a.kind === "custom" ? (
                   <DeleteButton
                     busy={busy === `del-${a.name}`}
+                    disabled={a.enabled || busy === `del-${a.name}`}
                     onClick={() => void deleteAgent(a)}
-                    title="Delete agent"
+                    title={
+                      a.enabled
+                        ? "Disable this agent first (toggle Enabled off) to delete it"
+                        : "Delete agent"
+                    }
                   />
                 ) : (
                   <Button
