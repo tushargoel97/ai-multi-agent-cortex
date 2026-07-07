@@ -40,33 +40,43 @@ async def lifespan(app: FastAPI):
     if not uri:
         raise RuntimeError("POSTGRES_URI / DATABASE_URL is not set")
 
-    # Shared pool: autocommit + dict rows are required by the Postgres saver
-    # (pipeline writes) and used by the threads-table data access.
-    pool = AsyncConnectionPool(
-        conninfo=uri,
-        max_size=20,
-        open=False,
-        kwargs={"autocommit": True, "row_factory": dict_row},
-    )
-    await pool.open()
+    # SEPARATE pools for the checkpointer, the store, and threads-table access.
+    # A single shared pool caused psycopg "another command is already in
+    # progress" errors: within one graph step the checkpointer write and the
+    # store's semantic recall can run concurrently (more so now that
+    # spec_review fans out with asyncio.gather), and sharing a pinned
+    # connection interleaves two commands on it. Dedicated pools isolate them.
+    def _make_pool(max_size: int) -> AsyncConnectionPool:
+        return AsyncConnectionPool(
+            conninfo=uri,
+            max_size=max_size,
+            open=False,
+            kwargs={"autocommit": True, "row_factory": dict_row},
+        )
 
-    checkpointer = AsyncPostgresSaver(pool)
+    cp_pool = _make_pool(20)
+    store_pool = _make_pool(10)
+    data_pool = _make_pool(5)
+    for p in (cp_pool, store_pool, data_pool):
+        await p.open()
+
+    checkpointer = AsyncPostgresSaver(cp_pool)
     await checkpointer.setup()
 
     # pgvector must exist before the store's vector migrations run; init.sql only
     # covers freshly-initialized volumes, so guarantee it here too (idempotent).
-    async with pool.connection() as conn:
+    async with store_pool.connection() as conn:
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     store = AsyncPostgresStore(
-        pool, index={"dims": EMBED_DIMS, "embed": aembed_texts}
+        store_pool, index={"dims": EMBED_DIMS, "embed": aembed_texts}
     )
     await store.setup()
 
-    async with pool.connection() as conn:
+    async with data_pool.connection() as conn:
         await conn.execute(THREADS_DDL)
 
-    runtime.pool = pool
+    runtime.pool = data_pool
     runtime.checkpointer = checkpointer
     runtime.store = store
     runtime.graph = build_workflow(checkpointer=checkpointer, store=store)
@@ -95,7 +105,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await pool.close()
+        for p in (cp_pool, store_pool, data_pool):
+            await p.close()
 
 
 app = FastAPI(title="Cortex LangGraph Server", lifespan=lifespan)

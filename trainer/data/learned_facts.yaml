@@ -87,6 +87,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '475'
   - Ryzen AI 9 HX PRO 475
   exists: true
   notes: Specs from AMD's official product database
@@ -112,6 +113,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 440GE
   - Ryzen AI 5 PRO 440GE
   exists: true
   notes: Specs from AMD's official product database
@@ -137,6 +139,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '465'
   - Ryzen AI 9 PRO 465
   exists: true
   notes: Specs from AMD's official product database
@@ -162,6 +165,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 435G
   - Ryzen AI 5 PRO 435G
   exists: true
   notes: Specs from AMD's official product database
@@ -187,6 +191,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 450GE
   - Ryzen AI 7 PRO 450GE
   exists: true
   notes: Specs from AMD's official product database
@@ -212,6 +217,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 435GE
   - Ryzen AI 5 PRO 435GE
   exists: true
   notes: Specs from AMD's official product database
@@ -237,6 +243,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '450'
   - Ryzen AI 7 PRO 450
   exists: true
   notes: Specs from AMD's official product database
@@ -262,6 +269,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 450G
   - Ryzen AI 7 PRO 450G
   exists: true
   notes: Specs from AMD's official product database
@@ -287,6 +295,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '440'
   - Ryzen AI 5 PRO 440
   exists: true
   notes: Specs from AMD's official product database
@@ -312,6 +321,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - 440G
   - Ryzen AI 5 PRO 440G
   exists: true
   notes: Specs from AMD's official product database
@@ -337,6 +347,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '470'
   - Ryzen AI 9 HX PRO 470
   exists: true
   notes: Specs from AMD's official product database
@@ -362,6 +373,7 @@ learned:
   - Gaming
   - Content Creation
   aliases:
+  - '435'
   - Ryzen AI 5 PRO 435
   exists: true
   notes: Specs from AMD's official product database
@@ -466,6 +478,7 @@ learned:
   aliases:
   - 270K Plus
   - Core Ultra 7 270K Plus
+  - Ultra 7 270K Plus
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 250K Plus
@@ -491,6 +504,7 @@ learned:
   aliases:
   - 250K Plus
   - Core Ultra 5 250K Plus
+  - Ultra 5 250K Plus
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 250KF Plus
@@ -516,6 +530,7 @@ learned:
   aliases:
   - 250KF Plus
   - Core Ultra 5 250KF Plus
+  - Ultra 5 250KF Plus
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 9 285
@@ -541,6 +556,7 @@ learned:
   aliases:
   - '285'
   - Core Ultra 9 285
+  - Ultra 9 285
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 9 285T
@@ -566,6 +582,7 @@ learned:
   aliases:
   - 285T
   - Core Ultra 9 285T
+  - Ultra 9 285T
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 7 265
@@ -591,6 +608,7 @@ learned:
   aliases:
   - '265'
   - Core Ultra 7 265
+  - Ultra 7 265
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 7 265F
@@ -616,6 +634,7 @@ learned:
   aliases:
   - 265F
   - Core Ultra 7 265F
+  - Ultra 7 265F
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 7 265T
@@ -641,6 +660,7 @@ learned:
   aliases:
   - 265T
   - Core Ultra 7 265T
+  - Ultra 7 265T
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 245
@@ -666,6 +686,7 @@ learned:
   aliases:
   - '245'
   - Core Ultra 5 245
+  - Ultra 5 245
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 245T
@@ -691,6 +712,7 @@ learned:
   aliases:
   - 245T
   - Core Ultra 5 245T
+  - Ultra 5 245T
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 235
@@ -716,6 +738,7 @@ learned:
   aliases:
   - '235'
   - Core Ultra 5 235
+  - Ultra 5 235
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 235T
@@ -741,6 +764,7 @@ learned:
   aliases:
   - 235T
   - Core Ultra 5 235T
+  - Ultra 5 235T
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 225
@@ -766,6 +790,7 @@ learned:
   aliases:
   - '225'
   - Core Ultra 5 225
+  - Ultra 5 225
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: Intel Core Ultra 5 225F
@@ -791,6 +816,7 @@ learned:
   aliases:
   - 225F
   - Core Ultra 5 225F
+  - Ultra 5 225F
   exists: true
   notes: Specs from Intel's official desktop comparison chart (PDF)
 - name: AMD Ryzen AI 9 HX 375
@@ -815,7 +841,9 @@ learned:
   - Premium AI PCs
   - Laptops
   - Desktops
-  aliases: []
+  aliases:
+  - '375'
+  - Ryzen AI 9 HX 375
   exists: true
   notes: ''
 - name: AMD Ryzen AI 9 HX 370
@@ -840,7 +868,9 @@ learned:
   - Gaming
   - AI PCs
   aliases:
+  - '370'
   - AMD Ryzen AI 9 HX 370 w/ Radeon 890M
+  - Ryzen AI 9 HX 370
   exists: true
   notes: ''
 - name: Apple A18 Pro
@@ -863,6 +893,7 @@ learned:
   best_for:
   - Flagship SoC Processors
   aliases:
+  - A18 Pro
   - APL1V07
   exists: true
   notes: Achieves a total AnTuTu score of 1,774,620 as tested by 91Mobiles.
@@ -890,6 +921,8 @@ learned:
   - Gaming
   aliases:
   - SM8850-AC
+  - Snapdragon 8 Elite
+  - Snapdragon 8 Elite Gen 5
   exists: true
   notes: Achieves a total AnTuTu score of 4,033,382.
 - name: MediaTek Dimensity 9500
@@ -914,6 +947,8 @@ learned:
   best_for:
   - Flagship smartphones
   aliases:
+  - '9500'
+  - Dimensity 9500
   - MT6993
   exists: true
   notes: Achieves a total AnTuTu score of 3,568,720
@@ -939,6 +974,8 @@ learned:
   best_for:
   - Flagship SoC Processors
   aliases:
+  - '2600'
+  - Exynos 2600
   - S5E9965
   exists: true
   notes: Achieves a total AnTuTu score of 3,113,347
@@ -967,6 +1004,7 @@ learned:
   - Multimedia
   aliases:
   - SM8845
+  - Snapdragon 8 Gen 5
   exists: true
   notes: Sub Flagship 8 core chipset
 - name: Apple A19
@@ -990,6 +1028,7 @@ learned:
   best_for:
   - High performance mobile devices
   aliases:
+  - A19
   - T8150a
   exists: true
   notes: Sub Flagship 6 core chipset
@@ -1018,6 +1057,8 @@ learned:
   - AI applications
   aliases:
   - SM8735
+  - Snapdragon 8s
+  - Snapdragon 8s Gen 4
   exists: true
   notes: Sub Flagship 8 core chipset
 - name: MediaTek Dimensity 9400
@@ -1042,6 +1083,8 @@ learned:
   - Flagship smartphones
   - High-performance applications
   aliases:
+  - '9400'
+  - Dimensity 9400
   - MT6991
   exists: true
   notes: Achieves a total AnTuTu score of 2,537,181.
@@ -1069,6 +1112,7 @@ learned:
   - High-performance applications
   aliases:
   - SM8650-AB
+  - Snapdragon 8 Gen 3
   exists: true
   notes: Achieves a total AnTuTu score of 2,186,467 as tested by 91Mobiles.
 - name: Apple A18
@@ -1092,6 +1136,7 @@ learned:
   best_for:
   - Sub Flagship SoC Processors
   aliases:
+  - A18
   - APL1V08
   exists: true
   notes: Achieves a total AnTuTu score of 1,764,170.
@@ -1120,6 +1165,7 @@ learned:
   - High-performance mobile devices
   aliases:
   - SM8550-AB
+  - Snapdragon 8 Gen 2
   exists: true
   notes: Manufactured using a 4 nm process technology by TSMC.
 - name: Apple A17 Pro
@@ -1143,6 +1189,7 @@ learned:
   - Flagship SoC
   - High-performance mobile devices
   aliases:
+  - A17 Pro
   - APL1V02
   exists: true
   notes: Achieves a total AnTuTu score of 1,545,034
@@ -1170,6 +1217,8 @@ learned:
   - Mid Range SoC Processors
   aliases:
   - SM7675-AB
+  - Snapdragon 7 Plus
+  - Snapdragon 7 Plus Gen 3
   exists: true
   notes: Achieves a total AnTuTu score of 1,450,949 as tested by 91Mobiles.
 - name: Qualcomm Snapdragon 7 Gen 4
@@ -1196,6 +1245,8 @@ learned:
   - Mid Range SoC Processors
   aliases:
   - SM7750-AB
+  - Snapdragon 7
+  - Snapdragon 7 Gen 4
   exists: true
   notes: Manufactured by TSMC using 4 nm process technology.
 - name: Apple A19 Pro
@@ -1219,6 +1270,7 @@ learned:
   best_for:
   - Flagship SoC Processors
   aliases:
+  - A19 Pro
   - T8150
   exists: true
   notes: Achieves a total AnTuTu score of 2,521,699 as tested by 91Mobiles.
@@ -1242,6 +1294,8 @@ learned:
   best_for:
   - Flagship SoC Processors
   aliases:
+  - A16
+  - A16 Bionic
   - APL1W10
   exists: true
   notes: Achieves a total AnTuTu score of 1,302,867 as tested by 91Mobiles.

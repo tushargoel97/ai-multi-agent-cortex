@@ -14,6 +14,7 @@ from langgraph.config import get_store
 from langgraph.graph import END, START, MessagesState, StateGraph
 from pydantic import BaseModel, Field
 
+import asyncio
 import logging
 import re
 from datetime import datetime
@@ -103,6 +104,14 @@ class ChatState(MessagesState):
 
     summary: str
     summary_upto: int  # number of leading messages already folded into summary
+    # The specialist's raw draft, stashed here instead of emitted as a visible
+    # message so the user never sees the 1B prose flash before it is replaced
+    # by the spec table. spec_review consumes it and emits the final answer.
+    spec_draft: str
+    # Set by spec_review to the gap reason when the specialist's answer can't be
+    # trusted (refusal / untrained product / fact-check failure) — routes the
+    # query to the researcher (web-RAG) instead of emitting the bad draft.
+    spec_gap: str
 
 
 def _is_router_marker(m: object) -> bool:
@@ -679,8 +688,36 @@ async def generalist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
 
 
 async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Knowledge agent — local KB + Wikipedia."""
-    return await _run_agent(Agents.RESEARCHER, state, config, Intent.KNOWLEDGE_QUERY.value)
+    """Knowledge agent — web search + local KB + Wikipedia.
+
+    Also handles specialist knowledge gaps: when the fine-tuned model refused,
+    answered about an untrained product, or was fact-checked wrong, spec_review
+    routes here (``spec_gap`` set) so the user gets a web-grounded answer.
+    """
+    out = await _run_agent(
+        Agents.RESEARCHER, state, config, Intent.KNOWLEDGE_QUERY.value
+    )
+    gap = (state.get("spec_gap") or "").strip()
+    if gap:
+        out["spec_gap"] = ""  # clear so it doesn't re-trigger
+        msgs = out.get("messages") or []
+        final = msgs[-1] if msgs else None
+        if (
+            isinstance(final, AIMessage)
+            and isinstance(final.content, str)
+            and final.content.strip()
+        ):
+            note = (
+                "\n\n*Fact-checked — my fine-tuned model had some of these specs "
+                "wrong, so I've corrected them against verified web sources and "
+                "logged it for retraining.*"
+                if gap.startswith("fact_error")
+                else "\n\n*This hardware isn't in my fine-tuned knowledge yet, so "
+                "I answered from verified web sources and logged it for future "
+                "training.*"
+            )
+            final.content += note
+    return out
 
 
 async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
@@ -1136,20 +1173,33 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     # Spec recall wants exactness — greedy decoding so memorized numbers
     # (prices, TFLOPS) come out digit-perfect every time.
     model.temperature = 0.0
-    # NO system prompt: the LoRA training data is bare user/assistant pairs,
-    # and prepending one knocks the 1B model off its memorized answers
-    # (verified: it duplicates comparison columns with a system prompt).
-    agent = create_agent(model=model, tools=[], system_prompt=None)
     # Send ONLY the latest user question, as plain text. Small fine-tuned
     # models anchor hard on prior turns and will parrot an earlier answer
     # instead of addressing the new question; they also reject tool-role
     # remnants and image blocks. Spec lookup is stateless — one question in,
-    # one answer out.
+    # one answer out. NO system prompt: the LoRA training data is bare
+    # user/assistant pairs, and prepending one knocks the 1B model off its
+    # memorized answers (verified: it duplicates comparison columns).
     last_human = _last_human(state["messages"])
     question_text = _text_content(last_human) if last_human is not None else ""
-    chat_messages = [HumanMessage(question_text)] if question_text else []
+    if not question_text:
+        return {"spec_draft": ""}
     try:
-        result = await agent.ainvoke({"messages": chat_messages})
+        # ``nostream`` + no message emitted: the raw 1B prose never reaches the
+        # UI. spec_review reformats it into the spec table (or replaces it with
+        # a frontier answer) and emits the single visible message. This is what
+        # removes the ~20s "prose, then table" swap the user saw.
+        result = await model.ainvoke(
+            [HumanMessage(question_text)],
+            config={"tags": ["nostream"]},
+        )
+        draft = (
+            result.content
+            if isinstance(result.content, str)
+            else "".join(
+                b.get("text", "") for b in result.content if isinstance(b, dict)
+            )
+        ).strip()
     except Exception:  # noqa: BLE001 — local service may be down/unloaded
         return {
             "messages": [
@@ -1164,132 +1214,11 @@ async def specialist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             ]
         }
 
-    # Critique + fallback runs in the spec_review node (next in the graph):
-    # it logs a knowledge gap and, when the product isn't in the fine-tune's
-    # training, answers accurately via a frontier model + web search.
-    return {"messages": result["messages"]}
-
-
-# Web tools the frontier fallback uses to ground an answer (researcher's set).
-_FALLBACK_TOOLS = ("web_search", "fetch_url", "search_knowledge_base")
-
-
-def _untrained_product_reason(question: str) -> str | None:
-    """Gap reason when the user names a concrete hardware product the fine-tune
-    was never trained on — so any specifics it emitted are ungrounded.
-
-    The facts index (facts.yaml + learned_facts.yaml) is the same ground truth
-    the specialist trained on, so a named product missing from it is untrained.
-    Returns None when no concrete product is named or the facts mount is absent
-    (never force a fallback on uncertainty).
-    """
-    from cortex.db.services.knowledge_gaps import _PRODUCT_RE
-
-    if not _PRODUCT_RE.search(question):
-        return None
-    try:
-        from cortex.facts import match_products
-
-        if match_products(question):
-            return None  # product is in the training facts → trust the specialist
-    except Exception:  # noqa: BLE001 — facts mount optional; don't force a fallback
-        return None
-    return "product_not_addressed"
-
-
-async def _frontier_spec_answer(
-    question: str, config: RunnableConfig
-) -> AIMessage | None:
-    """Accurate hardware answer from a capable frontier model.
-
-    Prefers web RAG (the researcher's tools) so specs are current and sourced;
-    if no web tool is enabled or the tool loop fails, it still answers from the
-    frontier model's own knowledge — far more reliable than the 1B draft it
-    replaces. Returns None only when no capable non-fine-tuned model exists.
-    """
-    from cortex.db.services.auto_mode import resolve_auto_model
-
-    try:
-        resolved = resolve_auto_model(Intent.KNOWLEDGE_QUERY.value)
-    except Exception:  # noqa: BLE001
-        resolved = None
-    if resolved is None or resolved.model_id.startswith(FINE_TUNED_PREFIX):
-        return None  # no capable non-fine-tuned model available
-
-    from cortex.tools.registry import get_tools
-
-    model = build_client_from_resolved(resolved)
-
-    # Honor admin tool controls: a disabled/removed tool drops out here, so
-    # the fallback degrades to the remaining enabled web tools (or none).
-    try:
-        from cortex.db.services.tool_catalog import (
-            filter_enabled,
-            resolve_tool_instances,
-        )
-
-        web_tools = resolve_tool_instances(filter_enabled(list(_FALLBACK_TOOLS)))
-    except Exception:  # noqa: BLE001 — tool controls optional; use the raw set
-        web_tools = get_tools(list(_FALLBACK_TOOLS))
-
-    # Prefer grounded, web-sourced specs when a web tool is available.
-    if web_tools:
-        grounded_prompt = (
-            "You are a hardware specifications expert. Call the web_search and "
-            "fetch_url tools to find authoritative, current specifications "
-            "before answering. Present the specs as a markdown table — a "
-            "`| Spec | <A> | <B> |` comparison table when two or more products "
-            "are named — followed by brief source attribution. Use the correct "
-            "manufacturer and architecture for each product."
-        )
-        try:
-            agent = create_agent(
-                model=model, tools=web_tools, system_prompt=grounded_prompt
-            )
-            result = await agent.ainvoke({"messages": [HumanMessage(question)]})
-            fmsgs = result.get("messages", [])
-            final = fmsgs[-1] if fmsgs else None
-            if (
-                isinstance(final, AIMessage)
-                and isinstance(final.content, str)
-                and final.content.strip()
-            ):
-                return final
-        except Exception:  # noqa: BLE001 — fall through to the knowledge answer
-            _persist_logger.exception("Frontier web spec fallback failed")
-
-    # No web tool, or the web loop failed / returned nothing — answer from the
-    # frontier model's own knowledge. Still far more reliable than the 1B
-    # specialist draft it replaces (correct brand, architecture, and figures).
-    knowledge_prompt = (
-        "You are a hardware specifications expert. Answer accurately from your "
-        "own knowledge. Present the specs as a markdown table — a "
-        "`| Spec | <A> | <B> |` comparison table when two or more products are "
-        "named. Use the correct manufacturer, architecture, and realistic "
-        "figures; if you are unsure of a specific value, write 'unverified' "
-        "rather than guess."
-    )
-    try:
-        answer = await model.ainvoke(
-            [SystemMessage(knowledge_prompt), HumanMessage(question)]
-        )
-    except Exception:  # noqa: BLE001 — fallback is best-effort, never fatal
-        _persist_logger.exception("Frontier knowledge spec fallback failed")
-        return None
-    text = (
-        answer.content
-        if isinstance(answer.content, str)
-        else "".join(
-            b.get("text", "") for b in answer.content if isinstance(b, dict)
-        )
-    ).strip()
-    if not text:
-        return None
-    return AIMessage(
-        content=text,
-        response_metadata=getattr(answer, "response_metadata", {}) or {},
-        usage_metadata=getattr(answer, "usage_metadata", None),
-    )
+    # Hand the draft to spec_review (next node) via state, not as a visible
+    # message. It runs the fact-check and the table extraction in parallel and
+    # emits the final answer — a spec table, or a frontier web-RAG answer when
+    # the draft is wrong / the product isn't in the fine-tune's training.
+    return {"spec_draft": draft}
 
 
 class _SpecCritique(BaseModel):
@@ -1365,85 +1294,131 @@ async def _critique_spec_draft(question: str, draft: str) -> str | None:
     return None
 
 
-async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
-    """Self-critique the specialist's draft; on a knowledge gap, answer
-    accurately via a frontier model + web RAG.
+def _untrained_product_reason(question: str) -> str | None:
+    """Gap reason when the user names a concrete hardware product the fine-tune
+    was never trained on — so any specifics it emitted are ungrounded.
 
-    The gap is always logged for future fine-tuning (the self-improvement
-    loop). When the fine-tune wasn't trained on the product — it refused,
-    silently answered about something else, or the product isn't in its
-    training facts — the user still gets a correct answer from a capable
-    frontier model grounded on live web sources.
+    The facts index (facts.yaml + learned_facts.yaml) is the same ground truth
+    the specialist trained on, so a named product missing from it is untrained.
+    Returns None when no concrete product is named or the facts mount is absent
+    (never force a fallback on uncertainty).
     """
-    msgs = state["messages"]
-    final = msgs[-1] if msgs else None
-    last_human = _last_human(msgs)
-    if not (
-        isinstance(final, AIMessage)
-        and isinstance(final.content, str)
-        and last_human is not None
-    ):
+    from cortex.db.services.knowledge_gaps import _PRODUCT_RE
+
+    if not _PRODUCT_RE.search(question):
+        return None
+    try:
+        from cortex.facts import match_products
+
+        if match_products(question):
+            return None  # product is in the training facts → trust the specialist
+    except Exception:  # noqa: BLE001 — facts mount optional; don't force a fallback
+        return None
+    return "product_not_addressed"
+
+
+def _route_after_spec_review(
+    state: ChatState,
+) -> Literal["researcher", "__end__"]:
+    """Grounded specialist answer ends the run; a gap goes to the researcher
+    (web-RAG) for an accurate, sourced answer."""
+    return "researcher" if (state.get("spec_gap") or "").strip() else "__end__"
+
+
+def _specialist_metadata() -> dict[str, Any]:
+    """response_metadata carrying the fine-tuned model name, so the UI's model
+    badge still attributes the answer to the specialist (it no longer emits
+    its own message)."""
+    try:
+        resolved = resolve_fine_tuned_model()
+        if resolved is not None:
+            return {"model_name": resolved.model_id}
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
+async def spec_review(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    """Terminal node for the specialist path: emits the single visible answer.
+
+    Runs the fact-check and the spec-table extraction CONCURRENTLY on the
+    specialist's (silent) draft, so the table appears in one wall-clock LLM
+    round-trip instead of two sequential ones. Then:
+      - draft is grounded  → emit the extracted spec table (or the draft as-is
+        when nothing tabular could be pulled);
+      - draft is wrong / untrained → emit an accurate frontier web-RAG answer
+        (already a table) and log the knowledge gap for future fine-tuning.
+    """
+    draft = (state.get("spec_draft") or "").strip()
+    last_human = _last_human(state["messages"])
+    if not draft or last_human is None:
         return {}
     question = _text_content(last_human)
-    draft = final.content
+    meta = _specialist_metadata()
 
     from cortex.db.services.knowledge_gaps import detect_gap, log_gap
 
-    # Cheap heuristics first: refusal phrases, a named product missing from the
-    # answer, or a product not in the training facts. Then the real
-    # self-critique — an LLM fact-check that catches confidently-wrong answers
-    # the heuristics can't (wrong brand, impossible architecture, absurd specs).
-    reason = detect_gap(question, draft) or _untrained_product_reason(question)
-    if reason is None:
-        reason = await _critique_spec_draft(question, draft)
-    if reason is None:
-        return {}  # specialist answer looks grounded → synthesize formats it
+    # Cheap heuristics decide up front whether the draft is even worth
+    # fact-checking / tabulating: an outright refusal or a product not in the
+    # training facts skips straight to the frontier fallback.
+    heuristic_reason = detect_gap(question, draft) or _untrained_product_reason(
+        question
+    )
 
+    async def _fact_check() -> str | None:
+        # Heuristic gap already found → no need to spend the critic call.
+        if heuristic_reason is not None:
+            return heuristic_reason
+        return await _critique_spec_draft(question, draft)
+
+    async def _table() -> str | None:
+        # A clear gap means the draft is untrusted — don't tabulate it; the
+        # frontier answer will replace it.
+        if heuristic_reason is not None:
+            return None
+        reference = ""
+        try:
+            from cortex.facts import match_products, reference_block
+
+            reference = reference_block(match_products(question))
+        except Exception:  # noqa: BLE001 — facts mount optional
+            pass
+        resolved = None
+        try:
+            from cortex.db.services.auto_mode import (
+                FAST_TIER,
+                resolve_auto_model,
+            )
+
+            resolved = resolve_auto_model(
+                Intent.KNOWLEDGE_QUERY.value
+            ) or resolve_auto_model(FAST_TIER)
+        except Exception:  # noqa: BLE001
+            resolved = None
+        if resolved is None:
+            return None
+        return await _render_spec_answer(question, draft, reference, resolved)
+
+    # Fact-check and table extraction are independent transforms of the same
+    # draft → run them at the same time.
+    reason, table_md = await asyncio.gather(_fact_check(), _table())
+
+    if reason is None:
+        # Draft is grounded: show the spec table (or the draft if no table
+        # could be extracted). Carry any gap/fact-check note the draft holds.
+        content = _carry_notes(draft, table_md) if table_md else draft
+        return {
+            "messages": [AIMessage(content=content, response_metadata=meta)],
+            "spec_gap": "",
+        }
+
+    # Gap: the draft is a refusal, is about an untrained product, or the
+    # fact-check flagged it. A frontier model alone can't be trusted for exact
+    # specs — hand the query to the researcher (web-RAG). ``spec_gap`` flips
+    # the conditional edge to the researcher node; it web-searches, answers,
+    # and synthesize tabulates the result.
     log_gap(question, draft, reason)  # keep the self-improvement signal
-
-    fallback = await _frontier_spec_answer(question, config)
-    if fallback is not None:
-        if reason.startswith("fact_error"):
-            note = (
-                "\n\n*Fact-checked — my fine-tuned model had some of these specs "
-                "wrong, so I've corrected them against a verified answer and "
-                "logged it for retraining.*"
-            )
-        else:
-            note = (
-                "\n\n*Fact-checked — this hardware isn't in my fine-tuned "
-                "knowledge yet, so I answered from a verified source and logged "
-                "it for future training.*"
-            )
-        return {
-            "messages": [
-                AIMessage(
-                    id=final.id,
-                    content=fallback.content + note,
-                    additional_kwargs=final.additional_kwargs,
-                    response_metadata=fallback.response_metadata
-                    or final.response_metadata,
-                    usage_metadata=fallback.usage_metadata,
-                )
-            ]
-        }
-
-    # No frontier model available — keep the draft with the classic gap note.
-    if _GAP_NOTE_PREFIX not in draft:
-        return {
-            "messages": [
-                AIMessage(
-                    id=final.id,
-                    content=draft
-                    + "\n\n*I've logged this as a knowledge gap — research & "
-                    "retrain from Admin → Fine-Tuning to teach me this hardware.*",
-                    additional_kwargs=final.additional_kwargs,
-                    response_metadata=final.response_metadata,
-                    usage_metadata=final.usage_metadata,
-                )
-            ]
-        }
-    return {}
+    return {"spec_gap": reason}
 
 
 # ── Graph ────────────────────────────────────────────────────────────────────
@@ -1457,8 +1432,9 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
               → router → (conditional)
                           → generalist / prompt_cacher / imagegen      → END
                           → researcher / reasoner / coder → synthesize  → END
-                          → specialist → spec_review (self-critique +
-                            frontier web-RAG fallback) → synthesize      → END
+                          → specialist (silent draft) → spec_review
+                            (parallel fact-check ‖ table extract; emits the
+                            table, or a frontier web-RAG answer on a gap) → END
 
     Auto mode: configurable.model_id == "auto" always goes through the router
     and each node resolves its model per intent (declarative/auto_mode.yaml).
@@ -1514,10 +1490,16 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     # model rewrite code.
     builder.add_edge("researcher", "synthesize")
     builder.add_edge("reasoner", "synthesize")
-    # The specialist gets a self-critique pass first: on a knowledge gap it
-    # logs the gap and answers accurately via a frontier model + web RAG.
+    # The specialist answers silently (draft in state, no prose flash);
+    # spec_review fact-checks and tabulates it IN PARALLEL. A grounded answer
+    # ends here; a gap (refusal / untrained / fact-check fail) routes to the
+    # researcher for a web-grounded answer, then synthesize tabulates it.
     builder.add_edge("specialist", "spec_review")
-    builder.add_edge("spec_review", "synthesize")
+    builder.add_conditional_edges(
+        "spec_review",
+        _route_after_spec_review,
+        {"researcher": "researcher", "__end__": END},
+    )
     builder.add_edge("coder", "synthesize")
     builder.add_edge("synthesize", END)
 

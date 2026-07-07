@@ -239,6 +239,62 @@ def _entry_variants(entry: dict) -> set[str]:
     }
 
 
+_MAKER_PREFIXES = (
+    "Qualcomm ",
+    "MediaTek ",
+    "Samsung ",
+    "Apple ",
+    "AMD ",
+    "Intel ",
+    "NVIDIA ",
+    "Google ",
+)
+
+
+def _derive_aliases(name: str) -> set[str]:
+    """Common short names people actually type, derived deterministically from
+    the canonical product name — the LLM distiller tends to alias SKU part
+    codes (APL1W10, SM8850-AC) instead, which no one searches for.
+
+    'Apple A16 Bionic'                  → {'A16 Bionic', 'A16'}
+    'Qualcomm Snapdragon 8 Elite Gen 5' → {'Snapdragon 8 Elite Gen 5',
+                                           'Snapdragon 8 Elite'}
+    'AMD Ryzen 9 PRO 9965X3D'           → {'Ryzen 9 PRO 9965X3D', '9965X3D'}
+    'Intel Core Ultra 7 265'            → {'Core Ultra 7 265', 'Ultra 7 265'}
+    """
+    out: set[str] = set()
+    base = name
+    for pref in _MAKER_PREFIXES:
+        if base.startswith(pref):
+            base = base[len(pref):]
+            out.add(base)  # name without the maker prefix
+            break
+
+    # Apple: 'A16 Bionic' → also 'A16'; 'A18 Pro' stays (Pro is meaningful).
+    m = re.match(r"^(A\d{2})\s+Bionic$", base)
+    if m:
+        out.add(m.group(1))
+
+    # Snapdragon: drop a trailing 'Gen N' ONLY when a distinctive word remains
+    # (e.g. 'Snapdragon 8 Elite Gen 5' → 'Snapdragon 8 Elite'). Never reduce to
+    # a bare 'Snapdragon 8', which collides across generations.
+    m = re.match(r"^(Snapdragon \d+\w*\s+\w+.*?)\s+Gen\s+\d+$", base)
+    if m:
+        out.add(m.group(1))
+
+    # Intel Core Ultra: 'Core Ultra 7 265' → 'Ultra 7 265'.
+    if base.startswith("Core Ultra "):
+        out.add(base[len("Core "):])
+
+    # A bare trailing model number (Ryzen/Core SKUs): '...9965X3D' → '9965X3D'.
+    m = re.search(r"\b(\d{3,4}[A-Z0-9]{0,4})$", base)
+    if m and m.group(1) != base:
+        out.add(m.group(1))
+
+    out.discard(name)
+    return {a.strip() for a in out if a.strip()}
+
+
 def save_learned_entry(entry: dict) -> bool:
     """Append/replace in learned_facts.yaml, alias-aware.
 
@@ -253,9 +309,12 @@ def save_learned_entry(entry: dict) -> bool:
     existing = load_learned()
     replaced = [e for e in existing if _entry_variants(e) & new_variants]
     entries = [e for e in existing if not (_entry_variants(e) & new_variants)]
-    # Keep curated knowledge from the entries being replaced.
+    # Keep curated knowledge from the entries being replaced, plus the LLM's
+    # aliases, plus deterministically-derived common short names (A16,
+    # Snapdragon 8 Elite) so routing/grounding recognizes what users type.
     aliases = {str(a) for e in replaced for a in e.get("aliases", [])}
     aliases |= {str(a) for a in entry.get("aliases", [])}
+    aliases |= _derive_aliases(entry.get("name", ""))
     aliases.discard(entry.get("name", ""))
     if aliases:
         entry["aliases"] = sorted(aliases)
