@@ -44,7 +44,8 @@ editing (system prompts, tool access, and custom agents)** all live in the
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ─▶ spec_review ─▶ synthesize│
+│                            └─ specialist ▶ spec_review ─▶ synthesize   │
+│                                 (untrained/wrong ▶ researcher web-RAG) │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -68,7 +69,7 @@ editing (system prompts, tool access, and custom agents)** all live in the
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Gaming-console / PC-hardware specs from a **self-trained** model | none at answer time; a `spec_review` pass self-critiques (heuristics + an LLM fact-check for wrong brand/architecture/figures) then corrects via a frontier model + web RAG, logging a knowledge gap |
+| `specialist`    | Gaming-console / PC / **mobile-processor** specs from a **self-trained** model (silent draft) | none; `spec_review` emits the answer — self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none — calls Google / OpenAI image APIs directly                          |
 | `shopping`      | Product shopping — direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
 | `booking`       | Booking — flights, hotels, movies, concerts, events, shows — dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
@@ -100,29 +101,38 @@ emits an optional `agent` field: when a **custom agent** (Admin → Agents) best
 fits the message, the turn routes to the generic `custom_agent` node that runs
 it — custom agents register live, with no graph rebuild.
 
-The `specialist` answer first passes through a `spec_review` step that
-**self-critiques** the draft. Cheap heuristics catch refusals and products the
-model wasn't trained on; then a real **LLM fact-check** (a strict frontier
-critic) flags confidently-wrong answers the heuristics miss — wrong
-manufacturer, an impossible architecture (e.g. "CUDA cores" on an Apple chip),
-or an implausible figure. On any of these it **logs a knowledge gap** and
-re-answers with a capable frontier model — grounded on **live web search** when
-available, the model's own knowledge otherwise — so the user always gets a
-corrected answer, never the wrong one with a note.
+A deterministic guard runs **before** the classifier is trusted: if the message
+names a hardware product that's in the training facts
+([`cortex/facts.py`](cortex/facts.py) `match_products`, alias-aware with
+longest-match-wins), the router forces `product_specs` so a **trained** product
+always reaches the fine-tuned `specialist` rather than being sent to web search.
 
-The `researcher`, `reasoner`, `specialist`, and `coder` answers then pass
-through the `synthesize` node. For **product, hardware, or software spec and
-comparison** answers it renders the table **deterministically**: a model only
-*extracts* the structured data (columns + rows, copied verbatim) and code
-renders the markdown through the `render_spec_table` tool — so the answer always
-comes out as a valid table instead of relying on the model to format one (a
-guard blocks any invented number, and it falls back to prose only if nothing
-tabular could be extracted). Other factual answers get a lighter presentation
-pass that grounds drifted numbers against the authoritative spec YAMLs, and it
-**skips the reformat when the answer is already a table**. For `coder` answers
-it never lets the fast model touch the code — instead it runs a deterministic,
-parse-only syntax check (Python via `ast`, JSON via `json`) and appends a
-heads-up when a complete code block is broken.
+The `specialist` never speaks to the user directly — it produces a **silent
+draft**, and a `spec_review` step emits the single visible answer. `spec_review`
+runs two things **in parallel** (so the table appears instantly, not after two
+serial LLM calls): a **self-critique** and the **table extraction**. The
+critique is cheap heuristics (refusal phrases, a product not in the training
+facts) plus a strict **LLM fact-check** that flags confidently-wrong answers —
+wrong manufacturer, an impossible architecture (e.g. "CUDA cores" on an Apple
+chip), or an implausible figure. If it finds a gap it **logs it** and hands off
+to the `researcher`, which re-answers with **live web-RAG** so the user gets a
+correct, sourced answer instead of the wrong one. Otherwise `spec_review` emits
+the deterministically-rendered spec table.
+
+The `researcher`, `reasoner`, and `coder` answers pass through the `synthesize`
+node (the specialist's table is already rendered in `spec_review`). For
+**product, hardware, or software spec and comparison** answers it renders the
+table **deterministically**: a model only *extracts* the structured data
+(columns + rows, copied verbatim) and code renders the markdown through the
+`render_spec_table` tool — so the answer always comes out as a valid table
+instead of relying on the model to format one (a guard blocks any invented
+number, and it falls back to prose only if nothing tabular could be extracted).
+Other factual answers get a lighter presentation pass that grounds drifted
+numbers against the authoritative spec YAMLs, and it **skips the reformat when
+the answer is already a table**. For `coder` answers it never lets the fast
+model touch the code — instead it runs a deterministic, parse-only syntax check
+(Python via `ast`, JSON via `json`) and appends a heads-up when a complete code
+block is broken.
 
 ### Auto mode
 
@@ -294,8 +304,11 @@ dev` runtime — **no LangSmith license and no Redis required.**
 
 - **Durable state** — the graph is compiled with an `AsyncPostgresSaver`
   checkpointer and an `AsyncPostgresStore`, so chat threads, checkpoints, and
-  long-term semantic memory all persist in Postgres (`db`). Conversations
-  survive container restarts, image rebuilds, and version upgrades.
+  long-term semantic memory all persist in Postgres (`db`). The server opens
+  **three dedicated connection pools** (checkpointer / store / app-threads) so
+  the parallel work in `spec_review` can't collide on one pinned connection
+  (psycopg "another command is already in progress"). Conversations survive
+  container restarts, image rebuilds, and version upgrades.
 - **Ports** — the server binds `8000` inside the container and is published as
   `2024:8000`. The UI container reaches it at `http://langgraph:8000` over the
   compose network; host tooling and the eval suite use `http://localhost:2024`.
@@ -372,28 +385,33 @@ code and the durable server (the server normalizes the driver suffix).
 ## The self-trained hardware specialist
 
 Cortex ships a **`specialist`** agent backed by a small model (Gemma 3 1B)
-fine-tuned on a curated dataset of gaming-console and PC-hardware specs. It
-answers from its own weights — and when asked about hardware it wasn't trained
-on, a `spec_review` step logs a knowledge gap and falls back to a frontier
-model + web search so the user still gets an accurate answer (see
-[Routing](#routing)). The whole train → convert → register loop is driven from
-**Admin → Fine-Tuning**:
+fine-tuned on a curated dataset of gaming-console, PC, and mobile/laptop
+hardware specs. It answers from its own weights — and when asked about hardware
+it wasn't trained on (or it gets a fact wrong), `spec_review` logs a knowledge
+gap and hands off to the `researcher` for a **web-RAG** answer, so the user
+still gets an accurate one (see [Routing](#routing)). The whole
+sources → dataset → train → register loop is driven from **Admin → Fine-Tuning**:
 
-1. **Sources** — upload PDFs, spreadsheets, or images (spec-sheet
-   screenshots), add URLs, or give a **research topic** prompt (e.g. "Apple
-   Silicon A- and M-series chip specs"): the trainer searches the web for it
-   and turns the fetched pages into training data. Web/topic search uses the
-   same provider chain as the app (set `FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily).
-2. **Generate dataset** — expands the facts into spec / overview /
-   comparison / buying-advice / refusal examples
-   ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)).
-3. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
-   export to GGUF, and register it in the `ai` service under the
-   `finetuned-` prefix (newest wins).
-4. **Knowledge gaps** — questions about untrained hardware are logged as gaps
-   (at answer time by `spec_review`); "Research gaps" pulls specs from the web
-   (Firecrawl provider chain) into the learned-facts store, and the next
-   retrain bakes them into the model's weights.
+1. **Sources** — upload PDFs or spec-sheet images, add URLs, or give a
+   **research topic** prompt (e.g. "Apple Silicon A- and M-series chip specs").
+2. **Import specs** — distills every source into structured spec sheets in
+   `learned_facts.yaml`: AMD's DB via a JSON parser, uploaded docs via a vision
+   model, and an LLM **scrape-agent** for any other URL (it respects robots /
+   anti-bot 403s — never evades them). Web/topic search uses the same provider
+   chain as the app (`FIRECRAWL_API_KEY` or Brave/SerpAPI/Tavily). Sources
+   become *facts*, not invented Q&A.
+3. **Generate dataset** — **deterministically** expands `facts.yaml` +
+   `learned_facts.yaml` into spec / overview / comparison / buying-advice /
+   off-domain-refusal / identity examples → `train.jsonl` / `valid.jsonl`
+   ([`trainer/generate_dataset.py`](trainer/generate_dataset.py)). **View
+   dataset** shows the generated pairs so you can eyeball them before training.
+4. **Train → Convert & Register** — MLX LoRA fine-tune on the host, fuse,
+   export to GGUF, and register it in the `ai` service under the `finetuned-`
+   prefix (newest wins).
+5. **Knowledge gaps** — questions the specialist got wrong or wasn't trained on
+   are logged as gaps (by `spec_review`); "Research gaps" pulls specs from the
+   web into `learned_facts.yaml`, and the next dataset → retrain bakes them into
+   the model's weights.
 
 The trainer runs **on the host** (MLX needs Apple Silicon), not in Docker:
 
