@@ -43,7 +43,7 @@ const STORAGE_KEY = "cortex:model-selection";
 /** Sentinel understood by the graph: pick the model per intent (auto mode). */
 export const AUTO_MODEL_ID = "auto";
 
-const DEFAULT_SELECTION: ModelSelection = {
+export const DEFAULT_SELECTION: ModelSelection = {
   model_id: AUTO_MODEL_ID,
   use_local: false,
   local_base_url: "http://host.docker.internal:1234/v1",

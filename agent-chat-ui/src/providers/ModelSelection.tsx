@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import {
+  DEFAULT_SELECTION,
   loadModelSelection,
   saveModelSelection,
   selectionToConfigurable,
@@ -18,8 +19,12 @@ interface Ctx {
 const ModelSelectionContext = createContext<Ctx | undefined>(undefined);
 
 export function ModelSelectionProvider({ children }: { children: ReactNode }) {
-  const [selection, setSelectionState] = useState<ModelSelection>(() =>
-    loadModelSelection(),
+  // Seed with the SSR default so the first client render matches the server;
+  // the real (localStorage) selection loads in the mount effect below. Reading
+  // localStorage in the useState initializer instead causes a hydration
+  // mismatch (e.g. the TogglesMenu active-count badge) for returning users.
+  const [selection, setSelectionState] = useState<ModelSelection>(
+    DEFAULT_SELECTION,
   );
 
   // Re-read from localStorage after mount to avoid SSR mismatch
