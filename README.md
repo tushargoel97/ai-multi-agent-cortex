@@ -33,10 +33,9 @@ editing (system prompts, tool access, and custom agents)** all live in the
        │ LangGraph SDK over HTTP
        ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│  Custom durable server (:2024) - cortex graph                         │
-│                                                                       │
-│  START ─▶ route ─┬─ specialist  (fine-tuned local model - bypass)     │
-│                  └─ router ─┬─ generalist     ───────────────▶ END    │
+│ Custom durable server (:2024) - cortex graph                          │
+│ START ─▶ route ─┬─ specialist  (fine-tuned local model - bypass)      │
+│                 └─ router ─┬─ generalist     ───────────────▶ END     │
 │                            ├─ prompt_cacher ──────────────────▶ END   │
 │                            ├─ imagegen      ──────────────────▶ END   │
 │                            ├─ shopping      ──────────────────▶ END   │
@@ -45,8 +44,8 @@ editing (system prompts, tool access, and custom agents)** all live in the
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ▶ spec_review ─▶ synthesize   │
-│                                 (untrained/wrong ▶ researcher web-RAG) │
+│                            └─ specialist ▶ spec_review ─▶ synthesize │
+│                                (untrained/wrong ▶ researcher web-RAG) │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -95,7 +94,11 @@ one of nine labels, each mapped to a node:
 - `shopping` → `shopping`
 - `booking` → `booking`
 
-Unknown labels fall back to `general_chat`. If the routing model itself is
+Unknown labels fall back to `general_chat`. To keep everyday questions fast,
+well-known **stable** facts (e.g. "who founded OpenAI?") are answered directly
+by the `generalist` from the model's own knowledge; `knowledge_query` (the
+web-grounded `researcher`) is reserved for **current, niche, or source-cited**
+information. If the routing model itself is
 unavailable (e.g. a small local model that can't emit structured output), a
 keyword heuristic classifies the turn so the run never fails. The router also
 emits an optional `agent` field: when a **custom agent** (Admin → Agents) best
@@ -144,8 +147,47 @@ node resolves the best model for its intent from
 [`cortex/declarative/auto_mode.yaml`](cortex/declarative/auto_mode.yaml)
 (profiles `balanced` / `quality` / `cost`; the active profile is stored in
 `app_settings` and switched from Admin → Models). Only models that are
-enabled in the registry are eligible, so the admin console stays in control.
-The routing chip in the transcript shows which model auto-mode picked.
+enabled **and whose provider has an API key** are eligible, so the admin
+console stays in control. The routing chip in the transcript shows which
+model auto-mode picked.
+
+If the chosen model becomes unavailable mid-run (quota exhausted, rate-limited,
+or the provider is down), auto mode **falls back to the next eligible
+candidate** for that intent automatically. When every candidate fails, or a
+**specific** model you picked fails, the run doesn't crash: the agent replies
+with a short, plain explanation ("out of quota / credits", "rate-limited",
+"invalid API key", …) so you can switch models or retry. A specific model (or a
+local endpoint) is honored end-to-end and never silently swapped for another
+provider.
+
+### Modes, selection & activity
+
+The chip in the prompt box is a full model selector:
+
+- **✨ Auto** (default), the per-intent resolution described above.
+- **A specific registered model**, used for the entire turn, including the
+  internal formatting / clarify passes, so your choice is never swapped.
+- **Local LLM**, point the assistant at your own OpenAI-compatible endpoint
+  (base URL + optional key + model name) without touching the registry.
+
+An **Options** menu beside it carries a mode slider and a few toggles:
+
+- **General / Thinking / Research**:
+  - *Thinking* raises the reasoner to the `quality` tier and turns on the
+    provider's **extended thinking** (Anthropic `thinking`, translated to the
+    adaptive format on newer Claude models; OpenAI `reasoning_effort=high`).
+  - *Research* runs a **deep-research** flow: the assistant first asks a few
+    clarifying questions, then searches several sources and writes a
+    structured, **cited** report.
+- **Unrestricted mode** (amber, opt-in), see [Guardrails](#guardrails).
+- **Hide Tool Calls**, collapse tool activity in the transcript.
+
+While a turn is in flight the transcript streams a live, structured **activity
+trace** of what each agent is doing and thinking (routing → tool calls →
+reviewing results → thinking). Once the answer is ready the trace collapses
+into a compact, muted **"Thought process"** dropdown (click to expand) the way
+Claude and ChatGPT fold reasoning away, so the final answer stays front and
+centre. Commerce cards, images, and the answer text always stay visible.
 
 ### Tools, MCP & agents (admin-managed)
 
@@ -494,6 +536,12 @@ fast LLM pre-flight screens every request and strict provider safety
 settings back it up, so unsafe prompts become a polite refusal rather than
 a picture.
 
+An opt-in **Unrestricted mode** (the amber toggle in the prompt box) relaxes
+the **app-level** guardrails for a turn: it **skips PII redaction**, appends a
+"direct answers" directive to the agent, and uses a **relaxed image
+pre-screen**. It never disables the providers' own moderation, those limits
+still apply.
+
 For deeper coverage of the guardrail design see
 [`GUARDRAILS.md`](GUARDRAILS.md).
 
@@ -506,13 +554,14 @@ ai-multi-agent-cortex/
 ├── agent-chat-ui/            # Next.js 15 front-end (chat + /admin console)
 │   └── src/
 │       ├── app/             # routes: chat/, admin/, api/ (LangGraph + admin proxies)
-│       ├── components/      # thread UI, model-selector, agent-activity, agent-inbox
+│       ├── components/      # thread UI (agent-trace, agent-activity), model-selector, agent-inbox
 │       ├── providers/       # Stream, Thread, ModelSelection, client
 │       └── lib/             # db pool, admin-auth, multimodal utils
 ├── cortex/                   # The LangGraph Python package
 │   ├── workflow.py           # Compiled graph: nodes, routing, memory, synthesizer
 │   ├── enums.py              # Agents StrEnum
 │   ├── guardrails.py         # Opt-in ToolAllowlistMiddleware
+│   ├── errors.py             # Model-error classification + graceful fallback messages
 │   ├── observability.py      # OpenTelemetry / Langfuse wiring
 │   ├── facts.py              # Authoritative specs for synthesizer grounding
 │   ├── imagegen.py           # Image generation + two-layer safety gate
@@ -526,7 +575,7 @@ ai-multi-agent-cortex/
 │   ├── declarative/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
 │   │   └── agents.yaml       # All agent specs (one --- document per agent)
-│   ├── model_client/         # Chat + embedding client factories
+│   ├── model_client/         # Chat + embedding client factories (+ auto-mode fallback clients)
 │   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
 │   ├── scripts/              # one-off maintenance scripts
 │   └── tools/                # registry + web/commerce/utility/shared/memory tools;
