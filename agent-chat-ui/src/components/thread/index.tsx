@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStreamContext } from "@/providers/Stream";
+import { getApiKey } from "@/lib/api-key";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
@@ -24,6 +25,7 @@ import { LangGraphLogoSVG } from "../icons/langgraph";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
+  Clock,
   LoaderCircle,
   PanelRightOpen,
   PanelRightClose,
@@ -195,6 +197,12 @@ export function Thread() {
   const [artifactOpen, closeArtifact] = useArtifactOpen();
 
   const [threadId, _setThreadId] = useQueryState("threadId");
+  const [apiUrl] = useQueryState("apiUrl", {
+    defaultValue: process.env.NEXT_PUBLIC_API_URL || "",
+  });
+  const [authScheme] = useQueryState("authScheme", {
+    defaultValue: process.env.NEXT_PUBLIC_AUTH_SCHEME || "",
+  });
   const [chatHistoryOpen, setChatHistoryOpen] = useChatHistoryOpen();
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -264,17 +272,21 @@ export function Thread() {
     }
   }, [stream.error]);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
-      return;
+  const [pending, setPending] = useState<
+    { text: string; blocks: typeof contentBlocks } | null
+  >(null);
+  const lastSubmitRef = useRef<{ text: string; at: number } | null>(null);
+
+  const submitMessage = (text: string, blocks: typeof contentBlocks) => {
+    const trimmed = text.trim();
+    if (trimmed.length === 0 && blocks.length === 0) return;
 
     const newHumanMessage: Message = {
       id: uuidv4(),
       type: "human",
       content: [
-        ...(input.trim().length > 0 ? [{ type: "text", text: input }] : []),
-        ...contentBlocks,
+        ...(trimmed.length > 0 ? [{ type: "text", text }] : []),
+        ...blocks,
       ] as Message["content"],
     };
 
@@ -304,9 +316,57 @@ export function Thread() {
       },
     );
 
+    lastSubmitRef.current = { text: trimmed, at: Date.now() };
     setInput("");
     setContentBlocks([]);
   };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (trimmed.length === 0 && contentBlocks.length === 0) return;
+
+    const lastHuman = [...messages].reverse().find((m) => m.type === "human");
+    const lastHumanText = lastHuman
+      ? getContentString(lastHuman.content).trim()
+      : "";
+    const isRepeat = trimmed.length > 0 && trimmed === lastHumanText;
+
+    // Swallow accidental duplicates (dup of the running turn, or rapid re-send).
+    if (isRepeat && isLoading) {
+      toast.info("That message is already being answered.");
+      return;
+    }
+    const recent = lastSubmitRef.current;
+    if (
+      isRepeat &&
+      recent &&
+      recent.text === trimmed &&
+      Date.now() - recent.at < 3000
+    ) {
+      return;
+    }
+
+    // While a run streams, queue this message instead of dropping it.
+    if (isLoading) {
+      setPending({ text: input, blocks: contentBlocks });
+      setInput("");
+      setContentBlocks([]);
+      toast.message("Queued, sends when the current reply finishes.");
+      return;
+    }
+
+    submitMessage(input, contentBlocks);
+  };
+
+  // Flush a queued message once the in-flight run finishes.
+  useEffect(() => {
+    if (isLoading || !pending) return;
+    const p = pending;
+    setPending(null);
+    submitMessage(p.text, p.blocks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, pending]);
 
   const handleRegenerate = (
     parentCheckpoint: Checkpoint | null | undefined,
@@ -318,6 +378,22 @@ export function Thread() {
       streamResumable: true,
       config: { configurable: buildConfigurable() },
     });
+  };
+
+  const handleCancel = () => {
+    stream.stop();
+    setPending(null);
+    // stop() only detaches the stream; cancel the detached server run too.
+    if (threadId && apiUrl) {
+      const headers: Record<string, string> = {};
+      const key = getApiKey();
+      if (key) headers["X-Api-Key"] = key;
+      if (authScheme) headers["X-Auth-Scheme"] = authScheme;
+      fetch(`${apiUrl}/threads/${threadId}/runs/cancel`, {
+        method: "POST",
+        headers,
+      }).catch(() => {});
+    }
   };
 
   const chatStarted = !!threadId || !!messages.length;
@@ -573,6 +649,24 @@ export function Thread() {
                       onSubmit={handleSubmit}
                       className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
                     >
+                      {pending && (
+                        <div className="mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+                          <Clock className="size-3.5 shrink-0 animate-pulse" />
+                          <span className="min-w-0 flex-1 truncate">
+                            Queued:{" "}
+                            {pending.text.trim() ||
+                              `${pending.blocks.length} attachment(s)`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPending(null)}
+                            className="shrink-0 hover:text-foreground"
+                            title="Cancel queued message"
+                          >
+                            <XIcon className="size-3.5" />
+                          </button>
+                        </div>
+                      )}
                       <ContentBlocksPreview
                         blocks={contentBlocks}
                         onRemove={removeBlock}
@@ -625,7 +719,7 @@ export function Thread() {
                         {stream.isLoading ? (
                           <Button
                             key="stop"
-                            onClick={() => stream.stop()}
+                            onClick={handleCancel}
                             className="ml-auto"
                           >
                             <LoaderCircle className="h-4 w-4 animate-spin" />

@@ -157,6 +157,9 @@ const StreamSession = ({
     }),
     threadId: threadId ?? null,
     fetchStateHistory: true,
+    // Re-attach to an in-flight run on mount, so switching threads doesn't drop
+    // an answer still being generated (pairs with the server's join endpoint).
+    reconnectOnMount: true,
     onCustomEvent: (event, options) => {
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {

@@ -89,6 +89,15 @@ async def set_thread_status(thread_id: str, status: str) -> None:
         )
 
 
+async def reset_stale_runs() -> int:
+    """Clear the 'busy' flag on threads whose run didn't finish (crash/restart)."""
+    async with runtime.pool.connection() as conn:
+        cur = await conn.execute(
+            "UPDATE threads SET status = 'idle' WHERE status = 'busy'"
+        )
+        return cur.rowcount or 0
+
+
 async def _thread_values(thread_id: str) -> dict:
     """Latest committed state values for a thread (empty if none yet)."""
     try:

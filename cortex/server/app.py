@@ -81,6 +81,16 @@ async def lifespan(app: FastAPI):
     runtime.store = store
     runtime.graph = build_workflow(checkpointer=checkpointer, store=store)
 
+    # Clear 'busy' flags left by runs that didn't finish before a restart.
+    try:
+        from cortex.server.threads import reset_stale_runs
+
+        freed = await reset_stale_runs()
+        if freed:
+            logger.info("Reset %d stale busy thread(s) on startup", freed)
+    except Exception:  # noqa: BLE001, recovery is best-effort
+        logger.exception("reset_stale_runs failed")
+
     # Tool control: mirror built-in tools into the DB and load external tools
     # (LangChain catalog + MCP servers) so admin-granted tools are available.
     try:
