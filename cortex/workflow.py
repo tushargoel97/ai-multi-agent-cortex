@@ -303,6 +303,8 @@ def route_from_start(
     configurable = (config or {}).get("configurable") or {}
     if configurable.get("local_base_url"):
         return "router"  # "Use local LLM" toggle: user points at their own endpoint
+    if str(configurable.get("mode") or "").lower() in ("thinking", "research"):
+        return "router"  # an explicit mode overrides the specialist bypass
     from cortex.db.services.auto_mode import is_auto
 
     if is_auto(configurable.get("model_id")):
@@ -341,6 +343,36 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     without structured-output support, connection loss), fall back to a
     keyword heuristic so the turn still gets answered.
     """
+    configurable = (config or {}).get("configurable") or {}
+    mode = str(configurable.get("mode") or "").lower()
+    if mode in ("thinking", "research"):
+        # The mode slider overrides the classifier: Thinking -> reasoner,
+        # Research -> researcher (deep web+KB with clarifying questions).
+        forced = (
+            Intent.REASONING_TASK if mode == "thinking" else Intent.KNOWLEDGE_QUERY
+        )
+        routing: dict[str, Any] = {
+            "intent": forced.value,
+            "reasoning": f"{mode.capitalize()} mode",
+            "agent": None,
+        }
+        try:
+            from cortex.db.services.auto_mode import resolve_auto_model
+
+            r = resolve_auto_model(
+                forced.value, profile="quality" if mode == "thinking" else None
+            )
+            if r is not None:
+                routing["model"] = r.model_id
+        except Exception:  # noqa: BLE001, routing chip model is cosmetic
+            pass
+        return {
+            "messages": [
+                AIMessage(
+                    content=forced.value, additional_kwargs={"routing": routing}
+                )
+            ]
+        }
     spec = get_agent_spec(Agents.ROUTER)
     # Recent window only, filtered to human/AI messages, tool call/response
     # pairs from prior agent runs would cause OpenAI to reject the request.
@@ -667,6 +699,18 @@ def _subagent_tools(agent_name: str, config: RunnableConfig | None) -> list[Any]
     ]
 
 
+# "Unrestricted mode" (chat-UI toggle) directive for text agents: cut the
+# over-refusal and hedging on lawful requests. The provider models still apply
+# their own safety training, and the hard floor in the directive stays in force.
+_UNRESTRICTED_DIRECTIVE = (
+    "Direct mode is ON: answer the user's request straightforwardly and in "
+    "full, without moralizing, unsolicited disclaimers, or safety caveats they "
+    "did not ask for, and without refusing lawful requests or padding the "
+    "answer with warnings. Still refuse anything genuinely illegal or that "
+    "would cause real-world harm."
+)
+
+
 def _build_agent(
     agent_id: Agents,
     *,
@@ -676,9 +720,12 @@ def _build_agent(
     auto_intent: str | None = None,
 ):
     spec = get_agent_spec(agent_id)
+    cfg = (config or {}).get("configurable") or {}
+    unrestricted = bool(cfg.get("unrestricted"))
     middleware: list[Any] = []
-    if with_pii:
-        # Redact common PII categories in model output.
+    if with_pii and not unrestricted:
+        # Redact common PII categories in model output (skipped in unrestricted
+        # mode so the user can work with raw emails / card numbers).
         middleware.append(
             PIIMiddleware("credit_card", strategy="redact", apply_to_output=True)
         )
@@ -693,7 +740,6 @@ def _build_agent(
     from cortex.tools.commerce import region_from_browser
 
     now = datetime.now()
-    cfg = (config or {}).get("configurable") or {}
     region = region_from_browser(
         str(cfg.get("locale") or ""), str(cfg.get("timezone") or "")
     )
@@ -703,6 +749,8 @@ def _build_agent(
         f"it as the default country for shopping, booking, prices, and local "
         f"results unless they say otherwise."
     )
+    if unrestricted:
+        context_line = f"{context_line}\n\n{_UNRESTRICTED_DIRECTIVE}"
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
     return create_agent(
@@ -736,13 +784,142 @@ async def generalist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     return await _run_agent(Agents.GENERALIST, state, config, Intent.GENERAL_CHAT.value)
 
 
+_RESEARCH_CLARIFY_PROMPT = (
+    "You are a deep-research planner. Before doing any research, ask the user "
+    "2 to 4 short, precise, numbered clarifying questions whose answers would "
+    "materially change the research: scope, timeframe, depth, preferred "
+    "sources, definitions, or intended use. Do NOT answer the request yet and "
+    "do NOT ask more than 4 questions. Begin with a one-line intro such as "
+    '"A few quick questions so I research the right thing:" then the numbered '
+    "questions.\n\nResearch request: "
+)
+
+_DEEP_RESEARCH_DIRECTIVE = (
+    "You are in DEEP RESEARCH mode. The user's original request was: "
+    '"{brief}". They have just answered your clarifying questions in the '
+    "latest message. Now research thoroughly: break the topic into sub-"
+    "questions, run several web searches from different angles, open the most "
+    "relevant pages with fetch_url, and cross-check the facts. Then write a "
+    "structured report with clear section headings, specific figures, and "
+    "inline source links for every claim. Prefer primary and recent sources, "
+    "and call out disagreements or uncertainty. Be comprehensive without "
+    "padding."
+)
+
+_DEFAULT_CLARIFY = (
+    "A few quick questions so I research the right thing:\n"
+    "1. What exactly should the research cover, and what can I leave out?\n"
+    "2. Any timeframe, region, or sources to prioritize?\n"
+    "3. How deep should I go, and what will you use the result for?"
+)
+
+
+async def _research_clarify_questions(query: str, config: RunnableConfig) -> str:
+    """Phase 1 of deep research: generate precise clarifying questions."""
+    try:
+        from cortex.db.services.auto_mode import resolve_auto_model
+        from cortex.db.services.llm_registry import build_client_from_resolved
+
+        resolved = resolve_auto_model(Intent.KNOWLEDGE_QUERY.value)
+        model = (
+            build_client_from_resolved(resolved)
+            if resolved is not None
+            else get_chat_client(config=config)
+        )
+        # nostream: the node returns the finished questions as one message, so
+        # don't also token-stream this internal call.
+        result = await model.ainvoke(
+            _RESEARCH_CLARIFY_PROMPT + query,
+            config={"tags": ["langsmith:nostream"]},
+        )
+        text = (
+            result.content
+            if isinstance(result.content, str)
+            else "".join(
+                b.get("text", "") for b in result.content if isinstance(b, dict)
+            )
+        )
+        return text.strip() or _DEFAULT_CLARIFY
+    except Exception:  # noqa: BLE001, clarify is best-effort
+        _persist_logger.exception("research clarify generation failed")
+        return _DEFAULT_CLARIFY
+
+
+async def _deep_research(
+    state: ChatState, config: RunnableConfig
+) -> dict[str, Any]:
+    """Research mode: ask clarifying questions first (phase 1), then research
+    multiple sources and write a cited report (phase 2)."""
+    msgs = state["messages"]
+    last_human = _last_human(msgs)
+    query = _text_content(last_human) if last_human is not None else ""
+
+    # Phase detection: a pending clarify marker sitting between the previous
+    # human turn and the current one means the user just answered the
+    # questions, so proceed to research; otherwise this is a fresh request.
+    brief: str | None = None
+    for m in reversed(msgs):
+        if m is last_human:
+            continue
+        if isinstance(m, HumanMessage):
+            break
+        if isinstance(m, AIMessage) and (m.additional_kwargs or {}).get(
+            "research_clarify"
+        ):
+            brief = str((m.additional_kwargs or {}).get("brief") or "")
+            break
+
+    if brief is None:
+        questions = await _research_clarify_questions(query, config)
+        return {
+            "messages": [
+                AIMessage(
+                    content=questions,
+                    additional_kwargs={
+                        "research_clarify": True,
+                        "brief": query,
+                        "deep_research": True,
+                    },
+                )
+            ]
+        }
+
+    memory_suffix, updates = await _memory_context(state, config)
+    directive = _DEEP_RESEARCH_DIRECTIVE.format(brief=brief or query)
+    extra = f"{directive}\n\n{memory_suffix}" if memory_suffix else directive
+    agent = _build_agent(
+        Agents.RESEARCHER,
+        config=config,
+        extra_system=extra,
+        auto_intent=Intent.KNOWLEDGE_QUERY.value,
+    )
+    result = await agent.ainvoke({"messages": _window(msgs)})
+    out_msgs = result.get("messages", [])
+    final = out_msgs[-1] if out_msgs else None
+    if isinstance(final, AIMessage):
+        final.additional_kwargs = {
+            **(final.additional_kwargs or {}),
+            "deep_research": True,
+        }
+    return {"messages": out_msgs, **updates}
+
+
 async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Knowledge agent, web search + local KB + Wikipedia.
 
     Also handles specialist knowledge gaps: when the fine-tuned model refused,
     answered about an untrained product, or was fact-checked wrong, spec_review
     routes here (``spec_gap`` set) so the user gets a web-grounded answer.
+
+    In Research mode (chat-UI slider) it runs the deep-research flow instead:
+    ask clarifying questions first, then research multiple sources and write a
+    cited report.
     """
+    configurable = (config or {}).get("configurable") or {}
+    if str(configurable.get("mode") or "").lower() == "research" and not (
+        state.get("spec_gap") or ""
+    ).strip():
+        return await _deep_research(state, config)
     out = await _run_agent(
         Agents.RESEARCHER, state, config, Intent.KNOWLEDGE_QUERY.value
     )
@@ -864,10 +1041,11 @@ async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     prompt = str(last_human.content) if last_human is not None else ""
     configurable = (config or {}).get("configurable") or {}
     thread_id = str(configurable.get("thread_id") or "thread")
+    unrestricted = bool(configurable.get("unrestricted"))
 
     from cortex.imagegen import generate_image
 
-    result = await generate_image(prompt, thread_id)
+    result = await generate_image(prompt, thread_id, unrestricted=unrestricted)
     if result.status == "ok":
         caption = result.detail or "Here you go:"
         content = f"{caption}\n\n![Generated image](/api/images/{result.filename})"
@@ -1046,6 +1224,10 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         and isinstance(final.content, str)
         and final.content.strip()
     ):
+        return {}
+    # Deep-research clarifying questions and the final cited report are already
+    # well-formed; the formatting pass would only flatten them.
+    if (final.additional_kwargs or {}).get("deep_research"):
         return {}
     # Coding answers reuse this node but deterministically: never hand code to
     # the fast-tier reformatter (it can silently corrupt it), just run a

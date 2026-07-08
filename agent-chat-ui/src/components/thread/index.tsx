@@ -31,7 +31,6 @@ import ThreadHistory from "./history";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
 import { GitHubSVG } from "../icons/github";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -514,20 +513,9 @@ export function Thread() {
                         <ModelSelector
                           selection={selection}
                           onChange={setSelection}
+                          hideToolCalls={hideToolCalls ?? false}
+                          onHideToolCallsChange={(v) => setHideToolCalls(v)}
                         />
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="render-tool-calls"
-                            checked={hideToolCalls ?? false}
-                            onCheckedChange={setHideToolCalls}
-                          />
-                          <Label
-                            htmlFor="render-tool-calls"
-                            className="text-sm text-muted-foreground"
-                          >
-                            Hide Tool Calls
-                          </Label>
-                        </div>
                         {stream.isLoading ? (
                           <Button
                             key="stop"

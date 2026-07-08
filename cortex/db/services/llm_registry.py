@@ -107,6 +107,7 @@ def build_client_from_resolved(
     *,
     local_base_url_override: str | None = None,
     local_api_key_override: str | None = None,
+    thinking: bool = False,
 ) -> BaseChatModel:
     """Instantiate a LangChain chat client from a ResolvedModel."""
     from langchain_openai import AzureChatOpenAI, ChatOpenAI
@@ -131,6 +132,8 @@ def build_client_from_resolved(
                 kwargs["base_url"] = resolved.base_url
             if _needs_responses_api(resolved.model_id):
                 kwargs["use_responses_api"] = True
+                if thinking:
+                    kwargs["reasoning_effort"] = "high"
             return ChatOpenAI(**kwargs)
 
         case ProviderKind.AZURE_OPENAI:
@@ -144,12 +147,17 @@ def build_client_from_resolved(
                 kwargs["api_key"] = resolved.api_key
             if _needs_responses_api(resolved.model_id):
                 kwargs["use_responses_api"] = True
+                if thinking:
+                    kwargs["reasoning_effort"] = "high"
             return AzureChatOpenAI(**kwargs)
 
         case ProviderKind.ANTHROPIC:
             kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
+            if thinking:
+                kwargs["max_tokens"] = 8000
+                kwargs["thinking"] = {"type": "enabled", "budget_tokens": 4000}
             return _thinking_safe_anthropic_cls()(**kwargs)
 
         case ProviderKind.GOOGLE:

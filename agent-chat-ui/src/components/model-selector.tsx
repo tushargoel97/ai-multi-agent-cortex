@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Cpu, Server } from "lucide-react";
+import { Cpu, Server } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, type SelectOption } from "@/components/ui/select";
+import { TogglesMenu } from "@/components/toggles-menu";
 import { cn } from "@/lib/utils";
 
 export interface AvailableModel {
@@ -31,6 +32,10 @@ export interface ModelSelection {
   local_base_url: string;
   local_api_key: string;
   local_model_name: string;
+  /** Relax the image safety pre-screen + configurable provider thresholds. */
+  unrestricted: boolean;
+  /** Response mode: general (default) | thinking | research. */
+  mode: "general" | "thinking" | "research";
 }
 
 const STORAGE_KEY = "cortex:model-selection";
@@ -44,6 +49,8 @@ const DEFAULT_SELECTION: ModelSelection = {
   local_base_url: "http://host.docker.internal:1234/v1",
   local_api_key: "",
   local_model_name: "local-model",
+  unrestricted: false,
+  mode: "general",
 };
 
 export function loadModelSelection(): ModelSelection {
@@ -71,9 +78,11 @@ export function selectionToConfigurable(
       local_api_key: sel.local_api_key,
       model_id: null,
       local_model_name: sel.local_model_name,
+      unrestricted: sel.unrestricted,
+      mode: sel.mode,
     };
   }
-  return { model_id: sel.model_id };
+  return { model_id: sel.model_id, unrestricted: sel.unrestricted, mode: sel.mode };
 }
 
 /** Browser locale + timezone, sent with each run so agents default to the
@@ -90,6 +99,31 @@ export function browserContext(): Record<string, unknown> {
   }
 }
 
+const MODEL_NAME_ACRONYMS: Record<string, string> = {
+  gpt: "GPT",
+  ai: "AI",
+  llm: "LLM",
+  xai: "xAI",
+};
+
+/** Turn a raw model id ("gpt-4o-mini") into a readable name ("GPT 4o Mini").
+ *  Names that already read naturally (contain a space) are left untouched, so
+ *  an admin-set display name is never mangled. */
+export function formatModelName(raw: string): string {
+  const name = (raw || "").trim();
+  if (!name || /\s/.test(name)) return name || "model";
+  return name
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => {
+      const low = part.toLowerCase();
+      if (MODEL_NAME_ACRONYMS[low]) return MODEL_NAME_ACRONYMS[low];
+      if (/\d/.test(part)) return part; // version tokens: 4o, 3.5, 5
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join(" ");
+}
+
 /**
  * Compact in-line model picker for the chat input toolbar.
  * - Cloud mode: shows a small select.
@@ -98,9 +132,13 @@ export function browserContext(): Record<string, unknown> {
 export default function ModelSelector({
   selection,
   onChange,
+  hideToolCalls = false,
+  onHideToolCallsChange,
 }: {
   selection: ModelSelection;
   onChange: (sel: ModelSelection) => void;
+  hideToolCalls?: boolean;
+  onHideToolCallsChange?: (v: boolean) => void;
 }) {
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -145,42 +183,50 @@ export default function ModelSelector({
       : (() => {
           const m = models.find((x) => x.id === selection.model_id);
           return m
-            ? `${m.display_name}`
+            ? formatModelName(m.display_name)
             : loaded && models.length === 0
               ? "No models"
               : "Select model";
         })();
 
+  const modelOptions: SelectOption[] = [
+    {
+      value: AUTO_MODEL_ID,
+      label: (
+        <span>
+          ✨ Auto{" "}
+          <span className="text-muted-foreground">· best per task</span>
+        </span>
+      ),
+    },
+    ...(loaded
+      ? models.map((m) => ({
+          value: m.id,
+          label: formatModelName(m.display_name),
+          hint: `${m.provider_name}${m.is_default ? " · default" : ""}`,
+        }))
+      : [{ value: "__loading", label: "Loading…", disabled: true }]),
+    ...(loaded && models.length === 0
+      ? [{ value: "__empty", label: "No models (see /admin)", disabled: true }]
+      : []),
+  ];
+
   return (
     <>
       <div className="flex items-center gap-2">
         {!selection.use_local ? (
-          <div className="relative inline-flex items-center">
-            <Cpu className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
-            <select
-              aria-label="Select model"
-              value={selection.model_id ?? ""}
-              onChange={(e) =>
-                onChange({ ...selection, model_id: e.target.value || null })
-              }
-              className="h-8 max-w-[220px] cursor-pointer appearance-none truncate rounded-full border border-border bg-muted/50 pl-8 pr-8 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value={AUTO_MODEL_ID}>
-                ✨ Auto, best model per task
-              </option>
-              {!loaded && <option value="">Loading…</option>}
-              {loaded && models.length === 0 && (
-                <option value="">No models (see /admin)</option>
-              )}
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name}, {m.provider_name}
-                  {m.is_default ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 size-3.5 text-muted-foreground" />
-          </div>
+          <Select
+            ariaLabel="Select model"
+            value={selection.model_id ?? AUTO_MODEL_ID}
+            onValueChange={(v) =>
+              onChange({ ...selection, model_id: v || null })
+            }
+            options={modelOptions}
+            triggerLabel={activeLabel}
+            icon={<Cpu className="size-3.5 shrink-0 text-muted-foreground" />}
+            side="top"
+            className="h-8 max-w-[240px] rounded-full border-border bg-muted/50 text-xs font-medium hover:bg-muted"
+          />
         ) : (
           <button
             type="button"
@@ -195,22 +241,40 @@ export default function ModelSelector({
           </button>
         )}
 
-        <div className="flex items-center gap-1.5">
-          <Switch
-            id="use-local-llm"
-            checked={selection.use_local}
-            onCheckedChange={(v) => {
-              onChange({ ...selection, use_local: v });
-              if (v) setDialogOpen(true);
-            }}
-          />
-          <Label
-            htmlFor="use-local-llm"
-            className="cursor-pointer text-xs text-muted-foreground"
-          >
-            Local LLM
-          </Label>
-        </div>
+        <TogglesMenu
+          mode={selection.mode}
+          onModeChange={(m) =>
+            onChange({ ...selection, mode: m as ModelSelection["mode"] })
+          }
+          toggles={[
+            {
+              id: "local",
+              name: "Local LLM",
+              description: "Route to your own OpenAI-compatible endpoint",
+              active: selection.use_local,
+              onToggle: (v) => {
+                onChange({ ...selection, use_local: v });
+                if (v) setDialogOpen(true);
+              },
+            },
+            {
+              id: "hide-tools",
+              name: "Hide Tool Calls",
+              description: "Collapse tool activity in the transcript",
+              active: hideToolCalls,
+              onToggle: (v) => onHideToolCallsChange?.(v),
+            },
+            {
+              id: "unrestricted",
+              name: "Unrestricted Mode",
+              description:
+                "Direct answers, no PII redaction, and a relaxed image pre-screen. Providers still enforce their own limits.",
+              active: selection.unrestricted,
+              onToggle: (v) => onChange({ ...selection, unrestricted: v }),
+              tone: "warn",
+            },
+          ]}
+        />
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

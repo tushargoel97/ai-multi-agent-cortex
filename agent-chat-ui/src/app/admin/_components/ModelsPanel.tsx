@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
@@ -231,19 +232,16 @@ export default function ModelsPanel({
         </div>
         <div className="flex flex-col gap-2">
           <Label>Provider</Label>
-          <select
+          <Select
+            fullWidth
+            placeholder="Select provider"
             value={form.provider_id}
-            onChange={(e) => setForm({ ...form, provider_id: e.target.value })}
-            className="border rounded-md h-9 px-3 bg-background"
-            required
-          >
-            <option value="">, Select provider, </option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.kind})
-              </option>
-            ))}
-          </select>
+            onValueChange={(v) => setForm({ ...form, provider_id: v })}
+            options={providers.map((p) => ({
+              value: p.id,
+              label: `${p.name} (${p.kind})`,
+            }))}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <Label>Model ID</Label>

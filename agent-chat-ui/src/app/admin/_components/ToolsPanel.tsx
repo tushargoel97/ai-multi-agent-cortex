@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Switch } from "@/components/ui/switch";
@@ -369,22 +370,21 @@ export default function ToolsPanel() {
           <Plus className="size-4" /> Add a prebuilt LangChain tool
         </h3>
         <div className="flex flex-wrap items-end gap-2">
-          <select
-            className="h-9 rounded-md border bg-background px-2 text-sm"
+          <Select
+            className="h-9 min-w-[220px]"
+            placeholder="Select a tool…"
             value={catalogId}
-            onChange={(e) => {
-              setCatalogId(e.target.value);
+            onValueChange={(v) => {
+              setCatalogId(v);
               setCatalogCfg({});
             }}
-          >
-            <option value="">Select a tool…</option>
-            {catalog.map((c) => (
-              <option key={c.id} value={c.id} disabled={!c.available}>
-                {c.label}
-                {c.available ? "" : " (package not installed)"}
-              </option>
-            ))}
-          </select>
+            options={catalog.map((c) => ({
+              value: c.id,
+              label: c.label,
+              disabled: !c.available,
+              hint: c.available ? undefined : "not installed",
+            }))}
+          />
           {selectedCatalog?.config_fields.map((field) => (
             <Input
               key={field}
@@ -476,15 +476,16 @@ export default function ToolsPanel() {
               value={mcpName}
               onChange={(e) => setMcpName(e.target.value)}
             />
-            <select
-              className="h-9 rounded-md border bg-background px-2 text-sm"
+            <Select
+              className="h-9 min-w-[160px]"
               value={mcpTransport}
-              onChange={(e) => setMcpTransport(e.target.value)}
-            >
-              <option value="streamable_http">streamable_http</option>
-              <option value="sse">sse</option>
-              <option value="stdio">stdio</option>
-            </select>
+              onValueChange={setMcpTransport}
+              options={[
+                { value: "streamable_http", label: "streamable_http" },
+                { value: "sse", label: "sse" },
+                { value: "stdio", label: "stdio" },
+              ]}
+            />
             {mcpTransport === "stdio" ? (
               <>
                 <Input

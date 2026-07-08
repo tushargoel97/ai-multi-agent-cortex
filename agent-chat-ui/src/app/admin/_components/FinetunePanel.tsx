@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
@@ -982,27 +983,25 @@ export default function FinetunePanel({
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
             <label className="text-xs text-muted-foreground">Import into</label>
-            <select
-              value={importTarget}
-              onChange={(e) => setImportTarget(e.target.value)}
+            <Select
               disabled={jobRunning}
-              className="rounded-full border border-border bg-background px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            >
-              <option value="auto">Auto-detect (any domain)</option>
-              {domains.flatMap((d) =>
-                d.subdomains.map((s) => (
-                  <option
-                    key={`${d.name}/${s.name}`}
-                    value={`${d.name}/${s.name}`}
-                  >
-                    {d.name} / {s.label}
-                  </option>
-                )),
-              )}
-              <option value="hardware:crawl">
-                Hardware, deep crawl (direct)
-              </option>
-            </select>
+              value={importTarget}
+              onValueChange={setImportTarget}
+              className="h-8 rounded-full text-xs"
+              options={[
+                { value: "auto", label: "Auto-detect (any domain)" },
+                ...domains.flatMap((d) =>
+                  d.subdomains.map((s) => ({
+                    value: `${d.name}/${s.name}`,
+                    label: `${d.name} / ${s.label}`,
+                  })),
+                ),
+                {
+                  value: "hardware:crawl",
+                  label: "Hardware, deep crawl (direct)",
+                },
+              ]}
+            />
             <Button
               size="sm"
               variant="secondary"
@@ -1386,11 +1385,10 @@ export default function FinetunePanel({
           <div className="text-sm">
             <span className="mb-1 block text-muted-foreground">Base model</span>
             <div className="flex items-center gap-2">
-              <select
-                value={baseModel}
+              <Select
                 disabled={training}
-                onChange={(e) => {
-                  const v = e.target.value;
+                value={baseModel}
+                onValueChange={(v) => {
                   if (v === "__search__") {
                     setShowHf(true);
                     return;
@@ -1399,18 +1397,16 @@ export default function FinetunePanel({
                   const bm = BASE_MODELS.find((b) => b.id === v);
                   if (bm) setModelName(bm.output);
                 }}
-                className="h-9 cursor-pointer appearance-none rounded-full border border-border bg-muted/50 px-4 pr-8 text-sm text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {BASE_MODELS.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label}
-                  </option>
-                ))}
-                {!BASE_MODELS.some((b) => b.id === baseModel) && (
-                  <option value={baseModel}>{baseModel} (custom)</option>
-                )}
-                <option value="__search__">Search Hugging Face…</option>
-              </select>
+                className="h-9 rounded-full bg-muted/50 px-4 hover:bg-muted"
+                menuClassName="max-w-[min(32rem,90vw)]"
+                options={[
+                  ...BASE_MODELS.map((b) => ({ value: b.id, label: b.label })),
+                  ...(!BASE_MODELS.some((b) => b.id === baseModel)
+                    ? [{ value: baseModel, label: `${baseModel} (custom)` }]
+                    : []),
+                  { value: "__search__", label: "Search Hugging Face…" },
+                ]}
+              />
               <button
                 type="button"
                 onClick={() => setShowHf((v) => !v)}

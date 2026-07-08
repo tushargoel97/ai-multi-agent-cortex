@@ -101,12 +101,22 @@ def active_profile() -> str:
     return name if name in effective_profiles() else DEFAULT_PROFILE
 
 
-def resolve_auto_model(intent: str) -> ResolvedModel | None:
-    """First enabled candidate for the intent; falls back to the fast tier."""
+def resolve_auto_model(
+    intent: str, profile: str | None = None
+) -> ResolvedModel | None:
+    """First enabled candidate for the intent; falls back to the fast tier.
+
+    ``profile`` overrides the active profile for this lookup (e.g. Thinking
+    mode forces the ``quality`` tier).
+    """
     profiles = effective_profiles()
-    name = get_setting(PROFILE_SETTING_KEY, DEFAULT_PROFILE)
-    profile = profiles.get(name if name in profiles else DEFAULT_PROFILE, {})
-    candidates = profile.get(intent) or profile.get(FAST_TIER) or []
+    name = (
+        profile
+        if profile and profile in profiles
+        else get_setting(PROFILE_SETTING_KEY, DEFAULT_PROFILE)
+    )
+    profile_map = profiles.get(name if name in profiles else DEFAULT_PROFILE, {})
+    candidates = profile_map.get(intent) or profile_map.get(FAST_TIER) or []
     for model_id in candidates:
         try:
             if model_id == "finetuned":

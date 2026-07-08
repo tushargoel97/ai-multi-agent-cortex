@@ -84,6 +84,10 @@ def get_chat_client(
     settings = settings or load_settings()
     configurable: dict[str, Any] = (config or {}).get("configurable", {}) or {}
     model_uuid = configurable.get("model_id")
+    # Thinking mode (chat-UI slider) raises the reasoner to the quality tier and
+    # turns on the provider's extended thinking, only for the reasoning agent.
+    mode = str(configurable.get("mode") or "").lower()
+    thinking = mode == "thinking" and auto_intent == "reasoning_task"
 
     if not configurable.get("local_base_url"):
         try:
@@ -97,9 +101,12 @@ def get_chat_client(
                 model_uuid = None  # from here on: auto resolves or DB default
                 from cortex.db.services.llm_registry import build_client_from_resolved
 
-                resolved = resolve_auto_model(auto_intent or FAST_TIER)
+                resolved = resolve_auto_model(
+                    auto_intent or FAST_TIER,
+                    profile="quality" if thinking else None,
+                )
                 if resolved is not None:
-                    return build_client_from_resolved(resolved)
+                    return build_client_from_resolved(resolved, thinking=thinking)
         except Exception:  # noqa: BLE001, auto mode must never kill a run
             pass
     local_base_url = configurable.get("local_base_url")
@@ -127,6 +134,7 @@ def get_chat_client(
                 resolved,
                 local_base_url_override=local_base_url,
                 local_api_key_override=local_api_key,
+                thinking=thinking,
             )
     except Exception:  # noqa: BLE001, registry is optional, fall through
         pass

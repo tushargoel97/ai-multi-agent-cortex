@@ -44,6 +44,13 @@ _SAFETY_SETTINGS = [
     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
 ]
 
+# Unrestricted mode relaxes only these *configurable* thresholds to the most
+# permissive the API allows. The providers still enforce their non-configurable
+# hard limits server-side, so illegal content stays blocked regardless.
+_SAFETY_SETTINGS_OFF = [
+    {"category": s["category"], "threshold": "BLOCK_NONE"} for s in _SAFETY_SETTINGS
+]
+
 _GUARDRAIL_PROMPT = """You are the safety gate for an image generator. Decide \
 whether the request below may be fulfilled. Refuse (allowed=false) if it asks \
 for: sexual or NSFW content or nudity of any kind; minors in any unsafe or \
@@ -102,18 +109,24 @@ def _save_png(filename: str, image_b64: str) -> None:
     (GENERATED_DIR / filename).write_bytes(base64.b64decode(image_b64))
 
 
-async def generate_image(prompt: str, thread_id: str) -> ImageResult:
-    allowed, reason = await screen_prompt(prompt)
-    if not allowed:
-        return ImageResult(
-            status="refused",
-            detail=(
-                "I can't generate that image: "
-                f"{reason}. I'm happy to create something else, safe-for-work "
-                "scenes, products, fictional characters, logos, and art styles "
-                "are all fair game."
-            ),
-        )
+async def generate_image(
+    prompt: str, thread_id: str, *, unrestricted: bool = False
+) -> ImageResult:
+    # Layer A: the app's own LLM pre-screen. Unrestricted mode skips it; the
+    # provider-level safety (Layer B) below is always applied and enforces the
+    # non-configurable hard limits regardless.
+    if not unrestricted:
+        allowed, reason = await screen_prompt(prompt)
+        if not allowed:
+            return ImageResult(
+                status="refused",
+                detail=(
+                    "I can't generate that image: "
+                    f"{reason}. I'm happy to create something else, safe-for-work "
+                    "scenes, products, fictional characters, logos, and art styles "
+                    "are all fair game."
+                ),
+            )
 
     google_key = get_provider_api_key(ProviderKind.GOOGLE)
     openai_key = get_provider_api_key(ProviderKind.OPENAI)
@@ -136,9 +149,13 @@ async def generate_image(prompt: str, thread_id: str) -> ImageResult:
                 continue
             try:
                 if is_openai:
-                    outcome = await _generate_openai(client, model_id, prompt, key)
+                    outcome = await _generate_openai(
+                        client, model_id, prompt, key, unrestricted=unrestricted
+                    )
                 else:
-                    outcome = await _generate_google(client, model_id, prompt, key)
+                    outcome = await _generate_google(
+                        client, model_id, prompt, key, unrestricted=unrestricted
+                    )
             except httpx.HTTPError as e:
                 last_error = f"{model_id}: {e}"
                 continue
@@ -179,7 +196,12 @@ async def generate_image(prompt: str, thread_id: str) -> ImageResult:
 # Each generator returns an error string (try next candidate) or a tuple
 # (status, image_b64, caption) where status is "ok" | "blocked".
 async def _generate_google(
-    client: httpx.AsyncClient, model_id: str, prompt: str, api_key: str
+    client: httpx.AsyncClient,
+    model_id: str,
+    prompt: str,
+    api_key: str,
+    *,
+    unrestricted: bool = False,
 ) -> str | tuple[str, str | None, str]:
     resp = await client.post(
         f"{_API_BASE}/{model_id}:generateContent",
@@ -187,7 +209,9 @@ async def _generate_google(
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
-            "safetySettings": _SAFETY_SETTINGS,
+            "safetySettings": (
+                _SAFETY_SETTINGS_OFF if unrestricted else _SAFETY_SETTINGS
+            ),
         },
     )
     if resp.status_code != 200:
@@ -213,12 +237,26 @@ async def _generate_google(
 
 
 async def _generate_openai(
-    client: httpx.AsyncClient, model_id: str, prompt: str, api_key: str
+    client: httpx.AsyncClient,
+    model_id: str,
+    prompt: str,
+    api_key: str,
+    *,
+    unrestricted: bool = False,
 ) -> str | tuple[str, str | None, str]:
+    body: dict[str, object] = {
+        "model": model_id,
+        "prompt": prompt,
+        "size": "1024x1024",
+        "n": 1,
+    }
+    # gpt-image-1 accepts a lower moderation setting; dall-e rejects the param.
+    if unrestricted and model_id.startswith(("gpt-image", "chatgpt-image")):
+        body["moderation"] = "low"
     resp = await client.post(
         "https://api.openai.com/v1/images/generations",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"model": model_id, "prompt": prompt, "size": "1024x1024", "n": 1},
+        json=body,
     )
     if resp.status_code == 400 and "content_policy" in resp.text:
         return ("blocked", None, "")

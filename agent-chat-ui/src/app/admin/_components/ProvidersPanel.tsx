@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
@@ -237,17 +238,12 @@ export default function ProvidersPanel({
         </div>
         <div className="flex flex-col gap-2">
           <Label>Kind</Label>
-          <select
+          <Select
+            fullWidth
             value={form.kind}
-            onChange={(e) => setForm({ ...form, kind: e.target.value })}
-            className="border rounded-md h-9 px-3 bg-background"
-          >
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
+            onValueChange={(v) => setForm({ ...form, kind: v })}
+            options={KINDS.map((k) => ({ value: k, label: k }))}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <Label>API Key</Label>
