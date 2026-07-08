@@ -101,13 +101,17 @@ def active_profile() -> str:
     return name if name in effective_profiles() else DEFAULT_PROFILE
 
 
-def resolve_auto_model(
+def resolve_auto_candidates(
     intent: str, profile: str | None = None
-) -> ResolvedModel | None:
-    """First enabled candidate for the intent; falls back to the fast tier.
+) -> list[ResolvedModel]:
+    """Every enabled candidate for the intent, in priority order (first = best).
 
-    ``profile`` overrides the active profile for this lookup (e.g. Thinking
-    mode forces the ``quality`` tier).
+    Same candidate list as :func:`resolve_auto_model`, but returns all that
+    resolve so callers can build a quota/rate-limit fallback chain. Falls back
+    to the fast tier when the intent has no list, and de-duplicates by
+    ``model_id`` so the chain never retries the identical model.
+
+    ``profile`` overrides the active profile (e.g. Thinking forces ``quality``).
     """
     profiles = effective_profiles()
     name = (
@@ -117,6 +121,8 @@ def resolve_auto_model(
     )
     profile_map = profiles.get(name if name in profiles else DEFAULT_PROFILE, {})
     candidates = profile_map.get(intent) or profile_map.get(FAST_TIER) or []
+    resolved_list: list[ResolvedModel] = []
+    seen: set[str] = set()
     for model_id in candidates:
         try:
             if model_id == "finetuned":
@@ -126,9 +132,34 @@ def resolve_auto_model(
         except Exception:  # noqa: BLE001, registry hiccup: try next candidate
             logger.exception("auto-mode candidate %r failed to resolve", model_id)
             continue
-        if resolved is not None:
-            return resolved
-    return None
+        if resolved is not None and resolved.model_id not in seen:
+            # Skip cloud candidates whose provider has no API key: the client
+            # would silently fall back to a possibly-stale env var and 401.
+            # Local (and Azure, which may authenticate via AAD) are exempt.
+            if resolved.kind.value not in ("local", "azure_openai") and not (
+                resolved.api_key or ""
+            ).strip():
+                logger.warning(
+                    "auto-mode candidate %r has no API key on its provider; skipping",
+                    model_id,
+                )
+                continue
+            seen.add(resolved.model_id)
+            resolved_list.append(resolved)
+    return resolved_list
+
+
+def resolve_auto_model(
+    intent: str, profile: str | None = None
+) -> ResolvedModel | None:
+    """First enabled candidate for the intent; falls back to the fast tier.
+
+    ``profile`` overrides the active profile for this lookup (e.g. Thinking
+    mode forces the ``quality`` tier).
+    """
+    candidates = resolve_auto_candidates(intent, profile)
+    return candidates[0] if candidates else None
+
 
 
 def image_model_candidates() -> list[str]:

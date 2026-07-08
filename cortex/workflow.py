@@ -28,7 +28,8 @@ from cortex.db.services.llm_registry import (
 )
 from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
-from cortex.model_client import get_chat_client
+from cortex.errors import model_error_reply, retryable_model_exceptions
+from cortex.model_client import auto_fallback_clients, get_chat_client
 from cortex.observability import setup_tracing
 
 # Initialise tracing before any LangChain objects are constructed.
@@ -403,12 +404,24 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         )
     valid_agents = {a["name"] for a in custom}
     try:
-        agent = create_agent(
-            model=get_chat_client(config=config),
-            tools=[],
-            system_prompt=system_prompt,
-            response_format=ProviderStrategy(RouterIntent),
-        )
+
+        def _mk_router(m: Any):
+            return create_agent(
+                model=m,
+                tools=[],
+                system_prompt=system_prompt,
+                response_format=ProviderStrategy(RouterIntent),
+            )
+
+        agent = _mk_router(get_chat_client(config=config))
+        router_fallbacks = auto_fallback_clients(config)
+        if router_fallbacks:
+            # A quota-exhausted fast model shouldn't drop routing to the keyword
+            # heuristic: try the other fast-tier candidates first.
+            agent = agent.with_fallbacks(
+                [_mk_router(m) for m in router_fallbacks],
+                exceptions_to_handle=retryable_model_exceptions(),
+            )
         result = await agent.ainvoke({"messages": chat_messages})
         intent: RouterIntent = result["structured_response"]
         routing = intent.model_dump()
@@ -733,6 +746,7 @@ def _build_agent(
             PIIMiddleware("email", strategy="redact", apply_to_output=True)
         )
     model = get_chat_client(config=config, auto_intent=auto_intent)
+    fallback_models = auto_fallback_clients(config, auto_intent=auto_intent)
     static = _agent_static_prompt(agent_id.value, spec)
     # Inject today's date + the user's browser region so agents resolve
     # "9th July" to the right year and default shopping/booking to the user's
@@ -753,11 +767,39 @@ def _build_agent(
         context_line = f"{context_line}\n\n{_UNRESTRICTED_DIRECTIVE}"
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
-    return create_agent(
-        model=model,
-        tools=tools,
-        system_prompt=_system_prompt_for(model, static, dynamic),
-        middleware=middleware,
+
+    def _mk(m: Any):
+        return create_agent(
+            model=m,
+            tools=tools,
+            system_prompt=_system_prompt_for(m, static, dynamic),
+            middleware=middleware,
+        )
+
+    agent = _mk(model)
+    if fallback_models:
+        # Auto mode: on quota / rate-limit / provider outage, retry the same
+        # request on the next enabled candidate for this intent before failing.
+        agent = agent.with_fallbacks(
+            [_mk(m) for m in fallback_models],
+            exceptions_to_handle=retryable_model_exceptions(),
+        )
+    return agent
+
+
+def _model_error_message(exc: BaseException, config: RunnableConfig) -> AIMessage:
+    """User-facing assistant message for a model call that couldn't complete.
+
+    Tagged ``model_error`` so the synthesize formatting pass leaves it alone.
+    """
+    configurable = (config or {}).get("configurable") or {}
+    from cortex.db.services.auto_mode import is_auto
+
+    auto = is_auto(configurable.get("model_id"))
+    _persist_logger.warning("Model call failed (%s: %s)", type(exc).__name__, exc)
+    return AIMessage(
+        content=model_error_reply(exc, auto=auto),
+        additional_kwargs={"model_error": True},
     )
 
 
@@ -769,13 +811,16 @@ async def _run_agent(
 ) -> dict[str, Any]:
     """Shared node body: memory context + windowed history + agent invoke."""
     memory_suffix, updates = await _memory_context(state, config)
-    agent = _build_agent(
-        agent_id,
-        config=config,
-        extra_system=memory_suffix or None,
-        auto_intent=auto_intent,
-    )
-    result = await agent.ainvoke({"messages": _window(state["messages"])})
+    try:
+        agent = _build_agent(
+            agent_id,
+            config=config,
+            extra_system=memory_suffix or None,
+            auto_intent=auto_intent,
+        )
+        result = await agent.ainvoke({"messages": _window(state["messages"])})
+    except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
+        return {"messages": [_model_error_message(e, config)], **updates}
     return {"messages": result["messages"], **updates}
 
 
@@ -817,14 +862,10 @@ _DEFAULT_CLARIFY = (
 async def _research_clarify_questions(query: str, config: RunnableConfig) -> str:
     """Phase 1 of deep research: generate precise clarifying questions."""
     try:
-        from cortex.db.services.auto_mode import resolve_auto_model
-        from cortex.db.services.llm_registry import build_client_from_resolved
-
-        resolved = resolve_auto_model(Intent.KNOWLEDGE_QUERY.value)
-        model = (
-            build_client_from_resolved(resolved)
-            if resolved is not None
-            else get_chat_client(config=config)
+        # Use the explicitly selected model when the user picked one, else the
+        # auto knowledge tier (get_chat_client handles both cases).
+        model = get_chat_client(
+            config=config, auto_intent=Intent.KNOWLEDGE_QUERY.value
         )
         # nostream: the node returns the finished questions as one message, so
         # don't also token-stream this internal call.
@@ -893,7 +934,10 @@ async def _deep_research(
         extra_system=extra,
         auto_intent=Intent.KNOWLEDGE_QUERY.value,
     )
-    result = await agent.ainvoke({"messages": _window(msgs)})
+    try:
+        result = await agent.ainvoke({"messages": _window(msgs)})
+    except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
+        return {"messages": [_model_error_message(e, config)], **updates}
     out_msgs = result.get("messages", [])
     final = out_msgs[-1] if out_msgs else None
     if isinstance(final, AIMessage):
@@ -932,6 +976,7 @@ async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]
             isinstance(final, AIMessage)
             and isinstance(final.content, str)
             and final.content.strip()
+            and not (final.additional_kwargs or {}).get("model_error")
         ):
             note = (
                 "\n\n*Fact-checked, my fine-tuned model had some of these specs "
@@ -1017,13 +1062,26 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),
         PIIMiddleware("email", strategy="redact", apply_to_output=True),
     ]
-    agent = create_agent(
-        model=model,
-        tools=tools,
-        system_prompt=_system_prompt_for(model, static, dynamic),
-        middleware=middleware,
-    )
-    result = await agent.ainvoke({"messages": _window(state["messages"])})
+
+    def _mk(m: Any):
+        return create_agent(
+            model=m,
+            tools=tools,
+            system_prompt=_system_prompt_for(m, static, dynamic),
+            middleware=middleware,
+        )
+
+    agent = _mk(model)
+    fallback_models = auto_fallback_clients(config)
+    if fallback_models:
+        agent = agent.with_fallbacks(
+            [_mk(m) for m in fallback_models],
+            exceptions_to_handle=retryable_model_exceptions(),
+        )
+    try:
+        result = await agent.ainvoke({"messages": _window(state["messages"])})
+    except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
+        return {"messages": [_model_error_message(e, config)], **updates}
     return {"messages": result["messages"], **updates}
 
 
@@ -1164,7 +1222,7 @@ def _code_syntax_notes(text: str) -> list[str]:
 
 
 async def _render_spec_answer(
-    question: str, draft: str, reference: str, resolved: Any
+    question: str, draft: str, reference: str, model: Any
 ) -> str | None:
     """Turn a spec / comparison draft into a table, rendered deterministically.
 
@@ -1190,7 +1248,7 @@ async def _render_spec_answer(
         prompt += f"\n\nAuthoritative reference (ground truth):\n{reference}"
     try:
         agent = create_agent(
-            model=build_client_from_resolved(resolved),
+            model=model,
             tools=[],
             system_prompt=system,
             response_format=ProviderStrategy(SpecTable),
@@ -1229,6 +1287,9 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     # well-formed; the formatting pass would only flatten them.
     if (final.additional_kwargs or {}).get("deep_research"):
         return {}
+    # A model-error notice is already user-ready; don't reformat it.
+    if (final.additional_kwargs or {}).get("model_error"):
+        return {}
     # Coding answers reuse this node but deterministically: never hand code to
     # the fast-tier reformatter (it can silently corrupt it), just run a
     # parse-only syntax check and append a heads-up when a full block is broken.
@@ -1251,7 +1312,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     last_human = _last_human(msgs)
     question = _text_content(last_human) if last_human is not None else ""
     try:
-        from cortex.db.services.auto_mode import FAST_TIER, resolve_auto_model
+        from cortex.db.services.auto_mode import FAST_TIER, is_auto, resolve_auto_model
 
         # Hardware/spec answers get a stronger formatter than the fast utility
         # tier so the spec-sheet table is produced reliably (a tiny fast model
@@ -1269,13 +1330,26 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         # table appeared). The web fallback and researcher emit tables directly.
         if is_spec and _has_markdown_table(final.content):
             return {}
-        resolved = (
-            resolve_auto_model(Intent.KNOWLEDGE_QUERY.value) if is_spec else None
+        # Honor an explicitly selected model for the formatting pass too: a user
+        # who picked a specific model should never have their answer silently
+        # reformatted by the auto fast tier (a different, possibly unconfigured
+        # provider). Auto mode keeps the fast/knowledge tier for speed and cost.
+        configurable = (config or {}).get("configurable") or {}
+        explicit = bool(configurable.get("model_id")) and not is_auto(
+            configurable.get("model_id")
         )
-        if resolved is None:
-            resolved = resolve_auto_model(FAST_TIER)
-        if resolved is None:
-            return {}
+        tier = Intent.KNOWLEDGE_QUERY.value if is_spec else FAST_TIER
+        if explicit or configurable.get("local_base_url"):
+            model = get_chat_client(config=config, auto_intent=tier)
+        else:
+            resolved = (
+                resolve_auto_model(Intent.KNOWLEDGE_QUERY.value) if is_spec else None
+            )
+            if resolved is None:
+                resolved = resolve_auto_model(FAST_TIER)
+            if resolved is None:
+                return {}
+            model = build_client_from_resolved(resolved)
         # Ground drifted numbers: authoritative specs for products named in
         # the question (same YAMLs the specialist was trained on, no web).
         reference = ""
@@ -1300,7 +1374,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         # Non-hardware domains (games, …) answer in prose instead of a table.
         if is_spec and not prose_domain:
             rendered = await _render_spec_answer(
-                question, final.content, reference, resolved
+                question, final.content, reference, model
             )
             if rendered:
                 return {
@@ -1323,7 +1397,6 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
                 f"these instead):\n{reference}"
             )
         spec = get_agent_spec(Agents.SYNTHESIZER)
-        model = build_client_from_resolved(resolved)
 
         async def _reformat(extra: str = "") -> str:
             res = await model.ainvoke(

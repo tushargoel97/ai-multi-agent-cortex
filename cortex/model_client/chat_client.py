@@ -140,3 +140,47 @@ def get_chat_client(
         pass
 
     return _from_settings(settings)
+
+
+def auto_fallback_clients(
+    config: dict[str, Any] | None = None,
+    *,
+    auto_intent: str | None = None,
+) -> list[BaseChatModel]:
+    """Fallback chat clients for auto mode, tried when the primary is unavailable.
+
+    In auto mode :func:`get_chat_client` returns the first (best) candidate for
+    the intent; this returns the *remaining* enabled candidates in the same
+    order, so a caller can chain them with ``Runnable.with_fallbacks`` to
+    auto-switch on quota / rate-limit / outage errors.
+
+    Returns an empty list when the user picked a specific model or a local
+    endpoint (their explicit choice is never silently swapped) or when only one
+    candidate resolves.
+    """
+    configurable: dict[str, Any] = (config or {}).get("configurable", {}) or {}
+    if configurable.get("local_base_url"):
+        return []
+    model_uuid = configurable.get("model_id")
+    mode = str(configurable.get("mode") or "").lower()
+    thinking = mode == "thinking" and auto_intent == "reasoning_task"
+    try:
+        from cortex.db.services.auto_mode import (
+            FAST_TIER,
+            is_auto,
+            resolve_auto_candidates,
+        )
+        from cortex.db.services.llm_registry import build_client_from_resolved
+
+        if not is_auto(model_uuid):
+            return []
+        candidates = resolve_auto_candidates(
+            auto_intent or FAST_TIER, profile="quality" if thinking else None
+        )
+        return [
+            build_client_from_resolved(r, thinking=thinking)
+            for r in candidates[1:]
+        ]
+    except Exception:  # noqa: BLE001, fallbacks are best-effort, never fatal
+        return []
+

@@ -23,6 +23,17 @@ class ResolvedModel:
     azure_endpoint: str | None
     azure_api_version: str | None
 
+    def __post_init__(self) -> None:
+        # Trim credentials: a trailing newline or space from a copy-pasted key
+        # is the most common cause of a genuinely-valid key being rejected as
+        # "Incorrect API key". Also trims model id / URLs for good measure.
+        self.model_id = (self.model_id or "").strip()
+        self.api_key = (self.api_key or "").strip()
+        if self.base_url:
+            self.base_url = self.base_url.strip()
+        if self.azure_endpoint:
+            self.azure_endpoint = self.azure_endpoint.strip()
+
 
 def resolve_model(model_uuid: str | uuid.UUID, session: Session) -> ResolvedModel | None:
     """Look up a model + its provider by the model row UUID."""
@@ -76,6 +87,69 @@ def get_default_resolved_model(session: Session) -> ResolvedModel | None:
     )
 
 
+def _anthropic_adaptive_thinking(model: str) -> bool:
+    """True for Claude generations that use ``thinking:{type:adaptive}`` instead
+    of the older ``thinking:{type:enabled,budget_tokens}`` (Sonnet/Opus/Haiku
+    4.5 and the Claude 5 family). Sending the old shape to these 400s with
+    ``"thinking.type.enabled" is not supported for this model``.
+    """
+    m = model.lower().replace("_", "-")
+    return any(
+        tag in m
+        for tag in (
+            "sonnet-5",
+            "opus-5",
+            "haiku-5",
+            "claude-5",
+            "sonnet-4-5",
+            "opus-4-5",
+            "haiku-4-5",
+        )
+    )
+
+
+def _anthropic_adaptive_thinking(model: str) -> bool:
+    """True for Claude generations that use ``thinking:{type:adaptive}`` instead
+    of the older ``thinking:{type:enabled,budget_tokens}`` (Sonnet/Opus/Haiku
+    4.5 and the Claude 5 family). Sending the old shape to these 400s with
+    ``"thinking.type.enabled" is not supported for this model``.
+    """
+    m = model.lower().replace("_", "-")
+    return any(
+        tag in m
+        for tag in (
+            "sonnet-5",
+            "opus-5",
+            "haiku-5",
+            "claude-5",
+            "sonnet-4-5",
+            "opus-4-5",
+            "haiku-4-5",
+        )
+    )
+
+
+def _anthropic_supports_thinking(model: str) -> bool:
+    """Whether a Claude model supports extended thinking at all.
+
+    Extended thinking arrived with Claude 3.7 and continues through the 4/4.5/5
+    families. Claude 3.0/3.5, Claude 2, and instant do NOT support it, and
+    sending a ``thinking`` block to them 400s, so Thinking mode falls back to a
+    normal (non-thinking) call for those instead of failing the turn.
+    """
+    m = model.lower().replace("_", "-")
+    unsupported = (
+        "claude-2",
+        "claude-instant",
+        "claude-3-0",
+        "claude-3-5",
+        "claude-3-haiku",
+        "claude-3-opus",
+        "claude-3-sonnet",
+    )
+    return not any(tag in m for tag in unsupported)
+
+
 @lru_cache(maxsize=1)
 def _thinking_safe_anthropic_cls() -> type:
     """ChatAnthropic that keeps round-tripped thinking blocks API-valid.
@@ -97,6 +171,19 @@ def _thinking_safe_anthropic_cls() -> type:
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "thinking":
                         block.setdefault("thinking", "")
+            # Newer Claude models replaced thinking:{type:enabled,budget_tokens}
+            # with the self-managed thinking:{type:adaptive}; the old shape 400s
+            # ("thinking.type.enabled is not supported for this model"), so
+            # translate it just before the request goes out.
+            thinking_cfg = payload.get("thinking")
+            if (
+                isinstance(thinking_cfg, dict)
+                and thinking_cfg.get("type") == "enabled"
+                and _anthropic_adaptive_thinking(
+                    str(payload.get("model") or getattr(self, "model", "") or "")
+                )
+            ):
+                payload["thinking"] = {"type": "adaptive"}
             return payload
 
     return _ThinkingSafeChatAnthropic
@@ -155,7 +242,7 @@ def build_client_from_resolved(
             kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
-            if thinking:
+            if thinking and _anthropic_supports_thinking(resolved.model_id):
                 kwargs["max_tokens"] = 8000
                 kwargs["thinking"] = {"type": "enabled", "budget_tokens": 4000}
             return _thinking_safe_anthropic_cls()(**kwargs)
@@ -254,7 +341,8 @@ def get_provider_api_key(kind: ProviderKind) -> str | None:
             .limit(1)
         )
         provider = s.execute(stmt).scalar_one_or_none()
-        return provider.api_key if provider and provider.api_key else None
+        key = (provider.api_key or "").strip() if provider else ""
+        return key or None
 
 
 def resolve_with_session(model_uuid: str | uuid.UUID | None) -> ResolvedModel | None:
