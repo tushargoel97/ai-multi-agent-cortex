@@ -42,9 +42,9 @@ editing (system prompts, tool access, and custom agents)** all live in the
 │                            ├─ booking       ──────────────────▶ END   │
 │                            ├─ custom_agent  ──────────────────▶ END   │
 │                            ├─ researcher ─┐                           │
-│                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END │
+│                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END  │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ▶ spec_review ─▶ synthesize │
+│                            └─ specialist ▶ spec_review ─▶ synthesize  │
 │                                (untrained/wrong ▶ researcher web-RAG) │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
