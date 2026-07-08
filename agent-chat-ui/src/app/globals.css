@@ -312,3 +312,14 @@
     animation: none;
   }
 }
+
+/* In-thread search (⌘/Ctrl+F) match highlighting via the CSS Custom
+   Highlight API. Matches are painted without touching the rendered DOM. */
+::highlight(cortex-find) {
+  background-color: rgba(250, 204, 21, 0.35);
+  border-radius: 2px;
+}
+::highlight(cortex-find-current) {
+  background-color: rgba(250, 204, 21, 0.9);
+  color: #1c1917;
+}

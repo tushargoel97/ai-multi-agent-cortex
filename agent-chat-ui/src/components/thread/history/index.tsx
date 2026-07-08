@@ -18,6 +18,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Pencil,
+  Search,
   Trash2,
   Plus,
   Check,
@@ -54,13 +55,45 @@ function getThreadLabel(t: Thread): string {
   return "New chat";
 }
 
+/** Concatenated text of every message in a thread (for cross-thread search). */
+function threadText(t: Thread): string {
+  const msgs = (t.values as { messages?: { content: unknown }[] } | undefined)
+    ?.messages;
+  if (!Array.isArray(msgs)) return "";
+  return msgs.map((m) => getContentString(m.content as never)).join("\n");
+}
+
+/** `q` is expected already lower-cased. */
+function threadMatches(t: Thread, q: string): boolean {
+  return (
+    getThreadLabel(t).toLowerCase().includes(q) ||
+    threadText(t).toLowerCase().includes(q)
+  );
+}
+
+/** A short …context… window around the first match, for the search result row. */
+function matchSnippet(t: Thread, q: string): string | null {
+  const text = threadText(t);
+  const idx = text.toLowerCase().indexOf(q);
+  if (idx === -1) return null;
+  const start = Math.max(0, idx - 30);
+  const end = Math.min(text.length, idx + q.length + 50);
+  return (
+    (start > 0 ? "…" : "") +
+    text.slice(start, end).replace(/\s+/g, " ").trim() +
+    (end < text.length ? "…" : "")
+  );
+}
+
 function ThreadRow({
   thread,
+  snippet,
   onClick,
   onRename,
   onDelete,
 }: {
   thread: Thread;
+  snippet?: string | null;
   onClick: () => void;
   onRename: (newTitle: string) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -128,10 +161,17 @@ function ThreadRow({
         <>
           <Button
             variant="ghost"
-            className="h-9 w-full flex-1 items-start justify-start truncate text-left font-normal"
+            className="h-auto min-h-9 w-full flex-1 flex-col items-start justify-center gap-0.5 truncate py-1 text-left font-normal"
             onClick={onClick}
           >
-            <p className="truncate text-ellipsis">{getThreadLabel(thread)}</p>
+            <p className="w-full truncate text-ellipsis text-sm">
+              {getThreadLabel(thread)}
+            </p>
+            {snippet && (
+              <p className="w-full truncate text-xs font-normal text-muted-foreground">
+                {snippet}
+              </p>
+            )}
           </Button>
           <div className="absolute right-1 hidden gap-0.5 group-hover:flex">
             <Button
@@ -182,6 +222,7 @@ function ThreadList({
   });
   const { setThreads, getThreads } = useThreads();
   const [pendingDelete, setPendingDelete] = useState<Thread | null>(null);
+  const [query, setQuery] = useState("");
 
   const client = () =>
     createClient(
@@ -222,6 +263,9 @@ function ThreadList({
     }
   };
 
+  const q = query.trim().toLowerCase();
+  const shown = q ? threads.filter((t) => threadMatches(t, q)) : threads;
+
   return (
     <>
       <div className="flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
@@ -238,23 +282,51 @@ function ThreadList({
             New chat
           </Button>
         </div>
-        {threads.map((t) => (
-          <div
-            key={t.thread_id}
-            className="w-full px-2"
-          >
-            <ThreadRow
-              thread={t}
-              onClick={() => {
-                onThreadClick?.(t.thread_id);
-                if (t.thread_id === threadId) return;
-                setThreadId(t.thread_id);
-              }}
-              onRename={(title) => renameThread(t, title)}
-              onDelete={async () => setPendingDelete(t)}
+        <div className="w-full px-2 pb-2">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 transition-colors focus-within:border-ring focus-within:bg-background">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search chats…"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                title="Clear"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
-        ))}
+        </div>
+        {q && shown.length === 0 ? (
+          <p className="w-full px-4 py-6 text-center text-sm text-muted-foreground">
+            No chats match “{query.trim()}”.
+          </p>
+        ) : (
+          shown.map((t) => (
+            <div
+              key={t.thread_id}
+              className="w-full px-2"
+            >
+              <ThreadRow
+                thread={t}
+                snippet={q ? matchSnippet(t, q) : null}
+                onClick={() => {
+                  onThreadClick?.(t.thread_id);
+                  if (t.thread_id === threadId) return;
+                  setThreadId(t.thread_id);
+                }}
+                onRename={(title) => renameThread(t, title)}
+                onDelete={async () => setPendingDelete(t)}
+              />
+            </div>
+          ))
+        )}
       </div>
 
       <Dialog

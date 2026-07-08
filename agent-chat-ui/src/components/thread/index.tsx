@@ -13,6 +13,7 @@ import {
   isInternalNoiseMessage,
 } from "./agent-activity";
 import { AgentTrace } from "./agent-trace";
+import { ThreadSearch } from "./thread-search";
 import { getContentString } from "./utils";
 import { HumanMessage } from "./messages/human";
 import {
@@ -26,6 +27,7 @@ import {
   LoaderCircle,
   PanelRightOpen,
   PanelRightClose,
+  Search,
   SquarePen,
   XIcon,
   Plus,
@@ -323,6 +325,22 @@ export function Thread() {
     (m) => m.type === "ai" || m.type === "tool",
   );
 
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const messagesScopeRef = useRef<HTMLDivElement>(null);
+
+  // ⌘/Ctrl+F searches the open conversation instead of the browser page.
+  useEffect(() => {
+    if (!chatStarted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setThreadSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatStarted]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <div className="relative hidden lg:flex">
@@ -442,6 +460,15 @@ export function Thread() {
                 <div className="flex items-center">
                   <OpenGitHubRepo />
                 </div>
+                <TooltipIconButton
+                  size="lg"
+                  className="p-4"
+                  tooltip="Search conversation (⌘F)"
+                  variant="ghost"
+                  onClick={() => setThreadSearchOpen((o) => !o)}
+                >
+                  <Search className="size-5" />
+                </TooltipIconButton>
                 <ThemeToggle />
                 <TooltipIconButton
                   size="lg"
@@ -459,6 +486,14 @@ export function Thread() {
           )}
 
           <StickToBottom className="relative flex-1 overflow-hidden">
+            {chatStarted && (
+              <ThreadSearch
+                scopeRef={messagesScopeRef}
+                messages={messages}
+                open={threadSearchOpen}
+                onClose={() => setThreadSearchOpen(false)}
+              />
+            )}
             <StickyToBottomContent
               className={cn(
                 "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent",
@@ -476,7 +511,7 @@ export function Thread() {
                   const items = groupTurns(visible);
                   const lastVisible = visible[visible.length - 1];
                   return (
-                    <>
+                    <div ref={messagesScopeRef} style={{ display: "contents" }}>
                       {items.map((item, index) =>
                         item.kind === "trace" ? (
                           <AgentTrace
@@ -515,7 +550,7 @@ export function Thread() {
                       {isLoading && lastVisible?.type === "human" && (
                         <AgentActivity messages={messages} />
                       )}
-                    </>
+                    </div>
                   );
                 })()
               }
