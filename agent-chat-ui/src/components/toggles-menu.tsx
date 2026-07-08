@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useDropdown } from "@/hooks/use-dropdown";
 
 export interface ToggleDef {
   id: string;
@@ -100,30 +101,26 @@ export function TogglesMenu({
   mode,
   onModeChange,
   label = "Options",
+  open: controlledOpen,
+  onOpenChange,
+  onTriggerMouseEnter,
 }: {
   toggles: ToggleDef[];
   mode?: string;
   onModeChange?: (m: string) => void;
   label?: string;
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
+  onTriggerMouseEnter?: () => void;
 }) {
-  const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
+    controlledOpen,
+    onOpenChange,
+    estimatedHeight: 400,
+  });
   const activeCount = toggles.filter((t) => t.active).length;
   const warnActive = toggles.some((t) => t.tone === "warn" && t.active);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   return (
     <div ref={rootRef} className="relative inline-flex">
@@ -132,6 +129,7 @@ export function TogglesMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
+        onMouseEnter={onTriggerMouseEnter}
         className={cn(
           "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
           warnActive
@@ -153,18 +151,31 @@ export function TogglesMenu({
         />
       </button>
 
-      {open && (
+      {mounted && (
         <div
           role="menu"
-          className="absolute bottom-full right-0 z-50 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+          data-state={open ? "open" : "closed"}
+          className={cn(
+            "absolute right-0 z-50 w-72 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg duration-150",
+            openUp ? "bottom-full mb-1" : "top-full mt-1",
+            open
+              ? cn(
+                  "animate-in fade-in-0 zoom-in-95",
+                  openUp ? "slide-in-from-bottom-1" : "slide-in-from-top-1",
+                )
+              : cn(
+                  "animate-out fade-out-0 zoom-out-95",
+                  openUp ? "slide-out-to-bottom-1" : "slide-out-to-top-1",
+                ),
+          )}
         >
-          {mode !== undefined && onModeChange && (
+          {onModeChange && (
             <>
               <div className="px-2.5 pb-1 pt-2">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Mode
                 </div>
-                <ModeSlider value={mode} onChange={onModeChange} />
+                <ModeSlider value={mode ?? "general"} onChange={onModeChange} />
               </div>
               {toggles.length > 0 && <div className="my-1 h-px bg-border" />}
             </>

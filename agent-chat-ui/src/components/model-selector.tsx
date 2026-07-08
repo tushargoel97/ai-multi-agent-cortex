@@ -143,6 +143,8 @@ export default function ModelSelector({
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Which prompt-box menu is open, so hovering the other trigger switches to it.
+  const [menuOpen, setMenuOpen] = useState<"model" | "options" | null>(null);
 
   // Local draft so editing in the dialog doesn't immediately mutate live state.
   const [draft, setDraft] = useState({
@@ -224,7 +226,9 @@ export default function ModelSelector({
             options={modelOptions}
             triggerLabel={activeLabel}
             icon={<Cpu className="size-3.5 shrink-0 text-muted-foreground" />}
-            side="top"
+            open={menuOpen === "model"}
+            onOpenChange={(o) => setMenuOpen(o ? "model" : null)}
+            onTriggerMouseEnter={() => setMenuOpen((c) => (c ? "model" : c))}
             className="h-8 max-w-[240px] rounded-full border-border bg-muted/50 text-xs font-medium hover:bg-muted"
           />
         ) : (
@@ -242,6 +246,9 @@ export default function ModelSelector({
         )}
 
         <TogglesMenu
+          open={menuOpen === "options"}
+          onOpenChange={(o) => setMenuOpen(o ? "options" : null)}
+          onTriggerMouseEnter={() => setMenuOpen((c) => (c ? "options" : c))}
           mode={selection.mode}
           onModeChange={(m) =>
             onChange({ ...selection, mode: m as ModelSelection["mode"] })

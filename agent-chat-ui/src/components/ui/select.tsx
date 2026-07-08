@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDropdown } from "@/hooks/use-dropdown";
 
 export interface SelectOption {
   value: string;
@@ -26,12 +27,17 @@ interface SelectProps {
   menuClassName?: string;
   /** Leading icon rendered inside the trigger. */
   icon?: React.ReactNode;
-  /** Which side the menu opens toward. */
-  side?: "top" | "bottom";
   align?: "start" | "end";
   /** Stretch the trigger to fill its container (for form fields). */
   fullWidth?: boolean;
   ariaLabel?: string;
+  /** Controlled open state (lets a parent coordinate sibling menus). */
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
+  /** Fired when the trigger is hovered (for hover-to-switch menubars). */
+  onTriggerMouseEnter?: () => void;
+  /** Approx panel height used to choose the auto-flip direction. */
+  estimatedHeight?: number;
 }
 
 /**
@@ -48,27 +54,25 @@ export function Select({
   className,
   menuClassName,
   icon,
-  side = "bottom",
   align = "start",
   fullWidth,
   ariaLabel,
+  open: controlledOpen,
+  onOpenChange,
+  onTriggerMouseEnter,
+  estimatedHeight = 300,
 }: SelectProps) {
-  const [open, setOpen] = React.useState(false);
   const [highlight, setHighlight] = React.useState(-1);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
+    controlledOpen,
+    onOpenChange,
+    estimatedHeight,
+  });
 
   const selectedIndex = options.findIndex((o) => o.value === value);
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -147,6 +151,7 @@ export function Select({
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
+        onMouseEnter={onTriggerMouseEnter}
         onKeyDown={onKeyDown}
         className={cn(
           "inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
@@ -170,14 +175,24 @@ export function Select({
         />
       </button>
 
-      {open && (
+      {mounted && (
         <div
           ref={listRef}
           role="listbox"
+          data-state={open ? "open" : "closed"}
           className={cn(
-            "absolute z-50 max-h-64 w-max min-w-full max-w-[min(24rem,90vw)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg",
-            side === "top" ? "bottom-full mb-1" : "top-full mt-1",
+            "absolute z-50 max-h-64 w-max min-w-full max-w-[min(24rem,90vw)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg duration-150",
+            openUp ? "bottom-full mb-1" : "top-full mt-1",
             align === "end" ? "right-0" : "left-0",
+            open
+              ? cn(
+                  "animate-in fade-in-0 zoom-in-95",
+                  openUp ? "slide-in-from-bottom-1" : "slide-in-from-top-1",
+                )
+              : cn(
+                  "animate-out fade-out-0 zoom-out-95",
+                  openUp ? "slide-out-to-bottom-1" : "slide-out-to-top-1",
+                ),
             menuClassName,
           )}
         >
