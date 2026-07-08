@@ -230,9 +230,13 @@ async def _memory_context(
     state: ChatState, config: RunnableConfig
 ) -> tuple[str, dict[str, Any]]:
     """Build the system-prompt memory suffix and any summary state updates."""
-    updates = await _update_summary(state, config)
+    # Run the (LLM) summary refresh and the (vector) memory recall concurrently,
+    # they're independent, so this shaves the slower of the two off every turn.
+    updates, memories = await asyncio.gather(
+        _update_summary(state, config),
+        _recall_memories(state["messages"]),
+    )
     summary = updates.get("summary", state.get("summary", ""))
-    memories = await _recall_memories(state["messages"])
 
     parts = []
     if summary:

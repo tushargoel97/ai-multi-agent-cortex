@@ -40,7 +40,7 @@ export function getRoutingModel(message: Message | undefined): string | null {
 }
 
 /** Trim provider date suffixes so chips stay compact (keeps fine-tune ids). */
-function prettyModel(id: string): string {
+export function prettyModel(id: string): string {
   return id.replace(/-\d{6,8}$/, "");
 }
 
@@ -56,7 +56,7 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   booking: { label: "Booking Assistant", icon: Ticket },
 };
 
-const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
+export const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
   web_search: { label: "Searching the web", icon: Globe },
   wikipedia_search: { label: "Searching Wikipedia", icon: BookOpen },
   search_knowledge_base: { label: "Searching the knowledge base", icon: Database },

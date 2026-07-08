@@ -7,7 +7,13 @@ import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage } from "./messages/ai";
-import { AgentActivity, isInternalNoiseMessage } from "./agent-activity";
+import {
+  AgentActivity,
+  getRoutingIntent,
+  isInternalNoiseMessage,
+} from "./agent-activity";
+import { AgentTrace } from "./agent-trace";
+import { getContentString } from "./utils";
 import { HumanMessage } from "./messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
@@ -49,6 +55,55 @@ import {
   ArtifactTitle,
   useArtifactContext,
 } from "./artifact";
+
+// Commerce tool results render as answer cards (ShoppingCards / BookingCards),
+// so they stay visible instead of collapsing into the activity trace.
+const COMMERCE_TOOLS = new Set(["product_prices", "find_bookings"]);
+
+/** Intermediate "activity" messages that fold into the collapsible trace:
+ *  routing markers, tool-call requests, and plain tool-result dumps. The final
+ *  text answer and commerce cards are kept out so they render normally. */
+function isTraceMessage(m: Message): boolean {
+  if (m.type === "tool") {
+    return !COMMERCE_TOOLS.has((m as { name?: string }).name ?? "");
+  }
+  if (m.type === "ai") {
+    if (getRoutingIntent(m)) return true;
+    const hasToolCalls =
+      ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0;
+    if (hasToolCalls) return true;
+    // No visible text yet (thinking-only / still streaming) → activity.
+    return getContentString(m.content).trim().length === 0;
+  }
+  return false;
+}
+
+type RenderItem =
+  | { kind: "message"; message: Message }
+  | { kind: "trace"; messages: Message[] };
+
+/** Fold each turn's consecutive activity messages into one trace item so the
+ *  transcript shows a clean answer with a collapsible "Thought process". */
+function groupTurns(messages: Message[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let buffer: Message[] = [];
+  const flush = () => {
+    if (buffer.length) {
+      items.push({ kind: "trace", messages: buffer });
+      buffer = [];
+    }
+  };
+  for (const m of messages) {
+    if (m.type !== "human" && isTraceMessage(m)) {
+      buffer.push(m);
+    } else {
+      flush();
+      items.push({ kind: "message", message: m });
+    }
+  }
+  flush();
+  return items;
+}
 
 function StickyToBottomContent(props: {
   content: ReactNode;
@@ -412,41 +467,57 @@ export function Thread() {
               )}
               contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
               content={
-                <>
-                  {messages
-                    .filter(
-                      (m) =>
-                        !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) &&
-                        !isInternalNoiseMessage(m),
-                    )
-                    .map((message, index) =>
-                      message.type === "human" ? (
-                        <HumanMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
-                          isLoading={isLoading}
-                        />
-                      ) : (
+                (() => {
+                  const visible = messages.filter(
+                    (m) =>
+                      !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) &&
+                      !isInternalNoiseMessage(m),
+                  );
+                  const items = groupTurns(visible);
+                  const lastVisible = visible[visible.length - 1];
+                  return (
+                    <>
+                      {items.map((item, index) =>
+                        item.kind === "trace" ? (
+                          <AgentTrace
+                            key={item.messages[0]?.id || `trace-${index}`}
+                            messages={item.messages}
+                            live={isLoading && index === items.length - 1}
+                          />
+                        ) : item.message.type === "human" ? (
+                          <HumanMessage
+                            key={item.message.id || `human-${index}`}
+                            message={item.message}
+                            isLoading={isLoading}
+                          />
+                        ) : (
+                          <AssistantMessage
+                            key={item.message.id || `ai-${index}`}
+                            message={item.message}
+                            isLoading={isLoading}
+                            handleRegenerate={handleRegenerate}
+                          />
+                        ),
+                      )}
+                      {/* Special rendering case where there are no AI/tool
+                        messages, but there is an interrupt, render it outside
+                        the messages list since there are no messages to render */}
+                      {hasNoAIOrToolMessages && !!stream.interrupt && (
                         <AssistantMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
+                          key="interrupt-msg"
+                          message={undefined}
                           isLoading={isLoading}
                           handleRegenerate={handleRegenerate}
                         />
-                      ),
-                    )}
-                  {/* Special rendering case where there are no AI/tool messages, but there is an interrupt.
-                    We need to render it outside of the messages list, since there are no messages to render */}
-                  {hasNoAIOrToolMessages && !!stream.interrupt && (
-                    <AssistantMessage
-                      key="interrupt-msg"
-                      message={undefined}
-                      isLoading={isLoading}
-                      handleRegenerate={handleRegenerate}
-                    />
-                  )}
-                  {isLoading && <AgentActivity messages={messages} />}
-                </>
+                      )}
+                      {/* Initial "routing" beat, before the first activity
+                        message arrives; the live trace covers the rest. */}
+                      {isLoading && lastVisible?.type === "human" && (
+                        <AgentActivity messages={messages} />
+                      )}
+                    </>
+                  );
+                })()
               }
               footer={
                 <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-background">
