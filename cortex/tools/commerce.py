@@ -353,12 +353,14 @@ def _hotel_options(query: str, destination: str, d: date | None, reg: str) -> li
     return opts
 
 
-def _event_options(query: str, cat: str, reg: str) -> list[dict[str, str]]:
+def _event_options(query: str, reg: str) -> list[dict[str, str]]:
     q = quote_plus(query)
     opts: list[dict[str, str]] = []
     if reg == "IN":
         opts.append(_opt("bookmyshow.com", "BookMyShow",
                          "https://www.google.com/search?q=" + quote_plus(f"{query} bookmyshow")))
+        opts.append(_opt("district.in", "Zomato District",
+                         "https://www.google.com/search?q=" + quote_plus(f"{query} district by zomato tickets")))
         opts.append(_opt("insider.in", "Paytm Insider",
                          "https://www.google.com/search?q=" + quote_plus(f"{query} insider.in")))
     opts.append(_opt("ticketmaster.com", "Ticketmaster",
@@ -471,44 +473,6 @@ def product_prices(product: str, region: str = "US") -> str:
     )
 
 
-# ── Category → booking platforms (per region, with a global fallback "_") ─────
-_BOOKING_SITES: dict[str, dict[str, list[str]]] = {
-    "flight": {
-        "US": ["google.com/travel/flights", "kayak.com", "expedia.com", "skyscanner.com"],
-        "IN": ["makemytrip.com", "goibibo.com", "cleartrip.com", "skyscanner.co.in"],
-        "UK": ["skyscanner.net", "kayak.co.uk", "expedia.co.uk"],
-        "_": ["skyscanner.com", "kayak.com", "google.com/travel/flights"],
-    },
-    "hotel": {
-        "US": ["booking.com", "expedia.com", "hotels.com"],
-        "IN": ["makemytrip.com", "goibibo.com", "booking.com"],
-        "_": ["booking.com", "agoda.com", "hotels.com"],
-    },
-    "movie": {
-        "US": ["fandango.com", "atomtickets.com"],
-        "IN": ["bookmyshow.com", "paytm.com"],
-        "UK": ["myvue.com", "cineworld.co.uk"],
-        "_": ["bookmyshow.com", "imdb.com"],
-    },
-    "concert": {
-        "US": ["ticketmaster.com", "stubhub.com", "seatgeek.com"],
-        "IN": ["bookmyshow.com", "insider.in"],
-        "UK": ["ticketmaster.co.uk", "seetickets.com"],
-        "_": ["ticketmaster.com", "songkick.com", "bandsintown.com"],
-    },
-    "event": {
-        "US": ["ticketmaster.com", "eventbrite.com", "seatgeek.com"],
-        "IN": ["bookmyshow.com", "insider.in", "townscript.com"],
-        "_": ["eventbrite.com", "ticketmaster.com"],
-    },
-    "show": {
-        "US": ["telecharge.com", "broadway.com", "ticketmaster.com"],
-        "UK": ["officiallondontheatre.com", "ticketmaster.co.uk"],
-        "IN": ["bookmyshow.com"],
-        "_": ["ticketmaster.com", "bookmyshow.com"],
-    },
-}
-
 _CATEGORY_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("flight", ("flight", "flights", "airfare", "airline", "fly ")),
     ("hotel", ("hotel", "resort", "accommodation", " stay", "airbnb", "room ")),
@@ -517,11 +481,12 @@ _CATEGORY_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("show", ("musical", "theatre", "theater", "broadway", "play ", "comedy show")),
     ("event", ("event", "festival", "expo", "conference", "match", "sports")),
 ]
+_BOOKING_CATEGORIES = frozenset(name for name, _ in _CATEGORY_KEYWORDS)
 
 
 def _norm_category(category: str | None, query: str) -> str:
     explicit = (category or "").strip().lower()
-    if explicit in _BOOKING_SITES:
+    if explicit in _BOOKING_CATEGORIES:
         return explicit
     text = f"{explicit} {query}".lower()
     for name, kws in _CATEGORY_KEYWORDS:
@@ -595,7 +560,7 @@ def find_bookings(
     elif cat == "hotel":
         options = _hotel_options(query, destination, d, reg)
     else:
-        options = _event_options(query, cat, reg)
+        options = _event_options(query, reg)
     return json.dumps(
         {
             "query": query,
