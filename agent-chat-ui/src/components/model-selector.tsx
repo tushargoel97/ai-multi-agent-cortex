@@ -705,9 +705,9 @@ export function ModeSelector({
     const below = window.innerHeight - cr.bottom - gap;
     const left = Math.max(8, Math.min(pr.left, window.innerWidth - W - 8));
     if (below >= 260 || below >= above) {
-      setBox({ left, top: cr.bottom + gap });
+      setBox({ left, top: pr.bottom + gap });
     } else {
-      setBox({ left, bottom: window.innerHeight - cr.top + gap });
+      setBox({ left, bottom: window.innerHeight - pr.top + gap });
     }
     setOpen(true);
   };

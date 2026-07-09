@@ -392,24 +392,26 @@ export default function ThreadHistory() {
         )}
 
         {searchOpen && (
-          <div className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 border-b border-border bg-background px-3 py-2 shadow-sm">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-              placeholder="Search chats…"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-            <button
-              type="button"
-              onClick={closeSearch}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              title="Close search"
-            >
-              <X className="size-4" />
-            </button>
+          <div className="animate-in fade-in-0 slide-in-from-right-6 absolute inset-x-2 top-2 z-30">
+            <div className="flex items-center gap-2 rounded-full border border-black/10 bg-popover/80 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 dark:border-white/10">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && closeSearch()}
+                placeholder="Search chats…"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                onClick={closeSearch}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                title="Close search"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 

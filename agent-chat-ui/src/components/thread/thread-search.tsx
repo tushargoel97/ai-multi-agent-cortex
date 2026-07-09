@@ -225,7 +225,7 @@ export function ThreadSearch({
   return (
     <div
       data-search-ui
-      className="absolute top-2 left-1/2 z-30 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 animate-in fade-in-0 slide-in-from-top-2"
+      className="absolute top-3 left-1/2 z-30 w-[min(44rem,calc(100%-2rem))] -translate-x-1/2 animate-in fade-in-0 slide-in-from-top-2"
     >
       <div
         className={cn(
@@ -233,7 +233,7 @@ export function ThreadSearch({
           showSources ? "rounded-2xl" : "rounded-full",
         )}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 px-4 py-2.5">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}

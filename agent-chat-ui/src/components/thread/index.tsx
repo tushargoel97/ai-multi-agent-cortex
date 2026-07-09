@@ -440,7 +440,7 @@ export function Thread() {
       )}
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-background"
+          className="absolute z-20 h-full overflow-hidden border-r bg-background/80 backdrop-blur-xl backdrop-saturate-150"
           style={{ width: sidebarWidth }}
           animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
           initial={{ x: -sidebarWidth }}

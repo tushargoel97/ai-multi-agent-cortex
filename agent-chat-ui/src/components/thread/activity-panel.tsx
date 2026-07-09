@@ -65,7 +65,7 @@ export function ActivityPanel({
       <aside
         data-search-ui
         className={cn(
-          "fixed top-0 right-0 z-50 flex h-full w-[320px] max-w-[85vw] flex-col border-l border-border bg-background shadow-xl transition-transform duration-300",
+          "fixed top-0 right-0 z-50 flex h-full w-[320px] max-w-[85vw] flex-col border-l border-border bg-background/80 shadow-xl backdrop-blur-xl backdrop-saturate-150 transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >
