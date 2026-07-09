@@ -143,17 +143,27 @@ function domainOf(url: string): string {
 }
 
 /** Every distinct http(s) source cited across the thread's AI/tool messages. */
-export function extractSources(messages: Message[]): SourceItem[] {
+export function extractSources(
+  messages: Message[],
+  opts: { skipToolNames?: string[]; byDomain?: boolean } = {},
+): SourceItem[] {
+  const skip = new Set(opts.skipToolNames ?? []);
   const seen = new Set<string>();
   const out: SourceItem[] = [];
   const add = (raw: string, label?: string) => {
     const url = raw.replace(/[.,)\]}>"']+$/, "");
-    if (!/^https?:\/\//i.test(url) || seen.has(url)) return;
-    seen.add(url);
+    if (!/^https?:\/\//i.test(url)) return;
+    const key = opts.byDomain ? domainOf(url) : url;
+    if (seen.has(key)) return;
+    seen.add(key);
     out.push({ url, label: label?.trim() || domainOf(url), domain: domainOf(url) });
   };
   for (const m of messages) {
     if (m.type !== "ai" && m.type !== "tool") continue;
+    // Booking / shopping deep-link cards are destinations the user clicks, not
+    // sources the agent consulted, skip them so Activity isn't padded out.
+    if (m.type === "tool" && skip.has((m as { name?: string }).name ?? ""))
+      continue;
     const text =
       typeof m.content === "string" ? m.content : getContentString(m.content);
     let mm: RegExpExecArray | null;

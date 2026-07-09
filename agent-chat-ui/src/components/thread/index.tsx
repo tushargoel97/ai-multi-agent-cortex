@@ -27,11 +27,12 @@ import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   Activity,
   ArrowDown,
+  ArrowUp,
   Clock,
-  LoaderCircle,
   PanelRightOpen,
   PanelRightClose,
   Search,
+  Square,
   SquarePen,
   XIcon,
   Plus,
@@ -659,7 +660,7 @@ export function Thread() {
                   <div
                     ref={dropRef}
                     className={cn(
-                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-2xl shadow-xs transition-all",
+                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl shadow-sm transition-all",
                       dragOver
                         ? "border-primary border-2 border-dotted"
                         : "border border-solid",
@@ -667,7 +668,7 @@ export function Thread() {
                   >
                     <form
                       onSubmit={handleSubmit}
-                      className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
+                      className="mx-auto grid max-w-[46rem] grid-rows-[1fr_auto] gap-2"
                     >
                       {pending && (
                         <div className="mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
@@ -709,18 +710,16 @@ export function Thread() {
                           }
                         }}
                         placeholder="Type your message..."
-                        className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+                        className="field-sizing-content max-h-[280px] min-h-[76px] resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 p-2 pt-4">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1">
                         <Label
                           htmlFor="file-input"
-                          className="flex cursor-pointer items-center gap-2"
+                          title="Attach a PDF or image"
+                          className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
-                          <Plus className="size-5 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            Upload PDF or Image
-                          </span>
+                          <Plus className="size-5" />
                         </Label>
                         <input
                           id="file-input"
@@ -739,22 +738,26 @@ export function Thread() {
                         {stream.isLoading ? (
                           <Button
                             key="stop"
+                            type="button"
+                            size="icon"
+                            title="Stop generating"
                             onClick={handleCancel}
-                            className="ml-auto"
+                            className="ml-auto size-9 rounded-full"
                           >
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                            Cancel
+                            <Square className="size-3.5 fill-current" />
                           </Button>
                         ) : (
                           <Button
                             type="submit"
-                            className="ml-auto shadow-md transition-all"
+                            size="icon"
+                            title="Send"
+                            className="ml-auto size-9 rounded-full shadow-sm transition-all"
                             disabled={
                               isLoading ||
                               (!input.trim() && contentBlocks.length === 0)
                             }
                           >
-                            Send
+                            <ArrowUp className="size-5" />
                           </Button>
                         )}
                       </div>

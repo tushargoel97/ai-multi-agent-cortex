@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useDropdown } from "@/hooks/use-dropdown";
@@ -121,6 +121,7 @@ export function TogglesMenu({
   });
   const activeCount = toggles.filter((t) => t.active).length;
   const warnActive = toggles.some((t) => t.tone === "warn" && t.active);
+  const modeActive = !!mode && mode !== "general";
 
   return (
     <div ref={rootRef} className="relative inline-flex">
@@ -131,24 +132,16 @@ export function TogglesMenu({
         onClick={() => setOpen((o) => !o)}
         onMouseEnter={onTriggerMouseEnter}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+          "inline-flex size-8 items-center justify-center rounded-full border transition-colors",
           warnActive
             ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            : activeCount > 0
+            : activeCount > 0 || modeActive
               ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+              : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
+        title={label}
       >
-        <SlidersHorizontal className="size-3.5" />
-        {label}
-        {activeCount > 0 && (
-          <span className="rounded-full bg-current/15 px-1.5 text-[10px] tabular-nums">
-            {activeCount}
-          </span>
-        )}
-        <ChevronDown
-          className={cn("size-3.5 transition-transform", open && "rotate-180")}
-        />
+        <SlidersHorizontal className="size-4" />
       </button>
 
       {mounted && (

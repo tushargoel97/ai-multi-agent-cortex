@@ -4,7 +4,7 @@ import {
   RefreshCcw,
   Pencil,
   Copy,
-  CopyCheck,
+  Check,
   ChevronLeft,
   ChevronRight,
   ThumbsUp,
@@ -58,7 +58,7 @@ function ContentCopyable({
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.15 }}
           >
-            <CopyCheck className="text-green-500" />
+            <Check className="text-green-500" />
           </motion.div>
         ) : (
           <motion.div

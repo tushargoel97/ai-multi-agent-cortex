@@ -120,8 +120,8 @@ function ThreadMenu({
         size="icon"
         variant="ghost"
         className={cn(
-          "size-7 bg-background/70 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background focus:opacity-100",
-          open && "opacity-100",
+          "size-7 shrink-0 text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
+          open && "bg-background text-foreground",
         )}
         onClick={(e) => {
           e.stopPropagation();

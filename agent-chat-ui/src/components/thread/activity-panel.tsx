@@ -43,7 +43,14 @@ export function ActivityPanel({
     () => deriveSteps(lastTurnMessages(messages)),
     [messages],
   );
-  const sources = useMemo(() => extractSources(messages), [messages]);
+  const sources = useMemo(
+    () =>
+      extractSources(messages, {
+        skipToolNames: ["find_bookings", "product_prices"],
+        byDomain: true,
+      }),
+    [messages],
+  );
 
   return (
     <>
@@ -152,9 +159,11 @@ export function ActivityPanel({
                       <span className="truncate text-foreground/80">
                         {s.label}
                       </span>
-                      <span className="truncate text-[10px] text-muted-foreground/60">
-                        {s.domain}
-                      </span>
+                      {s.label !== s.domain && (
+                        <span className="truncate text-[10px] text-muted-foreground/60">
+                          {s.domain}
+                        </span>
+                      )}
                     </div>
                     <ExternalLink className="ml-auto size-3 shrink-0 text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100" />
                   </a>
