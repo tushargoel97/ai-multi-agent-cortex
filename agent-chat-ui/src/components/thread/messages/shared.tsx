@@ -7,11 +7,15 @@ import {
   CopyCheck,
   ChevronLeft,
   ChevronRight,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { TooltipIconButton } from "../tooltip-icon-button";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn, copyTextToClipboard } from "@/lib/utils";
+import { toast } from "sonner";
 
 function ContentCopyable({
   content,
@@ -22,9 +26,15 @@ function ContentCopyable({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+  const handleCopy = async (
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+  ) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(content);
+    const ok = await copyTextToClipboard(content);
+    if (!ok) {
+      toast.error("Couldn't copy to clipboard");
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -112,6 +122,43 @@ export function BranchSwitcher({
         <ChevronRight />
       </Button>
     </div>
+  );
+}
+
+/** Thumbs up/down feedback for an assistant message (local acknowledgement). */
+function MessageFeedback({ disabled }: { disabled: boolean }) {
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  const pick = (v: "up" | "down") => {
+    const next = feedback === v ? null : v;
+    setFeedback(next);
+    if (next === "up") toast.success("Thanks for the feedback");
+    if (next === "down") toast.success("Thanks, we'll try to do better");
+  };
+
+  return (
+    <>
+      <TooltipIconButton
+        disabled={disabled}
+        tooltip="Good response"
+        variant="ghost"
+        onClick={() => pick("up")}
+      >
+        <ThumbsUp
+          className={cn(feedback === "up" && "fill-current text-green-500")}
+        />
+      </TooltipIconButton>
+      <TooltipIconButton
+        disabled={disabled}
+        tooltip="Bad response"
+        variant="ghost"
+        onClick={() => pick("down")}
+      >
+        <ThumbsDown
+          className={cn(feedback === "down" && "fill-current text-red-500")}
+        />
+      </TooltipIconButton>
+    </>
   );
 }
 
@@ -204,6 +251,7 @@ export function CommandBar({
           <RefreshCcw />
         </TooltipIconButton>
       )}
+      {isAiMessage && <MessageFeedback disabled={isLoading} />}
       {showEdit && (
         <TooltipIconButton
           disabled={isLoading}

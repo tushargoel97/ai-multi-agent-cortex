@@ -21,7 +21,7 @@ import {
   prettyModel,
 } from "./agent-activity";
 
-interface TraceStep {
+export interface TraceStep {
   key: string;
   icon: LucideIcon;
   label: string;
@@ -43,7 +43,7 @@ function snippet(text: string, max = 140): string {
 }
 
 /** Turn the intermediate messages of a turn into a readable step list. */
-function deriveSteps(messages: Message[]): TraceStep[] {
+export function deriveSteps(messages: Message[]): TraceStep[] {
   const steps: TraceStep[] = [];
   for (const m of messages) {
     const intent = getRoutingIntent(m);

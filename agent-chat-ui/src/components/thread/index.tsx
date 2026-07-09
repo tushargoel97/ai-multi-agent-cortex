@@ -15,6 +15,7 @@ import {
 } from "./agent-activity";
 import { AgentTrace } from "./agent-trace";
 import { ThreadSearch } from "./thread-search";
+import { ActivityPanel } from "./activity-panel";
 import { getContentString } from "./utils";
 import { HumanMessage } from "./messages/human";
 import {
@@ -24,6 +25,7 @@ import {
 import { LangGraphLogoSVG } from "../icons/langgraph";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
+  Activity,
   ArrowDown,
   Clock,
   LoaderCircle,
@@ -402,6 +404,7 @@ export function Thread() {
   );
 
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const messagesScopeRef = useRef<HTMLDivElement>(null);
 
   // ⌘/Ctrl+F searches the open conversation instead of the browser page.
@@ -419,6 +422,14 @@ export function Thread() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
+      {chatStarted && (
+        <ActivityPanel
+          messages={messages}
+          live={isLoading}
+          open={activityOpen}
+          onClose={() => setActivityOpen(false)}
+        />
+      )}
       <div className="relative hidden lg:flex">
         <motion.div
           className="absolute z-20 h-full overflow-hidden border-r bg-background"
@@ -544,6 +555,15 @@ export function Thread() {
                   onClick={() => setThreadSearchOpen((o) => !o)}
                 >
                   <Search className="size-5" />
+                </TooltipIconButton>
+                <TooltipIconButton
+                  size="lg"
+                  className="p-4"
+                  tooltip="Activity & sources"
+                  variant="ghost"
+                  onClick={() => setActivityOpen((o) => !o)}
+                >
+                  <Activity className="size-5" />
                 </TooltipIconButton>
                 <ThemeToggle />
                 <TooltipIconButton

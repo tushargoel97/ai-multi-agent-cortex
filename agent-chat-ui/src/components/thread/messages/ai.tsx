@@ -250,7 +250,9 @@ export function AssistantMessage({
             <div
               className={cn(
                 "mr-auto flex items-center gap-2 transition-opacity",
-                "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+                isLastMessage && !isLoading
+                  ? "opacity-100"
+                  : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
               )}
             >
               <BranchSwitcher

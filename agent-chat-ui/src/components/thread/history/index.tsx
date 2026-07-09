@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useThreads } from "@/providers/Thread";
 import { Thread } from "@langchain/langgraph-sdk";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getContentString } from "../utils";
@@ -23,6 +23,9 @@ import {
   Plus,
   Check,
   X,
+  MoreHorizontal,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
@@ -36,6 +39,8 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/providers/client";
 import { getApiKey } from "@/lib/api-key";
+import { cn } from "@/lib/utils";
+import { useDropdown } from "@/hooks/use-dropdown";
 
 function getThreadLabel(t: Thread): string {
   const metaTitle = (t.metadata as Record<string, unknown> | undefined)?.title;
@@ -85,23 +90,115 @@ function matchSnippet(t: Thread, q: string): string | null {
   );
 }
 
+function isPinned(t: Thread): boolean {
+  return Boolean((t.metadata as Record<string, unknown> | undefined)?.pinned);
+}
+
+/** ChatGPT-style per-thread "⋯" menu: Rename / Pin / Delete. */
+function ThreadMenu({
+  pinned,
+  onRename,
+  onTogglePin,
+  onDelete,
+}: {
+  pinned: boolean;
+  onRename: () => void;
+  onTogglePin: () => void;
+  onDelete: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
+    estimatedHeight: 140,
+  });
+
+  const item =
+    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted";
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        size="icon"
+        variant="ghost"
+        className={cn(
+          "size-7 bg-background/70 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background focus:opacity-100",
+          open && "opacity-100",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        title="More"
+      >
+        <MoreHorizontal className="size-3.5" />
+      </Button>
+      {mounted && (
+        <div
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "animate-in fade-in-0 zoom-in-95 absolute right-0 z-50 w-40 rounded-md border border-border bg-background p-1 shadow-md transition-opacity",
+            openUp ? "bottom-full mb-1" : "top-full mt-1",
+            !open && "pointer-events-none opacity-0",
+          )}
+        >
+          <button
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              onRename();
+            }}
+          >
+            <Pencil className="size-3.5" /> Rename
+          </button>
+          <button
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              onTogglePin();
+            }}
+          >
+            {pinned ? (
+              <PinOff className="size-3.5" />
+            ) : (
+              <Pin className="size-3.5" />
+            )}
+            {pinned ? "Unpin" : "Pin"}
+          </button>
+          <button
+            className={cn(item, "text-destructive hover:text-destructive")}
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            <Trash2 className="size-3.5" /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ThreadRow({
   thread,
   snippet,
   onClick,
   onRename,
+  onTogglePin,
   onDelete,
 }: {
   thread: Thread;
   snippet?: string | null;
   onClick: () => void;
   onRename: (newTitle: string) => Promise<void>;
+  onTogglePin: () => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
   const [threadId] = useQueryState("threadId");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(getThreadLabel(thread));
   const isActive = threadId === thread.thread_id;
+  const pinned = isPinned(thread);
 
   const commit = async () => {
     const trimmed = draft.trim();
@@ -161,11 +258,16 @@ function ThreadRow({
         <>
           <Button
             variant="ghost"
-            className="h-auto min-h-9 w-full flex-1 flex-col items-start justify-center gap-0.5 truncate py-1 text-left font-normal"
+            className="h-auto min-h-9 w-full flex-1 flex-col items-start justify-center gap-0.5 truncate py-1 pr-7 text-left font-normal"
             onClick={onClick}
           >
-            <p className="w-full truncate text-ellipsis text-sm">
-              {getThreadLabel(thread)}
+            <p className="flex w-full items-center gap-1 truncate text-sm">
+              {pinned && (
+                <Pin className="size-3 shrink-0 text-muted-foreground" />
+              )}
+              <span className="truncate text-ellipsis">
+                {getThreadLabel(thread)}
+              </span>
             </p>
             {snippet && (
               <p className="w-full truncate text-xs font-normal text-muted-foreground">
@@ -173,32 +275,16 @@ function ThreadRow({
               </p>
             )}
           </Button>
-          <div className="absolute right-1 hidden gap-0.5 group-hover:flex">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7 bg-background/70 hover:bg-background"
-              onClick={(e) => {
-                e.stopPropagation();
+          <div className="absolute right-1 top-1/2 -translate-y-1/2">
+            <ThreadMenu
+              pinned={pinned}
+              onRename={() => {
                 setDraft(getThreadLabel(thread));
                 setEditing(true);
               }}
-              title="Rename"
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7 bg-background/70 text-destructive hover:bg-background hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              title="Delete"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+              onTogglePin={onTogglePin}
+              onDelete={onDelete}
+            />
           </div>
         </>
       )}
@@ -263,8 +349,30 @@ function ThreadList({
     }
   };
 
+  const togglePin = async (t: Thread) => {
+    try {
+      const c = client();
+      const pinned = !isPinned(t);
+      const newMetadata = { ...(t.metadata ?? {}), pinned };
+      await c.threads.update(t.thread_id, { metadata: newMetadata });
+      setThreads((prev) =>
+        prev.map((x) =>
+          x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x,
+        ),
+      );
+      toast.success(pinned ? "Thread pinned" : "Thread unpinned");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update thread");
+    }
+  };
+
   const q = query.trim().toLowerCase();
-  const shown = q ? threads.filter((t) => threadMatches(t, q)) : threads;
+  const filtered = q ? threads.filter((t) => threadMatches(t, q)) : threads;
+  // Pinned threads float to the top (stable sort preserves recency within).
+  const shown = [...filtered].sort(
+    (a, b) => Number(isPinned(b)) - Number(isPinned(a)),
+  );
 
   return (
     <>
@@ -322,6 +430,7 @@ function ThreadList({
                   setThreadId(t.thread_id);
                 }}
                 onRename={(title) => renameThread(t, title)}
+                onTogglePin={() => togglePin(t)}
                 onDelete={async () => setPendingDelete(t)}
               />
             </div>

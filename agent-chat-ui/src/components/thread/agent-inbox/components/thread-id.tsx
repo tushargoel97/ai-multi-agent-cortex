@@ -8,6 +8,7 @@ import {
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TooltipIconButton } from "../../tooltip-icon-button";
+import { copyTextToClipboard } from "@/lib/utils";
 
 export function ThreadIdTooltip({ threadId }: { threadId: string }) {
   const firstThreeChars = threadId.slice(0, 3);
@@ -38,9 +39,12 @@ export function ThreadIdCopyable({
 }) {
   const [copied, setCopied] = React.useState(false);
 
-  const handleCopy = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+  const handleCopy = async (
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+  ) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(threadId);
+    const ok = await copyTextToClipboard(threadId);
+    if (!ok) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
