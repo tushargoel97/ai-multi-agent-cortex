@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
-import { type ToggleDef } from "@/components/toggles-menu";
 import { cn } from "@/lib/utils";
 
 export interface AvailableModel {
@@ -48,10 +47,20 @@ export interface ModelSelection {
   pinned_models: string[];
 }
 
+interface ToggleDef {
+  id: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  onToggle: (v: boolean) => void;
+  /** "warn" tints the control amber to flag a safety-relaxing toggle. */
+  tone?: "default" | "warn";
+}
+
 const STORAGE_KEY = "cortex:model-selection";
 
 /** Sentinel understood by the graph: pick the model per intent (auto mode). */
-export const AUTO_MODEL_ID = "auto";
+const AUTO_MODEL_ID = "auto";
 
 export const DEFAULT_SELECTION: ModelSelection = {
   model_id: AUTO_MODEL_ID,
@@ -120,7 +129,7 @@ const MODEL_NAME_ACRONYMS: Record<string, string> = {
 /** Turn a raw model id ("gpt-4o-mini") into a readable name ("GPT 4o Mini").
  *  Names that already read naturally (contain a space) are left untouched, so
  *  an admin-set display name is never mangled. */
-export function formatModelName(raw: string): string {
+function formatModelName(raw: string): string {
   const name = (raw || "").trim();
   if (!name || /\s/.test(name)) return name || "model";
   return name
@@ -211,7 +220,7 @@ function MenuRow({
   checked?: boolean;
   chevron?: boolean;
   active?: boolean;
-  onClick?: () => void;
+  onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   onMouseEnter?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
@@ -285,32 +294,44 @@ function PromptToolbarMenu({
     bottom?: number;
     maxH: number;
   }>({ left: 0, maxH: 400 });
-  const [subLimit, setSubLimit] = useState(0);
+  // Vertical range menu + submenus are confined to (the composer side the
+  // menu opened toward), so they can never cover the composer.
+  const [band, setBand] = useState({ top: 8, bottom: 600 });
   const [sub, setSub] = useState<
-    | { kind: "provider"; name: string; top: number; left: number; maxH: number }
-    | { kind: "mode"; top: number; left: number; maxH: number }
+    | { kind: "provider"; name: string; anchorTop: number; left: number }
+    | { kind: "mode"; anchorTop: number; left: number }
     | null
   >(null);
+  // Measured submenu top; null (hidden) until the layout effect places it.
+  const [subTop, setSubTop] = useState<number | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverTimer = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  };
 
   useEffect(() => {
-    if (!open) setSub(null);
+    if (!open) {
+      clearHoverTimer();
+      setSub(null);
+    }
   }, [open]);
 
-  // Keep an opened submenu fully on-screen without scrolling: it starts
-  // top-aligned to its row (see openSub) and, if its full height would run past
-  // the lower bound, we nudge it up just enough. Runs once per submenu (top is
-  // deliberately excluded from deps so the nudge doesn't loop).
+  // Place the submenu: top-aligned to its row, pulled up only as far as
+  // needed to fit inside `band`. Runs on every hover; the equality guard
+  // stops it from looping.
   useLayoutEffect(() => {
-    if (!sub) return;
+    if (!sub) {
+      setSubTop(null);
+      return;
+    }
     const el = subRef.current;
     if (!el) return;
-    const hi = subLimit || window.innerHeight - 8;
-    const overflow = el.getBoundingClientRect().bottom - hi;
-    if (overflow > 1) {
-      setSub((s) => (s ? { ...s, top: Math.max(8, s.top - overflow) } : s));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sub?.kind, sub?.name, subLimit]);
+    const h = el.getBoundingClientRect().height;
+    const top = Math.max(band.top, Math.min(sub.anchorTop, band.bottom - h));
+    setSubTop((t) => (t !== null && Math.abs(t - top) < 1 ? t : top));
+  }, [sub, band]);
 
   // Close on outside click / Escape / resize (menu + submenu are portaled).
   useEffect(() => {
@@ -343,9 +364,8 @@ function PromptToolbarMenu({
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
 
-  // Match ChatGPT/Claude: open downward when there's room beneath the composer
-  // (empty thread), otherwise open upward (loaded thread — the composer is
-  // pinned to the bottom). `subLimit` is the boundary submenus must not cross.
+  // Open downward when there's room beneath the composer (empty thread),
+  // otherwise upward (loaded thread); the chosen side becomes `band`.
   const toggle = () => {
     if (open) {
       setOpen(false);
@@ -366,14 +386,14 @@ function PromptToolbarMenu({
     const left = Math.max(8, Math.min(pr.left, window.innerWidth - MW - 8));
     if (below >= 260 || below >= above) {
       setMenuBox({ left, top: cr.bottom + gap, maxH: Math.max(180, below) });
-      setSubLimit(window.innerHeight - 8);
+      setBand({ top: cr.bottom + gap, bottom: window.innerHeight - 8 });
     } else {
       setMenuBox({
         left,
         bottom: window.innerHeight - cr.top + gap,
         maxH: Math.max(180, above),
       });
-      setSubLimit(cr.top - gap);
+      setBand({ top: 8, bottom: cr.top - gap });
     }
     setOpen(true);
   };
@@ -383,21 +403,50 @@ function PromptToolbarMenu({
     setOpen(false);
   };
 
-  // A submenu opens beside the menu, TOP-aligned with the hovered row and shows
-  // its full height. A layout effect afterwards nudges it up only if it would
-  // otherwise run past its lower bound (viewport bottom, or the composer when
-  // the menu opens upward), so it never scrolls unless taller than the screen.
-  const openSub = (
+  const openSubNow = (
     s: { kind: "provider"; name: string } | { kind: "mode" },
     anchor: HTMLElement,
   ) => {
+    clearHoverTimer();
     const mr = menuRef.current?.getBoundingClientRect();
     if (!mr) return;
-    const ar = anchor.getBoundingClientRect();
     let left = mr.right + 4;
     if (left + MW > window.innerWidth - 8) left = mr.left - MW - 4;
-    const hi = subLimit || window.innerHeight - 8;
-    setSub({ ...s, top: Math.max(8, ar.top), left: Math.max(8, left), maxH: hi - 8 });
+    setSub({
+      ...s,
+      anchorTop: anchor.getBoundingClientRect().top,
+      left: Math.max(8, left),
+    });
+  };
+
+  // Hover intent: switching away from an open submenu waits a beat, so moving
+  // the pointer across rows toward the panel doesn't flip or close it
+  // mid-travel; entering the panel cancels the pending change.
+  const openSubSoon = (
+    s: { kind: "provider"; name: string } | { kind: "mode" },
+    anchor: HTMLElement,
+  ) => {
+    const same =
+      sub &&
+      sub.kind === s.kind &&
+      (sub.kind !== "provider" ||
+        (s.kind === "provider" && sub.name === s.name));
+    if (same) {
+      clearHoverTimer();
+      return;
+    }
+    if (!sub) {
+      openSubNow(s, anchor);
+      return;
+    }
+    clearHoverTimer();
+    hoverTimer.current = setTimeout(() => openSubNow(s, anchor), 140);
+  };
+
+  const closeSubSoon = () => {
+    clearHoverTimer();
+    if (!sub) return;
+    hoverTimer.current = setTimeout(() => setSub(null), 240);
   };
 
   const modelRow = (m: AvailableModel, hint?: string) => (
@@ -444,7 +493,10 @@ function PromptToolbarMenu({
           <div
             ref={menuRef}
             role="menu"
-            onScroll={() => setSub(null)}
+            onScroll={() => {
+              clearHoverTimer();
+              setSub(null);
+            }}
             style={{
               position: "fixed",
               left: menuBox.left,
@@ -458,7 +510,7 @@ function PromptToolbarMenu({
             )}
           >
             {/* Auto */}
-            <div className="shrink-0" onMouseEnter={() => setSub(null)}>
+            <div className="shrink-0" onMouseEnter={closeSubSoon}>
               <MenuRow
                 checked={autoSelected}
                 onClick={() => choose(AUTO_MODEL_ID)}
@@ -472,12 +524,11 @@ function PromptToolbarMenu({
               </MenuRow>
             </div>
 
-            {/* Pinned (hidden when nothing is pinned) — the list scrolls in
-              place once it grows tall enough to push the menu to the bottom. */}
+            {/* Pinned: scrolls in place once tall enough to fill the menu. */}
             {pinnedModels.length > 0 && (
               <div
                 className="flex min-h-0 flex-col"
-                onMouseEnter={() => setSub(null)}
+                onMouseEnter={closeSubSoon}
               >
                 <div className={cn(sectionLabel, "shrink-0")}>Pinned</div>
                 <div className="min-h-0 overflow-y-auto">
@@ -490,7 +541,7 @@ function PromptToolbarMenu({
             {providers.length > 0 && (
               <div className="shrink-0">
                 <div className="my-1 h-px bg-border" />
-                <div className={sectionLabel} onMouseEnter={() => setSub(null)}>
+                <div className={sectionLabel} onMouseEnter={closeSubSoon}>
                   Providers
                 </div>
                 {providers.map((p) => (
@@ -498,8 +549,17 @@ function PromptToolbarMenu({
                     key={p.name}
                     chevron
                     active={sub?.kind === "provider" && sub.name === p.name}
+                    onClick={(e) =>
+                      openSubNow(
+                        { kind: "provider", name: p.name },
+                        e.currentTarget,
+                      )
+                    }
                     onMouseEnter={(e) =>
-                      openSub({ kind: "provider", name: p.name }, e.currentTarget)
+                      openSubSoon(
+                        { kind: "provider", name: p.name },
+                        e.currentTarget,
+                      )
                     }
                   >
                     {p.name}
@@ -513,7 +573,10 @@ function PromptToolbarMenu({
               <MenuRow
                 chevron
                 active={sub?.kind === "mode"}
-                onMouseEnter={(e) => openSub({ kind: "mode" }, e.currentTarget)}
+                onClick={(e) => openSubNow({ kind: "mode" }, e.currentTarget)}
+                onMouseEnter={(e) =>
+                  openSubSoon({ kind: "mode" }, e.currentTarget)
+                }
               >
                 <span className="flex items-center justify-between gap-2">
                   <span>Mode &amp; options</span>
@@ -534,11 +597,13 @@ function PromptToolbarMenu({
             ref={subRef}
             role="menu"
             onClick={(e) => e.stopPropagation()}
+            onMouseEnter={clearHoverTimer}
             style={{
               position: "fixed",
-              top: sub.top,
+              top: subTop ?? band.top,
               left: sub.left,
-              maxHeight: sub.maxH,
+              maxHeight: band.bottom - band.top,
+              visibility: subTop === null ? "hidden" : undefined,
             }}
             className={cn(
               "animate-in fade-in-0 zoom-in-95 z-[100] w-64 overflow-y-auto",
@@ -618,9 +683,8 @@ function PromptToolbarMenu({
 }
 
 /**
- * Compact in-line model picker for the chat input toolbar.
- * - Cloud mode: shows a small select.
- * - Local mode: shows a "Local LLM" pill that opens a config dialog.
+ * Model picker pill for the chat input toolbar; the Local LLM toggle opens an
+ * endpoint config dialog.
  */
 export default function ModelSelector({
   selection,
