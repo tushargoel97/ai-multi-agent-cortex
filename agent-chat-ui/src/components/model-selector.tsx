@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronDown, ChevronRight, Server } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Pin, Server } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ export interface ModelSelection {
   unrestricted: boolean;
   /** Response mode: general (default) | thinking | research. */
   mode: "general" | "thinking" | "research";
+  /** Model ids pinned in the picker (UI-only, never sent to the graph). */
+  pinned_models: string[];
 }
 
 const STORAGE_KEY = "cortex:model-selection";
@@ -52,6 +54,7 @@ export const DEFAULT_SELECTION: ModelSelection = {
   local_model_name: "local-model",
   unrestricted: false,
   mode: "general",
+  pinned_models: [],
 };
 
 export function loadModelSelection(): ModelSelection {
@@ -135,11 +138,59 @@ const NESTED_MODES = [
   },
 ];
 
-interface MenuOption {
-  value: string;
-  label: ReactNode;
+function ModelRow({
+  label,
+  hint,
+  selected,
+  pinned,
+  onSelect,
+  onTogglePin,
+}: {
+  label: string;
   hint?: string;
-  checked?: boolean;
+  selected: boolean;
+  pinned: boolean;
+  onSelect: () => void;
+  onTogglePin: () => void;
+}) {
+  return (
+    <div className="group flex w-full items-center gap-0.5 rounded-md pr-1 transition-colors hover:bg-accent/60">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 items-center py-1.5 pl-2 text-left"
+      >
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-sm">{label}</span>
+          {hint && (
+            <span className="truncate text-[11px] text-muted-foreground">
+              {hint}
+            </span>
+          )}
+        </span>
+      </button>
+      <button
+        type="button"
+        title={pinned ? "Unpin" : "Pin"}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        className={cn(
+          "shrink-0 rounded p-1 opacity-0 transition-colors group-hover:opacity-100 hover:bg-muted focus:opacity-100",
+          pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <Pin className={cn("size-3.5", pinned && "fill-current")} />
+      </button>
+      <Check
+        className={cn(
+          "size-3.5 shrink-0 text-primary",
+          selected ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </div>
+  );
 }
 
 function MenuRow({
@@ -192,9 +243,13 @@ function PromptToolbarMenu({
   triggerLabel,
   modeLabel,
   useLocal,
-  topOptions,
-  moreOptions,
+  autoSelected,
+  pinnedModels,
+  providers,
+  selectedId,
+  isPinned,
   onSelectModel,
+  onTogglePin,
   mode,
   onModeChange,
   toggles,
@@ -202,18 +257,22 @@ function PromptToolbarMenu({
   triggerLabel: string;
   modeLabel: string | null;
   useLocal: boolean;
-  topOptions: MenuOption[];
-  moreOptions: MenuOption[];
-  onSelectModel: (value: string) => void;
+  autoSelected: boolean;
+  pinnedModels: AvailableModel[];
+  providers: { name: string; models: AvailableModel[] }[];
+  selectedId: string | null;
+  isPinned: (id: string) => boolean;
+  onSelectModel: (id: string) => void;
+  onTogglePin: (id: string) => void;
   mode: string;
   onModeChange: (m: string) => void;
   toggles: ToggleDef[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
-    estimatedHeight: 360,
+    estimatedHeight: 380,
   });
-  const [sub, setSub] = useState<null | "more" | "mode">(null);
+  const [sub, setSub] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) setSub(null);
@@ -221,24 +280,24 @@ function PromptToolbarMenu({
 
   const panel =
     "rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg";
-  const subPos = openUp ? "bottom-0" : "top-0";
+  const sectionLabel =
+    "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
 
-  const choose = (value: string) => {
-    onSelectModel(value);
+  const choose = (id: string) => {
+    onSelectModel(id);
     setOpen(false);
   };
 
-  const renderOption = (o: MenuOption) => (
-    <MenuRow key={o.value} checked={o.checked} onClick={() => choose(o.value)}>
-      <span className="flex flex-col">
-        <span className="truncate">{o.label}</span>
-        {o.hint && (
-          <span className="truncate text-[11px] text-muted-foreground">
-            {o.hint}
-          </span>
-        )}
-      </span>
-    </MenuRow>
+  const modelRow = (m: AvailableModel, hint?: string) => (
+    <ModelRow
+      key={m.id}
+      label={formatModelName(m.display_name)}
+      hint={hint ?? (m.is_default ? "default" : undefined)}
+      selected={selectedId === m.id}
+      pinned={isPinned(m.id)}
+      onSelect={() => choose(m.id)}
+      onTogglePin={() => onTogglePin(m.id)}
+    />
   );
 
   return (
@@ -267,7 +326,7 @@ function PromptToolbarMenu({
         <div
           role="menu"
           className={cn(
-            "absolute right-0 z-50 w-60 duration-150",
+            "absolute left-0 z-50 w-64 duration-150",
             panel,
             openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
             open
@@ -275,31 +334,61 @@ function PromptToolbarMenu({
               : "animate-out fade-out-0 zoom-out-95 pointer-events-none",
           )}
         >
+          {/* Auto */}
           <div onMouseEnter={() => setSub(null)}>
-            {topOptions.map(renderOption)}
+            <MenuRow
+              checked={autoSelected}
+              onClick={() => choose(AUTO_MODEL_ID)}
+            >
+              <span className="flex flex-col">
+                <span className="truncate">✨ Auto</span>
+                <span className="truncate text-[11px] text-muted-foreground">
+                  Best model per task
+                </span>
+              </span>
+            </MenuRow>
           </div>
 
-          {moreOptions.length > 0 && (
-            <div className="relative">
-              <MenuRow
-                chevron
-                active={sub === "more"}
-                onMouseEnter={() => setSub("more")}
-              >
-                More models
-              </MenuRow>
-              {sub === "more" && (
-                <div
-                  className={cn(
-                    "absolute right-full z-50 mr-1 max-h-[320px] w-56 overflow-y-auto",
-                    panel,
-                    subPos,
-                  )}
-                >
-                  {moreOptions.map(renderOption)}
-                </div>
-              )}
+          {/* Pinned (hidden when nothing is pinned) */}
+          {pinnedModels.length > 0 && (
+            <div onMouseEnter={() => setSub(null)}>
+              <div className={sectionLabel}>Pinned</div>
+              {pinnedModels.map((m) => modelRow(m, m.provider_name))}
             </div>
+          )}
+
+          {/* Models grouped by provider */}
+          {providers.length > 0 && (
+            <>
+              <div className="my-1 h-px bg-border" />
+              <div
+                className={sectionLabel}
+                onMouseEnter={() => setSub(null)}
+              >
+                Providers
+              </div>
+              {providers.map((p) => (
+                <div key={p.name} className="relative">
+                  <MenuRow
+                    chevron
+                    active={sub === `p:${p.name}`}
+                    onMouseEnter={() => setSub(`p:${p.name}`)}
+                  >
+                    {p.name}
+                  </MenuRow>
+                  {sub === `p:${p.name}` && (
+                    <div
+                      className={cn(
+                        "absolute top-0 left-full z-50 ml-1 max-h-[320px] w-64 overflow-y-auto",
+                        panel,
+                      )}
+                    >
+                      {p.models.map((m) => modelRow(m))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
           )}
 
           <div className="my-1 h-px bg-border" />
@@ -320,9 +409,8 @@ function PromptToolbarMenu({
             {sub === "mode" && (
               <div
                 className={cn(
-                  "absolute right-full z-50 mr-1 w-64 p-1.5",
+                  "absolute bottom-0 left-full z-50 ml-1 w-64 p-1.5",
                   panel,
-                  subPos,
                 )}
               >
                 <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -459,49 +547,41 @@ export default function ModelSelector({
               : "Select model";
         })();
 
-  const isSel = (id: string) =>
-    !selection.use_local && (selection.model_id ?? AUTO_MODEL_ID) === id;
+  const pinnedIds = selection.pinned_models ?? [];
+  const selectedId = selection.use_local
+    ? null
+    : (selection.model_id ?? AUTO_MODEL_ID);
+  const isPinned = (id: string) => pinnedIds.includes(id);
 
-  const toOption = (m: AvailableModel): MenuOption => ({
-    value: m.id,
-    label: formatModelName(m.display_name),
-    hint: `${m.provider_name}${m.is_default ? " · default" : ""}`,
-    checked: isSel(m.id),
-  });
-
-  // Top level shows Auto + the default + a couple more; the rest nest under
-  // "More models". An explicitly-selected model is always surfaced up top.
-  const topModels: AvailableModel[] = [];
-  const defaultModel = models.find((m) => m.is_default);
-  if (defaultModel) topModels.push(defaultModel);
-  for (const m of models) {
-    if (topModels.length >= 4) break;
-    if (!topModels.some((t) => t.id === m.id)) topModels.push(m);
-  }
-  if (
-    !selection.use_local &&
-    selection.model_id &&
-    selection.model_id !== AUTO_MODEL_ID
-  ) {
-    const sel = models.find((m) => m.id === selection.model_id);
-    if (sel && !topModels.some((t) => t.id === sel.id)) {
-      topModels.unshift(sel);
-      if (topModels.length > 5) topModels.pop();
+  // Pinned models (in pin order) show after Auto; the rest group by provider.
+  const pinnedModels = loaded
+    ? pinnedIds
+        .map((id) => models.find((m) => m.id === id))
+        .filter((m): m is AvailableModel => !!m)
+    : [];
+  const byProvider = new Map<string, AvailableModel[]>();
+  if (loaded) {
+    for (const m of models) {
+      if (isPinned(m.id)) continue;
+      byProvider.set(m.provider_name, [
+        ...(byProvider.get(m.provider_name) ?? []),
+        m,
+      ]);
     }
   }
-  const topIds = new Set(topModels.map((m) => m.id));
-  const topOptions: MenuOption[] = [
-    {
-      value: AUTO_MODEL_ID,
-      label: "✨ Auto",
-      hint: "Best model per task",
-      checked: isSel(AUTO_MODEL_ID),
-    },
-    ...(loaded ? topModels.map(toOption) : []),
-  ];
-  const moreOptions: MenuOption[] = loaded
-    ? models.filter((m) => !topIds.has(m.id)).map(toOption)
-    : [];
+  const providers = [...byProvider.entries()]
+    .map(([name, ms]) => ({ name, models: ms }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const togglePin = (id: string) => {
+    const cur = selection.pinned_models ?? [];
+    onChange({
+      ...selection,
+      pinned_models: cur.includes(id)
+        ? cur.filter((x) => x !== id)
+        : [...cur, id],
+    });
+  };
 
   const modeLabel =
     selection.mode === "thinking"
@@ -545,11 +625,15 @@ export default function ModelSelector({
         triggerLabel={activeLabel}
         modeLabel={modeLabel}
         useLocal={selection.use_local}
-        topOptions={topOptions}
-        moreOptions={moreOptions}
+        autoSelected={selectedId === AUTO_MODEL_ID}
+        pinnedModels={pinnedModels}
+        providers={providers}
+        selectedId={selectedId}
+        isPinned={isPinned}
         onSelectModel={(value) =>
           onChange({ ...selection, model_id: value || null, use_local: false })
         }
+        onTogglePin={togglePin}
         mode={selection.mode}
         onModeChange={(m) =>
           onChange({ ...selection, mode: m as ModelSelection["mode"] })

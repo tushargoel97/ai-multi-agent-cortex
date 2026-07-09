@@ -870,22 +870,82 @@ only `product_prices` / `find_bookings` results are kept out of the trace
 Prompt-box dropdowns share `hooks/use-dropdown.ts` (auto-flip + animation +
 menubar hover-switch).
 
-### 15.4 Chat search
+### 15.4 Chat search & thread management
 
 - **In-thread find** ([`components/thread/thread-search.tsx`](agent-chat-ui/src/components/thread/thread-search.tsx)):
   a find bar using the **CSS Custom Highlight API** (`useFind` hook,
   `::highlight(cortex-find)` / `::highlight(cortex-find-current)` styled in
   [`app/globals.css`](agent-chat-ui/src/app/globals.css)). `findRanges` walks the
   message scope with a `TreeWalker`, skipping `[data-search-ui]`, and supports
-  next/previous navigation. A **Sources** panel (`extractSources`) collects every
-  link cited in the conversation (markdown-link + bare-URL regex, deduped).
+  next/previous navigation. A **Sources** panel (`extractSources`) collects the
+  links cited in the conversation. `extractSources(messages, opts)` takes
+  `skipToolNames` (to drop `find_bookings` / `product_prices` deep-link cards,
+  which are click destinations, not consulted sources) and `byDomain` (dedupe by
+  domain instead of full URL).
 - **Cross-thread history search**
   ([`components/thread/history/index.tsx`](agent-chat-ui/src/components/thread/history/index.tsx)):
   a pill-shaped search below "New chat" that filters past threads by their
   **content** (not just the title) with a matching snippet (`threadText`,
   `threadMatches`, `matchSnippet`).
+- **Thread menu** (same file): each row has an always-visible **⋯** menu
+  (`ThreadMenu`, built on `use-dropdown`) with **Rename** (inline edit →
+  `threads.update` metadata `title`), **Pin/Unpin** (metadata `pinned`; pinned
+  threads sort to the top with a pin glyph), and **Delete** (confirm dialog →
+  `threads.delete`).
 
-### 15.5 Model selection (hydration-safe)
+### 15.5 Prompt box & model menu
+
+The composer ([`components/thread/index.tsx`](agent-chat-ui/src/components/thread/index.tsx))
+is a minimal, Claude/ChatGPT-style toolbar: a bare **+** attach button (a `Label`
+over a hidden file input), the model menu, and a circular **↑ send** / **■ stop**
+button (disabled until there's input; stop calls `handleCancel`). The textarea
+uses `field-sizing-content` with a `min-h`/`max-h` so it starts at a comfortable
+height and grows, then scrolls.
+
+The **model menu** ([`components/model-selector.tsx`](agent-chat-ui/src/components/model-selector.tsx))
+is one consolidated pill (`PromptToolbarMenu`) that mirrors Claude's nesting:
+
+- The pill shows the active model + the mode when it isn't General (e.g.
+  `Auto Thinking`), and a server glyph in local mode.
+- Opening it lists **✨ Auto**, then a **Pinned** section (hidden when nothing is
+  pinned), then **Providers** — each provider (Anthropic, Google, OpenAI, …,
+  derived from the registry) is a submenu of its models. Every model row has a
+  hover **pin** toggle; pinning moves a model out of its provider list into
+  Pinned (persisted in `selection.pinned_models`, a UI-only field never sent to
+  the graph).
+- **Mode & options ›** is another submenu: the **General / Thinking / Research**
+  radios plus the **Local LLM / Hide Tool Calls / Unrestricted** toggles.
+- Submenus open to the **right of their row** and flip up/down with the parent
+  (`use-dropdown`); picking a model closes the menu, toggles keep it open, and
+  selecting **Local LLM** opens the endpoint-config dialog. (This replaced the
+  old flat `Select` + a separate sliders "Options" menu; the leftover
+  `TogglesMenu` only exports the `ToggleDef` type now.)
+
+### 15.6 Message actions
+
+Human and assistant messages share a hover action bar
+([`components/thread/messages/shared.tsx`](agent-chat-ui/src/components/thread/messages/shared.tsx)):
+**copy** (green ✓ tick on success), **edit** (human, re-submits as a new branch),
+**regenerate** (assistant), and **👍 / 👎** feedback (assistant, local
+acknowledgement toast). The **last** assistant reply keeps its bar visible once
+the turn finishes (not hover-gated). Copy goes through `copyTextToClipboard`
+([`lib/utils.ts`](agent-chat-ui/src/lib/utils.ts)), which uses
+`navigator.clipboard` in a secure context and falls back to a hidden-textarea
+`execCommand("copy")`, so it still works when the app is opened over plain HTTP /
+LAN (where `navigator.clipboard` is undefined).
+
+### 15.7 Activity / Sources panel
+
+An **Activity** button in the header opens a fixed right-hand drawer
+([`components/thread/activity-panel.tsx`](agent-chat-ui/src/components/thread/activity-panel.tsx)):
+the **current turn's steps** (reusing the trace's `deriveSteps`) plus a
+consolidated **Sources · N** list. Sources reuse `extractSources` with the
+commerce deep-links excluded and deduped by domain, so it shows only the
+`web_search` / `fetch_url` domains the agent actually consulted, not the booking
+card destinations. It renders as a fixed overlay to avoid disturbing the chat
+grid / artifact layout.
+
+### 15.8 Model selection (hydration-safe)
 
 [`providers/ModelSelection.tsx`](agent-chat-ui/src/providers/ModelSelection.tsx)
 initializes state with the exported `DEFAULT_SELECTION`
@@ -894,7 +954,7 @@ so the **server render matches the first client render**, then loads the
 persisted selection in a mount effect. This fixed a Next.js hydration mismatch
 that came from reading `localStorage` during the initial render.
 
-### 15.6 Admin proxy
+### 15.9 Admin proxy
 
 The UI proxies admin calls through `src/app/api` (`[..._path]`) to the `ai`
 service and the host `trainer` (`host.docker.internal:8200`), and carries admin

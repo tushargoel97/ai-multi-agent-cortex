@@ -45,6 +45,10 @@ CLI for day-to-day use.
   live. Follow-ups sent mid-stream are **queued**; duplicates are suppressed.
 - **In-chat search**, ⌘F find-in-thread with a Sources panel, plus content-based
   search across your whole history.
+- **Polished, familiar chat UX**, a ChatGPT/Claude-style composer (one nested
+  model + mode menu, attach, send/stop), per-message copy / edit / regenerate /
+  feedback, a thread **⋯** menu (rename / pin / delete), and an **Activity +
+  Sources** side panel.
 - **Codeless admin**, add providers/models, enable built-in or LangChain tools,
   register MCP servers, and edit or create agents (and subagents), all from
   `/admin`, no restart.

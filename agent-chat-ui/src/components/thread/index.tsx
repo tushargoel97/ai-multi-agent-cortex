@@ -710,7 +710,7 @@ export function Thread() {
                           }
                         }}
                         placeholder="Type your message..."
-                        className="field-sizing-content max-h-[280px] min-h-[76px] resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+                        className="field-sizing-content max-h-[280px] min-h-[52px] resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1">
