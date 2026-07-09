@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -205,7 +211,7 @@ function MenuRow({
   chevron?: boolean;
   active?: boolean;
   onClick?: () => void;
-  onMouseEnter?: () => void;
+  onMouseEnter?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
   return (
@@ -274,11 +280,9 @@ function PromptToolbarMenu({
   const [open, setOpen] = useState(false);
   const [menuBox, setMenuBox] = useState<{
     left: number;
-    top?: number;
-    bottom?: number;
+    top: number;
     maxH: number;
-  }>({ left: 0, maxH: 400 });
-  const [subLimit, setSubLimit] = useState(0);
+  }>({ left: 0, top: 0, maxH: 400 });
   const [sub, setSub] = useState<
     | { kind: "provider"; name: string; top: number; left: number; maxH: number }
     | { kind: "mode"; top: number; left: number; maxH: number }
@@ -320,8 +324,8 @@ function PromptToolbarMenu({
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
 
-  // Open the menu clear of the composer (never over the chat box), on whichever
-  // side has more room; remember the boundary the submenu must not cross.
+  // Everything opens *downward* from just beneath the composer — never upward.
+  // If the menu is taller than the space below, it scrolls inside.
   const toggle = () => {
     if (open) {
       setOpen(false);
@@ -337,20 +341,10 @@ function PromptToolbarMenu({
     const cr = composer.getBoundingClientRect();
     const pr = el.getBoundingClientRect();
     const gap = 8;
-    const above = cr.top - 16;
-    const below = window.innerHeight - cr.bottom - 16;
     const left = Math.max(8, Math.min(pr.left, window.innerWidth - MW - 8));
-    if (above >= below) {
-      setMenuBox({
-        left,
-        bottom: window.innerHeight - cr.top + gap,
-        maxH: Math.max(180, above),
-      });
-      setSubLimit(cr.top - gap);
-    } else {
-      setMenuBox({ left, top: cr.bottom + gap, maxH: Math.max(180, below) });
-      setSubLimit(window.innerHeight - gap);
-    }
+    const top = cr.bottom + gap;
+    const maxH = window.innerHeight - top - 8;
+    setMenuBox({ left, top, maxH });
     setOpen(true);
   };
 
@@ -359,15 +353,23 @@ function PromptToolbarMenu({
     setOpen(false);
   };
 
-  // A submenu opens to the right of the menu with its TOP aligned to the menu's
-  // top, capped so it can't overlap the composer either.
-  const openSub = (s: { kind: "provider"; name: string } | { kind: "mode" }) => {
+  // A submenu opens to the right of the menu, TOP-aligned with the row that was
+  // hovered, and grows downward, scrolling inside if it runs past the viewport.
+  const openSub = (
+    s: { kind: "provider"; name: string } | { kind: "mode" },
+    anchor: HTMLElement,
+  ) => {
     const mr = menuRef.current?.getBoundingClientRect();
     if (!mr) return;
+    const ar = anchor.getBoundingClientRect();
     let left = mr.right + 4;
     if (left + MW > window.innerWidth - 8) left = mr.left - MW - 4;
-    const top = mr.top;
-    const maxH = Math.max(120, subLimit - top);
+    const minH = 160;
+    let top = Math.max(8, ar.top);
+    if (top + minH > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - 8 - minH);
+    }
+    const maxH = window.innerHeight - top - 8;
     setSub({ ...s, top, left: Math.max(8, left), maxH });
   };
 
@@ -420,16 +422,15 @@ function PromptToolbarMenu({
               position: "fixed",
               left: menuBox.left,
               top: menuBox.top,
-              bottom: menuBox.bottom,
               maxHeight: menuBox.maxH,
             }}
             className={cn(
-              "animate-in fade-in-0 zoom-in-95 z-[90] w-64 overflow-y-auto",
+              "animate-in fade-in-0 zoom-in-95 z-[90] flex w-64 flex-col overflow-y-auto",
               panel,
             )}
           >
             {/* Auto */}
-            <div onMouseEnter={() => setSub(null)}>
+            <div className="shrink-0" onMouseEnter={() => setSub(null)}>
               <MenuRow
                 checked={autoSelected}
                 onClick={() => choose(AUTO_MODEL_ID)}
@@ -443,17 +444,23 @@ function PromptToolbarMenu({
               </MenuRow>
             </div>
 
-            {/* Pinned (hidden when nothing is pinned) */}
+            {/* Pinned (hidden when nothing is pinned) — the list scrolls in
+              place once it grows tall enough to push the menu to the bottom. */}
             {pinnedModels.length > 0 && (
-              <div onMouseEnter={() => setSub(null)}>
-                <div className={sectionLabel}>Pinned</div>
-                {pinnedModels.map((m) => modelRow(m, m.provider_name))}
+              <div
+                className="flex min-h-0 flex-col"
+                onMouseEnter={() => setSub(null)}
+              >
+                <div className={cn(sectionLabel, "shrink-0")}>Pinned</div>
+                <div className="min-h-0 overflow-y-auto">
+                  {pinnedModels.map((m) => modelRow(m, m.provider_name))}
+                </div>
               </div>
             )}
 
             {/* Models grouped by provider */}
             {providers.length > 0 && (
-              <>
+              <div className="shrink-0">
                 <div className="my-1 h-px bg-border" />
                 <div className={sectionLabel} onMouseEnter={() => setSub(null)}>
                   Providers
@@ -463,30 +470,31 @@ function PromptToolbarMenu({
                     key={p.name}
                     chevron
                     active={sub?.kind === "provider" && sub.name === p.name}
-                    onMouseEnter={() =>
-                      openSub({ kind: "provider", name: p.name })
+                    onMouseEnter={(e) =>
+                      openSub({ kind: "provider", name: p.name }, e.currentTarget)
                     }
                   >
                     {p.name}
                   </MenuRow>
                 ))}
-              </>
+              </div>
             )}
 
-            <div className="my-1 h-px bg-border" />
-
-            <MenuRow
-              chevron
-              active={sub?.kind === "mode"}
-              onMouseEnter={() => openSub({ kind: "mode" })}
-            >
-              <span className="flex items-center justify-between gap-2">
-                <span>Mode &amp; options</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {modeLabel ?? "General"}
+            <div className="shrink-0">
+              <div className="my-1 h-px bg-border" />
+              <MenuRow
+                chevron
+                active={sub?.kind === "mode"}
+                onMouseEnter={(e) => openSub({ kind: "mode" }, e.currentTarget)}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span>Mode &amp; options</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {modeLabel ?? "General"}
+                  </span>
                 </span>
-              </span>
-            </MenuRow>
+              </MenuRow>
+            </div>
           </div>,
           document.body,
         )}
@@ -744,10 +752,10 @@ export default function ModelSelector({
           <button
             type="button"
             onClick={() => onChange({ ...selection, unrestricted: false })}
-            title="Unrestricted mode is on, click to turn it off"
-            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+            title="Unrestricted mode is on — click to turn it off"
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ShieldOff className="size-3.5" />
+            <ShieldOff className="size-3" />
             Unrestricted
           </button>
         )}
