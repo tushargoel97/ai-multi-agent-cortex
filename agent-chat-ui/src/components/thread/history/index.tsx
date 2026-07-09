@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { useThreads } from "@/providers/Thread";
 import { Thread } from "@langchain/langgraph-sdk";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { getContentString } from "../utils";
 import { useQueryState } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
+import { setSidebarResizing, setSidebarWidth } from "@/hooks/use-sidebar-width";
 import {
   Sheet,
   SheetContent,
@@ -15,13 +16,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   PanelRightOpen,
-  PanelRightClose,
   Search,
   Plus,
   Check,
   X,
   Star,
-  MoreHorizontal,
+  MoreVertical,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
@@ -182,7 +182,7 @@ function ThreadRow({
               triggerTitle="More"
               triggerClassName="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
               triggerActiveClassName="bg-background text-foreground"
-              trigger={<MoreHorizontal className="size-3.5" />}
+              trigger={<MoreVertical className="size-3.5" />}
               onStar={onTogglePin}
               onRename={() => {
                 setDraft(getThreadLabel(thread));
@@ -200,14 +200,15 @@ function ThreadRow({
 function ThreadList({
   threads,
   onThreadClick,
+  query = "",
 }: {
   threads: Thread[];
   onThreadClick?: (threadId: string) => void;
+  query?: string;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { renameThread, deleteThread, togglePin } = useThreadActions();
   const [pendingDelete, setPendingDelete] = useState<Thread | null>(null);
-  const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
   const filtered = q ? threads.filter((t) => threadMatches(t, q)) : threads;
@@ -219,39 +220,18 @@ function ThreadList({
   return (
     <>
       <div className="flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
-        <div className="w-full px-2 pb-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
+        <div className="w-full px-2 pb-1 pt-1">
+          <button
+            type="button"
             onClick={() => {
               setThreadId(null);
               onThreadClick?.("");
             }}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
             <Plus className="size-4" />
             New chat
-          </Button>
-        </div>
-        <div className="w-full px-2 pb-2">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 transition-colors focus-within:border-ring focus-within:bg-background">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search chats…"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                title="Clear"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
+          </button>
         </div>
         {q && shown.length === 0 ? (
           <p className="w-full px-4 py-6 text-center text-sm text-muted-foreground">
@@ -339,6 +319,8 @@ export default function ThreadHistory() {
 
   const { getThreads, threads, setThreads, threadsLoading, setThreadsLoading } =
     useThreads();
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -349,31 +331,96 @@ export default function ThreadHistory() {
       .finally(() => setThreadsLoading(false));
   }, []);
 
+  // Drag the right edge to resize (pointer x == width; sidebar hugs the left edge).
+  const startResize = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setSidebarResizing(true);
+    const onMove = (ev: PointerEvent) => setSidebarWidth(ev.clientX);
+    const onUp = () => {
+      setSidebarResizing(false);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  };
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setQuery("");
+  };
+
   return (
     <>
-      <div className="shadow-inner-right hidden h-screen w-[300px] shrink-0 flex-col items-start justify-start gap-6 border-r-[1px] border-border lg:flex">
-        <div className="flex w-full items-center justify-between px-4 pt-1.5">
-          <Button
-            className="hover:bg-muted"
-            variant="ghost"
-            onClick={() => setChatHistoryOpen((p) => !p)}
-          >
-            {chatHistoryOpen ? (
-              <PanelRightOpen className="size-5" />
-            ) : (
-              <PanelRightClose className="size-5" />
-            )}
-          </Button>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Thread History
+      <div className="shadow-inner-right relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] border-border lg:flex">
+        <div className="flex w-full items-center justify-between gap-2 px-3 pt-2">
+          <h1 className="truncate text-lg font-semibold tracking-tight">
+            History
           </h1>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8 hover:bg-muted"
+              onClick={() => setSearchOpen(true)}
+              title="Search chats"
+            >
+              <Search className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8 hover:bg-muted"
+              onClick={() => setChatHistoryOpen((p) => !p)}
+              title="Close sidebar"
+            >
+              <PanelRightOpen className="size-4" />
+            </Button>
+          </div>
         </div>
+
         {threadsLoading ? (
           <ThreadHistoryLoading />
         ) : (
-          <ThreadList threads={threads} />
+          <ThreadList
+            threads={threads}
+            query={query}
+          />
         )}
+
+        {searchOpen && (
+          <div className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 border-b border-border bg-background px-3 py-2 shadow-sm">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && closeSearch()}
+              placeholder="Search chats…"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              type="button"
+              onClick={closeSearch}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              title="Close search"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        <div
+          onPointerDown={startResize}
+          className="absolute right-0 top-0 z-40 h-full w-1.5 cursor-col-resize touch-none transition-colors hover:bg-primary/30"
+          title="Drag to resize"
+        />
       </div>
+
       <div className="lg:hidden">
         <Sheet
           open={!!chatHistoryOpen && !isLargeScreen}
@@ -384,13 +431,23 @@ export default function ThreadHistory() {
         >
           <SheetContent
             side="left"
-            className="flex lg:hidden"
+            className="flex flex-col lg:hidden"
           >
             <SheetHeader>
-              <SheetTitle>Thread History</SheetTitle>
+              <SheetTitle>History</SheetTitle>
             </SheetHeader>
+            <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search chats…"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
             <ThreadList
               threads={threads}
+              query={query}
               onThreadClick={() => setChatHistoryOpen((o) => !o)}
             />
           </SheetContent>

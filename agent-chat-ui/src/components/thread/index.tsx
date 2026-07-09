@@ -39,6 +39,10 @@ import {
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
+import {
+  useSidebarWidth,
+  useSidebarResizing,
+} from "@/hooks/use-sidebar-width";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { ChatHeaderTitle } from "./chat-header-title";
@@ -208,6 +212,8 @@ export function Thread() {
     defaultValue: process.env.NEXT_PUBLIC_AUTH_SCHEME || "",
   });
   const [chatHistoryOpen, setChatHistoryOpen] = useChatHistoryOpen();
+  const sidebarWidth = useSidebarWidth();
+  const sidebarResizing = useSidebarResizing();
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -435,13 +441,9 @@ export function Thread() {
       <div className="relative hidden lg:flex">
         <motion.div
           className="absolute z-20 h-full overflow-hidden border-r bg-background"
-          style={{ width: 300 }}
-          animate={
-            isLargeScreen
-              ? { x: chatHistoryOpen ? 0 : -300 }
-              : { x: chatHistoryOpen ? 0 : -300 }
-          }
-          initial={{ x: -300 }}
+          style={{ width: sidebarWidth }}
+          animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
+          initial={{ x: -sidebarWidth }}
           transition={
             isLargeScreen
               ? { type: "spring", stiffness: 300, damping: 30 }
@@ -450,7 +452,7 @@ export function Thread() {
         >
           <div
             className="relative h-full"
-            style={{ width: 300 }}
+            style={{ width: sidebarWidth }}
           >
             <ThreadHistory />
           </div>
@@ -470,17 +472,19 @@ export function Thread() {
           )}
           layout={isLargeScreen}
           animate={{
-            marginLeft: chatHistoryOpen ? (isLargeScreen ? 300 : 0) : 0,
+            marginLeft: chatHistoryOpen ? (isLargeScreen ? sidebarWidth : 0) : 0,
             width: chatHistoryOpen
               ? isLargeScreen
-                ? "calc(100% - 300px)"
+                ? `calc(100% - ${sidebarWidth}px)`
                 : "100%"
               : "100%",
           }}
           transition={
-            isLargeScreen
-              ? { type: "spring", stiffness: 300, damping: 30 }
-              : { duration: 0 }
+            sidebarResizing
+              ? { duration: 0 }
+              : isLargeScreen
+                ? { type: "spring", stiffness: 300, damping: 30 }
+                : { duration: 0 }
           }
         >
           {!chatStarted && (
