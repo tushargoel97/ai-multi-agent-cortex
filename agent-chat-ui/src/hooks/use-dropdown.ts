@@ -2,23 +2,17 @@
 
 import * as React from "react";
 
-const useIsoLayoutEffect =
-  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
-
 export interface DropdownState {
   open: boolean;
   setOpen: (v: boolean | ((o: boolean) => boolean)) => void;
   /** Kept true briefly after close so the exit animation can play. */
   mounted: boolean;
-  /** True when the panel should open upward (not enough room below). */
-  openUp: boolean;
 }
 
 /**
  * Shared open/close behavior for the in-house dropdowns:
  * - optional controlled `open` (so a parent can coordinate sibling menus),
- * - click-outside + Escape to close,
- * - auto-flip: open downward when there's room, upward near the screen edge,
+ * - click-outside, outside scroll and Escape to close,
  * - a short mount delay so the close animation can finish before unmount.
  */
 export function useDropdown(
@@ -26,10 +20,11 @@ export function useDropdown(
   opts: {
     controlledOpen?: boolean;
     onOpenChange?: (o: boolean) => void;
-    estimatedHeight?: number;
+    /** Portaled panel to also treat as "inside" for click-outside. */
+    insideRef?: React.RefObject<HTMLElement | null>;
   } = {},
 ): DropdownState {
-  const { controlledOpen, onOpenChange, estimatedHeight = 300 } = opts;
+  const { controlledOpen, onOpenChange, insideRef } = opts;
   const [internalOpen, setInternalOpen] = React.useState(false);
   const open = controlledOpen ?? internalOpen;
 
@@ -43,7 +38,6 @@ export function useDropdown(
   );
 
   const [mounted, setMounted] = React.useState(open);
-  const [openUp, setOpenUp] = React.useState(false);
 
   // Mount immediately on open; delay unmount so the exit animation plays.
   React.useEffect(() => {
@@ -56,28 +50,28 @@ export function useDropdown(
     return () => clearTimeout(t);
   }, [open, mounted]);
 
-  // Decide direction before paint so the panel never flashes on the wrong side.
-  useIsoLayoutEffect(() => {
-    if (!open || !rootRef.current) return;
-    const rect = rootRef.current.getBoundingClientRect();
-    const below = window.innerHeight - rect.bottom;
-    const above = rect.top;
-    setOpenUp(below < estimatedHeight && above > below);
-  }, [open]);
-
   React.useEffect(() => {
     if (!open) return;
+    const inside = (t: Node) =>
+      !!rootRef.current?.contains(t) || !!insideRef?.current?.contains(t);
     const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!inside(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // A portaled panel is fixed-positioned, so it can't follow its trigger:
+    // close when anything else scrolls (the panel's own scroll stays open).
+    const onScroll = (e: Event) => {
+      if (!inside(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open, setOpen, rootRef]);
+  }, [open, setOpen, rootRef, insideRef]);
 
-  return { open, setOpen, mounted, openUp };
+  return { open, setOpen, mounted };
 }

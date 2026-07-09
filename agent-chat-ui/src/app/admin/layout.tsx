@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-muted/40 to-muted p-4">
         <form
           onSubmit={onSubmit}
-          className="glass-surface flex w-full max-w-sm flex-col gap-5 rounded-2xl border p-8 shadow-xl"
+          className="glass-tint flex w-full max-w-sm flex-col gap-5 rounded-2xl border p-8 shadow-xl"
         >
           <div className="flex flex-col items-center gap-2">
             <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">

@@ -48,7 +48,7 @@ function AdminTabs() {
         </p>
       </div>
 
-      <div className="glass inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-sm">
+      <div className="glass-tint inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-sm">
         {TABS.map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
@@ -68,7 +68,7 @@ function AdminTabs() {
         })}
       </div>
 
-      <div className="glass-surface rounded-2xl border p-6 shadow-sm">
+      <div className="glass-tint rounded-2xl border p-6 shadow-sm">
         {tab === "providers" && (
           <ProvidersPanel onChanged={() => setBump((n) => n + 1)} />
         )}

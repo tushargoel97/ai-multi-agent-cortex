@@ -151,12 +151,20 @@
 
   /* macOS-style frosted glass, the single source of truth for the tint.
      `.glass` = floating menus/popovers; `.glass-surface` = structural panels
-     (sidebar, composer, cards). Sites add border width, radius and shadow. */
+     (sidebar, composer, cards). Sites add border width, radius and shadow.
+     `.glass-tint` is the same tint WITHOUT backdrop blur: use it for large
+     static surfaces (nothing scrolls beneath) and for any container with
+     absolutely-positioned popovers inside — an ancestor backdrop-filter
+     disables descendants' backdrop-filter (nested backdrop roots), and
+     page-sized blur regions cause repaint jank. */
   .glass {
     @apply border-black/10 bg-popover/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
   }
   .glass-surface {
     @apply border-black/10 bg-background/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
+  }
+  .glass-tint {
+    @apply border-black/10 bg-background/65 dark:border-white/10;
   }
 }
 

@@ -52,6 +52,7 @@ export default function ModelsPanel({
   const confirm = useConfirm();
   const [models, setModels] = useState<Model[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const [autoProfile, setAutoProfile] = useState("balanced");
   const [form, setForm] = useState({
     provider_id: "",
@@ -120,37 +121,47 @@ export default function ModelsPanel({
       toast.error("No providers, add one in the Providers tab first");
       return;
     }
+    setSyncing(true);
     const t = toast.loading(`Syncing ${eligible.length} provider(s)…`);
-    let ins = 0;
-    let upd = 0;
-    let failed = 0;
-    const failures: string[] = [];
-    for (const p of eligible) {
-      const r = await fetch(`/api/admin/providers/${p.id}/sync-models`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Token": getAdminToken() || "",
-        },
-      });
-      const data = await r.json().catch(() => ({}));
-      if (r.ok) {
-        ins += data.inserted || 0;
-        upd += data.updated || 0;
-      } else {
-        failed++;
-        failures.push(`${p.name}: ${data.error || r.status}`);
+    try {
+      let ins = 0;
+      let upd = 0;
+      let failed = 0;
+      const failures: string[] = [];
+      for (const p of eligible) {
+        const r = await fetch(`/api/admin/providers/${p.id}/sync-models`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Token": getAdminToken() || "",
+          },
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+          ins += data.inserted || 0;
+          upd += data.updated || 0;
+        } else {
+          failed++;
+          failures.push(`${p.name}: ${data.error || r.status}`);
+        }
       }
-    }
-    if (failed === eligible.length) {
-      toast.error(`All syncs failed, ${failures[0]}`, { id: t });
-    } else {
-      toast.success(
-        `Synced, ${ins} new, ${upd} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
+      if (failed === eligible.length) {
+        toast.error(`All syncs failed, ${failures[0]}`, { id: t });
+      } else {
+        toast.success(
+          `Synced, ${ins} new, ${upd} updated${failed ? `, ${failed} failed (${failures.join("; ")})` : ""}`,
+          { id: t },
+        );
+      }
+      load();
+    } catch (e) {
+      toast.error(
+        `Sync failed, ${e instanceof Error ? e.message : "network error"}`,
         { id: t },
       );
+    } finally {
+      setSyncing(false);
     }
-    load();
   }
 
   async function saveAutoProfile(profile: string) {
@@ -172,7 +183,7 @@ export default function ModelsPanel({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border bg-muted/30 p-4">
+      <div className="bg-muted/30 rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">✨ Auto mode profile</h3>
@@ -181,7 +192,7 @@ export default function ModelsPanel({
               from this profile (only enabled models are eligible).
             </p>
           </div>
-          <div className="flex items-center gap-1 rounded-full border border-border bg-background/60 p-1">
+          <div className="border-border bg-background/60 flex items-center gap-1 rounded-full border p-1">
             {(["balanced", "quality", "cost"] as const).map((p) => (
               <button
                 key={p}
@@ -215,20 +226,22 @@ export default function ModelsPanel({
         </div>
         <Button
           onClick={syncAll}
-          disabled={providers.length === 0}
+          disabled={providers.length === 0 || syncing}
           className="shrink-0"
         >
-          <RefreshCw className="mr-2 size-4" />
-          Sync from providers
+          <RefreshCw
+            className={`mr-2 size-4 ${syncing ? "animate-spin" : ""}`}
+          />
+          {syncing ? "Syncing…" : "Sync from providers"}
         </Button>
       </div>
 
       <form
         onSubmit={create}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-6 bg-muted/30"
+        className="bg-muted/30 grid grid-cols-1 gap-4 rounded-lg border p-6 md:grid-cols-2"
       >
         <div className="md:col-span-2">
-          <h3 className="font-semibold mb-2">Add model manually</h3>
+          <h3 className="mb-2 font-semibold">Add model manually</h3>
         </div>
         <div className="flex flex-col gap-2">
           <Label>Provider</Label>
@@ -256,14 +269,12 @@ export default function ModelsPanel({
           <Label>Display name</Label>
           <Input
             value={form.display_name}
-            onChange={(e) =>
-              setForm({ ...form, display_name: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, display_name: e.target.value })}
             placeholder="GPT-4o mini"
             required
           />
         </div>
-        <div className="flex items-center gap-2 mt-6">
+        <div className="mt-6 flex items-center gap-2">
           <Switch
             checked={form.is_default}
             onCheckedChange={(v) => setForm({ ...form, is_default: v })}
@@ -275,7 +286,7 @@ export default function ModelsPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-background/60">
+      <div className="bg-background/60 rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
@@ -289,9 +300,12 @@ export default function ModelsPanel({
           </thead>
           <tbody>
             {models.map((m) => (
-              <tr key={m.id} className="border-t">
+              <tr
+                key={m.id}
+                className="border-t"
+              >
                 <td className="p-3 font-medium">{m.display_name}</td>
-                <td className="p-3 text-xs font-mono">{m.model_id}</td>
+                <td className="p-3 font-mono text-xs">{m.model_id}</td>
                 <td className="p-3">
                   {m.provider_name}{" "}
                   <span className="text-muted-foreground text-xs">
@@ -311,13 +325,19 @@ export default function ModelsPanel({
                   />
                 </td>
                 <td className="p-3 text-right">
-                  <DeleteButton onClick={() => del(m.id)} title="Delete model" />
+                  <DeleteButton
+                    onClick={() => del(m.id)}
+                    title="Delete model"
+                  />
                 </td>
               </tr>
             ))}
             {models.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-3 text-muted-foreground">
+                <td
+                  colSpan={6}
+                  className="text-muted-foreground p-3"
+                >
                   No models yet, add one above or sync from a provider.
                 </td>
               </tr>

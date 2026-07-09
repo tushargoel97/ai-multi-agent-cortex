@@ -5,6 +5,7 @@ import React from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ThemeProvider } from "next-themes";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,7 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+    >
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
@@ -34,6 +38,7 @@ export default function RootLayout({
           <NuqsAdapter>
             <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
           </NuqsAdapter>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

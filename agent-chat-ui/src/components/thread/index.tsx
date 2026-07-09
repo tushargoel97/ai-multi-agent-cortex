@@ -440,7 +440,7 @@ export function Thread() {
       )}
       <div className="relative hidden lg:flex">
         <motion.div
-          className="glass-surface absolute z-20 h-full overflow-hidden border-r"
+          className="glass-tint absolute z-20 h-full overflow-hidden border-r"
           style={{ width: sidebarWidth }}
           animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
           initial={{ x: -sidebarWidth }}
