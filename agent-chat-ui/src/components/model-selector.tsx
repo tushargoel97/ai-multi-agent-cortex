@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -280,9 +281,11 @@ function PromptToolbarMenu({
   const [open, setOpen] = useState(false);
   const [menuBox, setMenuBox] = useState<{
     left: number;
-    top: number;
+    top?: number;
+    bottom?: number;
     maxH: number;
-  }>({ left: 0, top: 0, maxH: 400 });
+  }>({ left: 0, maxH: 400 });
+  const [subLimit, setSubLimit] = useState(0);
   const [sub, setSub] = useState<
     | { kind: "provider"; name: string; top: number; left: number; maxH: number }
     | { kind: "mode"; top: number; left: number; maxH: number }
@@ -292,6 +295,22 @@ function PromptToolbarMenu({
   useEffect(() => {
     if (!open) setSub(null);
   }, [open]);
+
+  // Keep an opened submenu fully on-screen without scrolling: it starts
+  // top-aligned to its row (see openSub) and, if its full height would run past
+  // the lower bound, we nudge it up just enough. Runs once per submenu (top is
+  // deliberately excluded from deps so the nudge doesn't loop).
+  useLayoutEffect(() => {
+    if (!sub) return;
+    const el = subRef.current;
+    if (!el) return;
+    const hi = subLimit || window.innerHeight - 8;
+    const overflow = el.getBoundingClientRect().bottom - hi;
+    if (overflow > 1) {
+      setSub((s) => (s ? { ...s, top: Math.max(8, s.top - overflow) } : s));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub?.kind, sub?.name, subLimit]);
 
   // Close on outside click / Escape / resize (menu + submenu are portaled).
   useEffect(() => {
@@ -319,13 +338,14 @@ function PromptToolbarMenu({
   }, [open]);
 
   const panel =
-    "rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg";
+    "rounded-xl border border-black/10 bg-popover/75 p-1 text-popover-foreground shadow-xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10";
   const sectionLabel =
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
 
-  // Everything opens *downward* from just beneath the composer — never upward.
-  // If the menu is taller than the space below, it scrolls inside.
+  // Match ChatGPT/Claude: open downward when there's room beneath the composer
+  // (empty thread), otherwise open upward (loaded thread — the composer is
+  // pinned to the bottom). `subLimit` is the boundary submenus must not cross.
   const toggle = () => {
     if (open) {
       setOpen(false);
@@ -341,10 +361,20 @@ function PromptToolbarMenu({
     const cr = composer.getBoundingClientRect();
     const pr = el.getBoundingClientRect();
     const gap = 8;
+    const above = cr.top - gap;
+    const below = window.innerHeight - cr.bottom - gap;
     const left = Math.max(8, Math.min(pr.left, window.innerWidth - MW - 8));
-    const top = cr.bottom + gap;
-    const maxH = window.innerHeight - top - 8;
-    setMenuBox({ left, top, maxH });
+    if (below >= 260 || below >= above) {
+      setMenuBox({ left, top: cr.bottom + gap, maxH: Math.max(180, below) });
+      setSubLimit(window.innerHeight - 8);
+    } else {
+      setMenuBox({
+        left,
+        bottom: window.innerHeight - cr.top + gap,
+        maxH: Math.max(180, above),
+      });
+      setSubLimit(cr.top - gap);
+    }
     setOpen(true);
   };
 
@@ -353,8 +383,10 @@ function PromptToolbarMenu({
     setOpen(false);
   };
 
-  // A submenu opens to the right of the menu, TOP-aligned with the row that was
-  // hovered, and grows downward, scrolling inside if it runs past the viewport.
+  // A submenu opens beside the menu, TOP-aligned with the hovered row and shows
+  // its full height. A layout effect afterwards nudges it up only if it would
+  // otherwise run past its lower bound (viewport bottom, or the composer when
+  // the menu opens upward), so it never scrolls unless taller than the screen.
   const openSub = (
     s: { kind: "provider"; name: string } | { kind: "mode" },
     anchor: HTMLElement,
@@ -364,13 +396,8 @@ function PromptToolbarMenu({
     const ar = anchor.getBoundingClientRect();
     let left = mr.right + 4;
     if (left + MW > window.innerWidth - 8) left = mr.left - MW - 4;
-    const minH = 160;
-    let top = Math.max(8, ar.top);
-    if (top + minH > window.innerHeight - 8) {
-      top = Math.max(8, window.innerHeight - 8 - minH);
-    }
-    const maxH = window.innerHeight - top - 8;
-    setSub({ ...s, top, left: Math.max(8, left), maxH });
+    const hi = subLimit || window.innerHeight - 8;
+    setSub({ ...s, top: Math.max(8, ar.top), left: Math.max(8, left), maxH: hi - 8 });
   };
 
   const modelRow = (m: AvailableModel, hint?: string) => (
@@ -422,6 +449,7 @@ function PromptToolbarMenu({
               position: "fixed",
               left: menuBox.left,
               top: menuBox.top,
+              bottom: menuBox.bottom,
               maxHeight: menuBox.maxH,
             }}
             className={cn(
