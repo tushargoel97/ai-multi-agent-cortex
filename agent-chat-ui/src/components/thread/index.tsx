@@ -28,9 +28,9 @@ import {
   Activity,
   ArrowDown,
   ArrowUp,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  PanelRightOpen,
-  PanelRightClose,
   Search,
   Square,
   SquarePen,
@@ -491,17 +491,18 @@ export function Thread() {
             <div className="absolute top-0 left-0 z-10 flex w-full items-center justify-between gap-3 p-2 pl-4">
               <div>
                 {(!chatHistoryOpen || !isLargeScreen) && (
-                  <Button
-                    className="hover:bg-muted"
-                    variant="ghost"
+                  <button
+                    type="button"
                     onClick={() => setChatHistoryOpen((p) => !p)}
+                    title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
+                    className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     {chatHistoryOpen ? (
-                      <PanelRightOpen className="size-5" />
+                      <ChevronLeft className="size-4" />
                     ) : (
-                      <PanelRightClose className="size-5" />
+                      <ChevronRight className="size-4" />
                     )}
-                  </Button>
+                  </button>
                 )}
               </div>
               <div className="absolute top-2 right-4 flex items-center">
@@ -514,17 +515,18 @@ export function Thread() {
               <div className="relative flex items-center justify-start gap-2">
                 <div className="absolute left-0 z-10">
                   {(!chatHistoryOpen || !isLargeScreen) && (
-                    <Button
-                      className="hover:bg-muted"
-                      variant="ghost"
+                    <button
+                      type="button"
                       onClick={() => setChatHistoryOpen((p) => !p)}
+                      title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
+                      className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       {chatHistoryOpen ? (
-                        <PanelRightOpen className="size-5" />
+                        <ChevronLeft className="size-4" />
                       ) : (
-                        <PanelRightClose className="size-5" />
+                        <ChevronRight className="size-4" />
                       )}
-                    </Button>
+                    </button>
                   )}
                 </div>
                 <motion.button

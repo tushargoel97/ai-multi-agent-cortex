@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  PanelRightOpen,
+  ChevronLeft,
   Search,
   Plus,
   Check,
@@ -371,15 +371,14 @@ export default function ThreadHistory() {
             >
               <Search className="size-4" />
             </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-8 hover:bg-muted"
+            <button
+              type="button"
               onClick={() => setChatHistoryOpen((p) => !p)}
-              title="Close sidebar"
+              title="Collapse sidebar"
+              className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <PanelRightOpen className="size-4" />
-            </Button>
+              <ChevronLeft className="size-4" />
+            </button>
           </div>
         </div>
 

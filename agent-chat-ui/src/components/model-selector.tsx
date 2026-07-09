@@ -696,16 +696,18 @@ export function ModeSelector({
       setOpen(true);
       return;
     }
-    const r = el.getBoundingClientRect();
+    const composer =
+      (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
+    const cr = composer.getBoundingClientRect();
+    const pr = el.getBoundingClientRect();
     const gap = 8;
-    const H = 210;
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
-    const above = r.top - gap;
-    const below = window.innerHeight - r.bottom - gap;
-    if (above >= H || above >= below) {
-      setBox({ left, bottom: window.innerHeight - r.top + gap });
+    const above = cr.top - gap;
+    const below = window.innerHeight - cr.bottom - gap;
+    const left = Math.max(8, Math.min(pr.left, window.innerWidth - W - 8));
+    if (below >= 260 || below >= above) {
+      setBox({ left, top: cr.bottom + gap });
     } else {
-      setBox({ left, top: r.bottom + gap });
+      setBox({ left, bottom: window.innerHeight - cr.top + gap });
     }
     setOpen(true);
   };

@@ -227,7 +227,12 @@ export function ThreadSearch({
       data-search-ui
       className="absolute top-2 left-1/2 z-30 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 animate-in fade-in-0 slide-in-from-top-2"
     >
-      <div className="overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+      <div
+        className={cn(
+          "overflow-hidden border border-black/10 bg-popover/90 shadow-2xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10",
+          showSources ? "rounded-2xl" : "rounded-full",
+        )}
+      >
         <div className="flex items-center gap-2 px-3 py-2">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
