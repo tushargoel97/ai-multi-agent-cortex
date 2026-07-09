@@ -322,6 +322,7 @@ export default function ThreadHistory() {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -369,10 +370,20 @@ export default function ThreadHistory() {
     return () => document.removeEventListener("pointerdown", onDown);
   }, [searchOpen]);
 
+  // Focus the field once it has expanded open.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
   return (
     <>
       <div className="shadow-inner-right relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] border-border lg:flex">
-        <div className="flex w-full items-center justify-between gap-2 px-3 pt-2">
+        <div
+          className={cn(
+            "flex w-full items-center justify-between gap-2 px-3 pt-2",
+            searchOpen && "invisible",
+          )}
+        >
           <h1 className="truncate text-lg font-semibold tracking-tight">
             History
           </h1>
@@ -407,32 +418,37 @@ export default function ThreadHistory() {
           />
         )}
 
-        {searchOpen && (
+        <div className="pointer-events-none absolute inset-x-2 top-2 z-30 flex justify-end">
           <div
             ref={searchRef}
-            className="animate-in fade-in-0 slide-in-from-right-6 absolute inset-x-2 top-2 z-30"
+            className={cn(
+              "flex items-center gap-2 overflow-hidden rounded-full border border-black/10 bg-popover/65 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out dark:border-white/10",
+              searchOpen
+                ? "pointer-events-auto w-full opacity-100"
+                : "pointer-events-none w-8 opacity-0",
+            )}
           >
-            <div className="flex items-center gap-2 rounded-full border border-black/10 bg-popover/65 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 dark:border-white/10">
-              <Search className="size-4 shrink-0 text-muted-foreground" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-                placeholder="Search chats…"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              <button
-                type="button"
-                onClick={closeSearch}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                title="Close search"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              ref={searchInputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && closeSearch()}
+              placeholder="Search chats…"
+              tabIndex={searchOpen ? 0 : -1}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              type="button"
+              onClick={closeSearch}
+              tabIndex={searchOpen ? 0 : -1}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              title="Close search"
+            >
+              <X className="size-4" />
+            </button>
           </div>
-        )}
+        </div>
 
         <div
           onPointerDown={startResize}
