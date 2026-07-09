@@ -52,19 +52,26 @@ async function listAnthropicModels(p: ProviderRow): Promise<SyncedModel[]> {
 }
 
 async function listGoogleModels(p: ProviderRow): Promise<SyncedModel[]> {
-  const base =
-    p.base_url?.replace(/\/$/, "") ||
-    "https://generativelanguage.googleapis.com/v1beta";
-  const r = await fetch(`${base}/models?key=${encodeURIComponent(p.api_key)}`);
-  if (!r.ok) throw new Error(`Google list models failed: ${r.status}`);
+  const key = p.api_key.trim();
+  const base = (
+    p.base_url?.replace(/\/+$/, "") ||
+    "https://generativelanguage.googleapis.com/v1beta"
+  ).replace(/\/openai$/, "");
+  const r = await fetch(`${base}/models?pageSize=1000`, {
+    headers: { "x-goog-api-key": key },
+  });
+  if (!r.ok) {
+    const body = (await r.text()).replace(/\s+/g, " ").slice(0, 300);
+    throw new Error(`Google list models failed: ${r.status} ${body}`);
+  }
   const data = (await r.json()) as {
-    models: {
+    models?: {
       name: string;
       displayName?: string;
       supportedGenerationMethods?: string[];
     }[];
   };
-  return data.models
+  return (data.models ?? [])
     .filter((m) =>
       (m.supportedGenerationMethods || []).includes("generateContent"),
     )
