@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useThreads } from "@/providers/Thread";
 import { Thread } from "@langchain/langgraph-sdk";
-import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { getContentString } from "../utils";
 import { useQueryState } from "nuqs";
@@ -321,6 +321,7 @@ export default function ThreadHistory() {
     useThreads();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -354,6 +355,20 @@ export default function ThreadHistory() {
     setQuery("");
   };
 
+  // Collapse the search field back to its icon on any outside click.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement;
+      if (searchRef.current?.contains(t)) return;
+      if (t.closest("[data-search-trigger]")) return;
+      setSearchOpen(false);
+      setQuery("");
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [searchOpen]);
+
   return (
     <>
       <div className="shadow-inner-right relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] border-border lg:flex">
@@ -366,7 +381,8 @@ export default function ThreadHistory() {
               size="icon"
               variant="ghost"
               className="size-8 hover:bg-muted"
-              onClick={() => setSearchOpen(true)}
+              data-search-trigger
+              onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
               title="Search chats"
             >
               <Search className="size-4" />
@@ -392,8 +408,11 @@ export default function ThreadHistory() {
         )}
 
         {searchOpen && (
-          <div className="animate-in fade-in-0 slide-in-from-right-6 absolute inset-x-2 top-2 z-30">
-            <div className="flex items-center gap-2 rounded-full border border-black/10 bg-popover/80 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 dark:border-white/10">
+          <div
+            ref={searchRef}
+            className="animate-in fade-in-0 slide-in-from-right-6 absolute inset-x-2 top-2 z-30"
+          >
+            <div className="flex items-center gap-2 rounded-full border border-black/10 bg-popover/65 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 dark:border-white/10">
               <Search className="size-4 shrink-0 text-muted-foreground" />
               <input
                 autoFocus

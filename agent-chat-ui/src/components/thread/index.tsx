@@ -440,7 +440,7 @@ export function Thread() {
       )}
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-background/80 backdrop-blur-xl backdrop-saturate-150"
+          className="absolute z-20 h-full overflow-hidden border-r bg-background/65 backdrop-blur-xl backdrop-saturate-150"
           style={{ width: sidebarWidth }}
           animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
           initial={{ x: -sidebarWidth }}
@@ -562,6 +562,7 @@ export function Thread() {
                   className="p-4"
                   tooltip="Search conversation (⌘F)"
                   variant="ghost"
+                  data-search-trigger
                   onClick={() => setThreadSearchOpen((o) => !o)}
                 >
                   <Search className="size-5" />
@@ -661,7 +662,7 @@ export function Thread() {
                 })()
               }
               footer={
-                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-background">
+                <div className="sticky bottom-0 flex flex-col items-center gap-8">
                   {!chatStarted && <Greeting />}
 
                   <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
@@ -670,10 +671,10 @@ export function Thread() {
                     ref={dropRef}
                     data-prompt-composer
                     className={cn(
-                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl shadow-sm transition-all",
+                      "relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl bg-background/65 shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-all",
                       dragOver
                         ? "border-primary border-2 border-dotted"
-                        : "border border-solid",
+                        : "border border-black/10 dark:border-white/10",
                     )}
                   >
                     <form

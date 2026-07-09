@@ -198,6 +198,7 @@ export function ThreadSearch({
   const [showSources, setShowSources] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const { count, current, next, prev } = useFind(
     scopeRef,
@@ -220,16 +221,30 @@ export function ThreadSearch({
     if (open) inputRef.current?.focus();
   }, [open, showSources]);
 
+  // Collapse back to the icon when the user clicks anywhere outside the bar.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement;
+      if (rootRef.current?.contains(t)) return;
+      if (t.closest("[data-search-trigger]")) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
     <div
+      ref={rootRef}
       data-search-ui
       className="absolute top-3 left-1/2 z-30 w-[min(44rem,calc(100%-2rem))] -translate-x-1/2 animate-in fade-in-0 slide-in-from-top-2"
     >
       <div
         className={cn(
-          "overflow-hidden border border-black/10 bg-popover/90 shadow-2xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10",
+          "overflow-hidden border border-black/10 bg-popover/65 shadow-2xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10",
           showSources ? "rounded-2xl" : "rounded-full",
         )}
       >
