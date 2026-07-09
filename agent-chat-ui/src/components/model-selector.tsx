@@ -11,7 +11,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronDown, ChevronRight, Pin, Server, ShieldOff } from "lucide-react";
+import {
+  Brain,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Globe,
+  Pin,
+  Server,
+  ShieldOff,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -144,15 +155,24 @@ function formatModelName(raw: string): string {
     .join(" ");
 }
 
-const NESTED_MODES = [
-  { value: "general", label: "General", hint: "Fast, direct answers." },
-  { value: "thinking", label: "Thinking", hint: "Reasoner + extended thinking." },
-  {
-    value: "research",
+type Mode = ModelSelection["mode"];
+
+const MODE_META: Record<
+  Mode,
+  { label: string; hint: string; icon: LucideIcon }
+> = {
+  general: { label: "General", hint: "Fast, direct answers.", icon: Zap },
+  thinking: {
+    label: "Thinking",
+    hint: "Reasoner + extended thinking.",
+    icon: Brain,
+  },
+  research: {
     label: "Research",
     hint: "Deep web/KB research; clarifies first.",
+    icon: Globe,
   },
-];
+};
 
 function ModelRow({
   label,
@@ -252,12 +272,11 @@ function MenuRow({
 
 /**
  * Claude-style consolidated prompt-box menu: a single pill that opens the top
- * models, a nested "More models" list, and a nested "Mode & options" panel
- * (General / Thinking / Research + Local LLM / Hide tools / Unrestricted).
+ * models, provider submenus, and a nested "Options" panel (Local LLM / Hide
+ * tools / Unrestricted). Response mode lives in its own toolbar dropdown.
  */
 function PromptToolbarMenu({
   triggerLabel,
-  modeLabel,
   useLocal,
   autoSelected,
   pinnedModels,
@@ -266,12 +285,9 @@ function PromptToolbarMenu({
   isPinned,
   onSelectModel,
   onTogglePin,
-  mode,
-  onModeChange,
   toggles,
 }: {
   triggerLabel: string;
-  modeLabel: string | null;
   useLocal: boolean;
   autoSelected: boolean;
   pinnedModels: AvailableModel[];
@@ -280,8 +296,6 @@ function PromptToolbarMenu({
   isPinned: (id: string) => boolean;
   onSelectModel: (id: string) => void;
   onTogglePin: (id: string) => void;
-  mode: string;
-  onModeChange: (m: string) => void;
   toggles: ToggleDef[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -477,9 +491,6 @@ function PromptToolbarMenu({
       >
         {useLocal && <Server className="size-3.5 shrink-0 text-emerald-500" />}
         <span className="truncate">{triggerLabel}</span>
-        {modeLabel && (
-          <span className="shrink-0 text-muted-foreground">{modeLabel}</span>
-        )}
         <ChevronDown
           className={cn(
             "size-3.5 shrink-0 text-muted-foreground transition-transform",
@@ -578,12 +589,7 @@ function PromptToolbarMenu({
                   openSubSoon({ kind: "mode" }, e.currentTarget)
                 }
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span>Mode &amp; options</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {modeLabel ?? "General"}
-                  </span>
-                </span>
+                Options
               </MenuRow>
             </div>
           </div>,
@@ -616,30 +622,8 @@ function PromptToolbarMenu({
             ) : (
               <>
                 <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Mode
+                  Options
                 </div>
-                {NESTED_MODES.map((m) => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => onModeChange(m.value)}
-                    className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent/60"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{m.label}</span>
-                      <span className="block text-[11px] text-muted-foreground">
-                        {m.hint}
-                      </span>
-                    </span>
-                    <Check
-                      className={cn(
-                        "mt-0.5 size-3.5 shrink-0 text-primary",
-                        mode === m.value ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                  </button>
-                ))}
-                <div className="my-1 h-px bg-border" />
                 {toggles.map((t) => (
                   <div
                     key={t.id}
@@ -675,6 +659,146 @@ function PromptToolbarMenu({
                 ))}
               </>
             )}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+/**
+ * Response-mode dropdown for the composer toolbar (left of Send): shows the
+ * active mode and opens a small menu to switch General / Thinking / Research.
+ */
+export function ModeSelector({
+  mode,
+  onModeChange,
+  className,
+}: {
+  mode: Mode;
+  onModeChange: (m: Mode) => void;
+  className?: string;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [box, setBox] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
+
+  const current = MODE_META[mode] ?? MODE_META.general;
+  const CurrentIcon = current.icon;
+  const W = 248;
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const el = rootRef.current;
+    if (!el) {
+      setOpen(true);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const gap = 8;
+    const H = 210;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
+    const above = r.top - gap;
+    const below = window.innerHeight - r.bottom - gap;
+    if (above >= H || above >= below) {
+      setBox({ left, bottom: window.innerHeight - r.top + gap });
+    } else {
+      setBox({ left, top: r.bottom + gap });
+    }
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onResize = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={cn("relative inline-flex", className)}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={toggle}
+        title="Response mode"
+        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 text-xs font-medium transition-colors hover:bg-muted"
+      >
+        <CurrentIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">{current.label}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open &&
+        box &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{
+              position: "fixed",
+              left: box.left,
+              top: box.top,
+              bottom: box.bottom,
+              width: W,
+            }}
+            className="animate-in fade-in-0 zoom-in-95 z-[90] rounded-xl border border-black/10 bg-popover/80 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10"
+          >
+            {(Object.keys(MODE_META) as Mode[]).map((k) => {
+              const m = MODE_META[k];
+              const Icon = m.icon;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    onModeChange(k);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent/60"
+                >
+                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{m.label}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {m.hint}
+                    </span>
+                  </span>
+                  <Check
+                    className={cn(
+                      "mt-0.5 size-4 shrink-0 text-primary",
+                      mode === k ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                </button>
+              );
+            })}
           </div>,
           document.body,
         )}
@@ -782,13 +906,6 @@ export default function ModelSelector({
     });
   };
 
-  const modeLabel =
-    selection.mode === "thinking"
-      ? "Thinking"
-      : selection.mode === "research"
-        ? "Research"
-        : null;
-
   const toggles: ToggleDef[] = [
     {
       id: "local",
@@ -822,7 +939,6 @@ export default function ModelSelector({
       <div className="flex items-center gap-1.5">
         <PromptToolbarMenu
           triggerLabel={activeLabel}
-          modeLabel={modeLabel}
           useLocal={selection.use_local}
           autoSelected={selectedId === AUTO_MODEL_ID}
           pinnedModels={pinnedModels}
@@ -833,10 +949,6 @@ export default function ModelSelector({
             onChange({ ...selection, model_id: value || null, use_local: false })
           }
           onTogglePin={togglePin}
-          mode={selection.mode}
-          onModeChange={(m) =>
-            onChange({ ...selection, mode: m as ModelSelection["mode"] })
-          }
           toggles={toggles}
         />
         {selection.unrestricted && (

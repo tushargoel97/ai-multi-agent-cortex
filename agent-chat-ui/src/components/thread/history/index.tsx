@@ -1,11 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { useThreads } from "@/providers/Thread";
 import { Thread } from "@langchain/langgraph-sdk";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 import { getContentString } from "../utils";
-import { useQueryState, parseAsBoolean } from "nuqs";
+import { useQueryState } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
 import {
   Sheet,
@@ -17,15 +16,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   PanelRightOpen,
   PanelRightClose,
-  Pencil,
   Search,
-  Trash2,
   Plus,
   Check,
   X,
+  Star,
   MoreHorizontal,
-  Pin,
-  PinOff,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
@@ -37,28 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createClient } from "@/providers/client";
-import { getApiKey } from "@/lib/api-key";
 import { cn } from "@/lib/utils";
-import { createPortal } from "react-dom";
-
-function getThreadLabel(t: Thread): string {
-  const metaTitle = (t.metadata as Record<string, unknown> | undefined)?.title;
-  if (typeof metaTitle === "string" && metaTitle.trim()) return metaTitle;
-  if (
-    typeof t.values === "object" &&
-    t.values &&
-    "messages" in t.values &&
-    Array.isArray((t.values as { messages: unknown[] }).messages) &&
-    (t.values as { messages: { content: unknown }[] }).messages.length > 0
-  ) {
-    const firstMessage = (t.values as { messages: { content: unknown }[] })
-      .messages[0];
-    const text = getContentString(firstMessage.content as never);
-    if (text) return text.length > 80 ? text.slice(0, 80) + "…" : text;
-  }
-  return "New chat";
-}
+import {
+  getThreadLabel,
+  isPinned,
+  useThreadActions,
+  ThreadActionsMenu,
+} from "./thread-actions";
 
 /** Concatenated text of every message in a thread (for cross-thread search). */
 function threadText(t: Thread): string {
@@ -87,136 +68,6 @@ function matchSnippet(t: Thread, q: string): string | null {
     (start > 0 ? "…" : "") +
     text.slice(start, end).replace(/\s+/g, " ").trim() +
     (end < text.length ? "…" : "")
-  );
-}
-
-function isPinned(t: Thread): boolean {
-  return Boolean((t.metadata as Record<string, unknown> | undefined)?.pinned);
-}
-
-/** ChatGPT-style per-thread "⋯" menu: Rename / Pin / Delete. Rendered in a
- *  portal (fixed position beside the trigger) so the sidebar's overflow never
- *  clips it and it opens next to the row instead of over the thread list. */
-function ThreadMenu({
-  pinned,
-  onRename,
-  onTogglePin,
-  onDelete,
-}: {
-  pinned: boolean;
-  onRename: () => void;
-  onTogglePin: () => void;
-  onDelete: () => void;
-}) {
-  const triggerRef = useRef<HTMLSpanElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  // Position the menu next to the trigger, flipping / clamping to stay on-screen.
-  useEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const W = 176; // w-44
-    const H = 118; // three items
-    let left = r.right + 6;
-    if (left + W > window.innerWidth - 8) left = r.left - W - 6;
-    let top = r.top - 4;
-    if (top + H > window.innerHeight - 8) top = window.innerHeight - H - 8;
-    setPos({ top: Math.max(8, top), left: Math.max(8, left) });
-  }, [open]);
-
-  // Close on outside click / Escape / scroll (the portaled menu is off-DOM-tree).
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    const onScroll = () => setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("scroll", onScroll, true);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("scroll", onScroll, true);
-    };
-  }, [open]);
-
-  const item =
-    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted";
-
-  return (
-    <span ref={triggerRef} className="inline-flex">
-      <Button
-        size="icon"
-        variant="ghost"
-        className={cn(
-          "size-7 shrink-0 text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
-          open && "bg-background text-foreground",
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((o) => !o);
-        }}
-        title="More"
-      >
-        <MoreHorizontal className="size-3.5" />
-      </Button>
-      {open &&
-        pos &&
-        createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            onClick={(e) => e.stopPropagation()}
-            style={{ position: "fixed", top: pos.top, left: pos.left }}
-            className="animate-in fade-in-0 zoom-in-95 z-[100] w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
-          >
-            <button
-              className={item}
-              onClick={() => {
-                setOpen(false);
-                onRename();
-              }}
-            >
-              <Pencil className="size-3.5" /> Rename
-            </button>
-            <button
-              className={item}
-              onClick={() => {
-                setOpen(false);
-                onTogglePin();
-              }}
-            >
-              {pinned ? (
-                <PinOff className="size-3.5" />
-              ) : (
-                <Pin className="size-3.5" />
-              )}
-              {pinned ? "Unpin" : "Pin"}
-            </button>
-            <button
-              className={cn(item, "text-destructive hover:text-destructive")}
-              onClick={() => {
-                setOpen(false);
-                onDelete();
-              }}
-            >
-              <Trash2 className="size-3.5" /> Delete
-            </button>
-          </div>,
-          document.body,
-        )}
-    </span>
   );
 }
 
@@ -305,7 +156,7 @@ function ThreadRow({
           >
             <p className="flex w-full items-center gap-1 truncate text-sm">
               {pinned && (
-                <Pin className="size-3 shrink-0 text-muted-foreground" />
+                <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />
               )}
               <span className="truncate text-ellipsis">
                 {getThreadLabel(thread)}
@@ -317,14 +168,26 @@ function ThreadRow({
               </p>
             )}
           </Button>
-          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-            <ThreadMenu
+          <div
+            className={cn(
+              "absolute right-1 top-1/2 -translate-y-1/2 transition-opacity",
+              isActive
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+            )}
+          >
+            <ThreadActionsMenu
               pinned={pinned}
+              placement="beside"
+              triggerTitle="More"
+              triggerClassName="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              triggerActiveClassName="bg-background text-foreground"
+              trigger={<MoreHorizontal className="size-3.5" />}
+              onStar={onTogglePin}
               onRename={() => {
                 setDraft(getThreadLabel(thread));
                 setEditing(true);
               }}
-              onTogglePin={onTogglePin}
               onDelete={onDelete}
             />
           </div>
@@ -342,72 +205,9 @@ function ThreadList({
   onThreadClick?: (threadId: string) => void;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
-  const [apiUrl] = useQueryState("apiUrl", {
-    defaultValue: process.env.NEXT_PUBLIC_API_URL || "",
-  });
-  const [authScheme] = useQueryState("authScheme", {
-    defaultValue: process.env.NEXT_PUBLIC_AUTH_SCHEME || "",
-  });
-  const { setThreads, getThreads } = useThreads();
+  const { renameThread, deleteThread, togglePin } = useThreadActions();
   const [pendingDelete, setPendingDelete] = useState<Thread | null>(null);
   const [query, setQuery] = useState("");
-
-  const client = () =>
-    createClient(
-      apiUrl || process.env.NEXT_PUBLIC_API_URL || "",
-      getApiKey() ?? undefined,
-      authScheme || undefined,
-    );
-
-  const renameThread = async (t: Thread, title: string) => {
-    try {
-      const c = client();
-      const newMetadata = { ...(t.metadata ?? {}), title };
-      await c.threads.update(t.thread_id, { metadata: newMetadata });
-      setThreads((prev) =>
-        prev.map((x) =>
-          x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x,
-        ),
-      );
-      toast.success("Thread renamed");
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to rename thread");
-    }
-  };
-
-  const deleteThread = async (t: Thread) => {
-    try {
-      const c = client();
-      await c.threads.delete(t.thread_id);
-      setThreads((prev) => prev.filter((x) => x.thread_id !== t.thread_id));
-      if (threadId === t.thread_id) setThreadId(null);
-      toast.success("Thread deleted");
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to delete thread");
-      // Best-effort refresh in case it actually deleted but errored.
-      getThreads().then(setThreads).catch(() => {});
-    }
-  };
-
-  const togglePin = async (t: Thread) => {
-    try {
-      const c = client();
-      const pinned = !isPinned(t);
-      const newMetadata = { ...(t.metadata ?? {}), pinned };
-      await c.threads.update(t.thread_id, { metadata: newMetadata });
-      setThreads((prev) =>
-        prev.map((x) =>
-          x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x,
-        ),
-      );
-      toast.success(pinned ? "Thread pinned" : "Thread unpinned");
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to update thread");
-    }
-  };
 
   const q = query.trim().toLowerCase();
   const filtered = q ? threads.filter((t) => threadMatches(t, q)) : threads;

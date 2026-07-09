@@ -41,6 +41,7 @@ import { useQueryState, parseAsBoolean } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
+import { ChatHeaderTitle } from "./chat-header-title";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Label } from "../ui/label";
@@ -54,7 +55,7 @@ import {
 } from "../ui/tooltip";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ContentBlocksPreview } from "./ContentBlocksPreview";
-import ModelSelector from "@/components/model-selector";
+import ModelSelector, { ModeSelector } from "@/components/model-selector";
 import { useModelSelection } from "@/providers/ModelSelection";
 import {
   useArtifactOpen,
@@ -542,6 +543,8 @@ export function Thread() {
                     Cortex
                   </span>
                 </motion.button>
+                <div className="bg-border mx-1 hidden h-5 w-px sm:block" />
+                <ChatHeaderTitle />
               </div>
 
               <div className="flex items-center gap-4">
@@ -736,6 +739,13 @@ export function Thread() {
                           hideToolCalls={hideToolCalls ?? false}
                           onHideToolCallsChange={(v) => setHideToolCalls(v)}
                         />
+                        <ModeSelector
+                          className="ml-auto"
+                          mode={selection.mode}
+                          onModeChange={(m) =>
+                            setSelection({ ...selection, mode: m })
+                          }
+                        />
                         {stream.isLoading ? (
                           <Button
                             key="stop"
@@ -743,7 +753,7 @@ export function Thread() {
                             size="icon"
                             title="Stop generating"
                             onClick={handleCancel}
-                            className="ml-auto size-9 rounded-full"
+                            className="size-9 rounded-full"
                           >
                             <Square className="size-3.5 fill-current" />
                           </Button>
@@ -752,7 +762,7 @@ export function Thread() {
                             type="submit"
                             size="icon"
                             title="Send"
-                            className="ml-auto size-9 rounded-full shadow-sm transition-all"
+                            className="size-9 rounded-full shadow-sm transition-all"
                             disabled={
                               isLoading ||
                               (!input.trim() && contentBlocks.length === 0)

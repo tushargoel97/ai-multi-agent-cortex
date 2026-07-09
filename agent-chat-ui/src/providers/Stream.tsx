@@ -98,7 +98,20 @@ async function autoTitleThread(
       .map((c) => (c?.type === "text" ? (c.text ?? "") : ""))
       .join(" ");
   }
-  const title = deriveTitle(text);
+  // Ask the model to synthesize a concise title; fall back to a trimmed copy
+  // of the first message if the endpoint is unavailable or returns nothing.
+  let title = "";
+  try {
+    const r = await fetch("/api/title", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (r.ok) title = ((await r.json()) as { title?: string })?.title ?? "";
+  } catch {
+    // network / route error → heuristic fallback below
+  }
+  if (!title) title = deriveTitle(text);
   if (!title) return;
   try {
     await client.threads.update(threadId, {
