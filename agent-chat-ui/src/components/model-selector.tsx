@@ -308,8 +308,7 @@ function PromptToolbarMenu({
     bottom?: number;
     maxH: number;
   }>({ left: 0, maxH: 400 });
-  // Vertical range menu + submenus are confined to (the composer side the
-  // menu opened toward), so they can never cover the composer.
+  // Range the menu + submenus stay within, so they never cover the composer.
   const [band, setBand] = useState({ top: 8, bottom: 600 });
   const [sub, setSub] = useState<
     | { kind: "provider"; name: string; anchorTop: number; left: number }
@@ -332,9 +331,7 @@ function PromptToolbarMenu({
     }
   }, [open]);
 
-  // Place the submenu: top-aligned to its row, pulled up only as far as
-  // needed to fit inside `band`. Runs on every hover; the equality guard
-  // stops it from looping.
+  // Top-align the submenu to its row, nudged up only enough to fit the band.
   useLayoutEffect(() => {
     if (!sub) {
       setSubTop(null);
@@ -378,8 +375,7 @@ function PromptToolbarMenu({
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
 
-  // Open downward when there's room beneath the composer (empty thread),
-  // otherwise upward (loaded thread); the chosen side becomes `band`.
+  // Open toward whichever side of the composer has room; that side is the band.
   const toggle = () => {
     if (open) {
       setOpen(false);
@@ -433,9 +429,7 @@ function PromptToolbarMenu({
     });
   };
 
-  // Hover intent: switching away from an open submenu waits a beat, so moving
-  // the pointer across rows toward the panel doesn't flip or close it
-  // mid-travel; entering the panel cancels the pending change.
+  // Hover intent: delay the switch so a diagonal move toward the panel holds.
   const openSubSoon = (
     s: { kind: "provider"; name: string } | { kind: "mode" },
     anchor: HTMLElement,

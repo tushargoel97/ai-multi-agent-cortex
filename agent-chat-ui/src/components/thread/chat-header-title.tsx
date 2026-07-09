@@ -23,11 +23,8 @@ import {
   ThreadActionsMenu,
 } from "./history/thread-actions";
 
-/**
- * Claude-style chat header title: the active thread's name with a chevron that
- * opens the same star / rename / delete menu as the sidebar row. Renames
- * inline; delete asks for confirmation.
- */
+/** Chat header title: the active thread's name + chevron opening the shared
+ *  star / rename / delete menu. Renames inline; delete confirms. */
 export function ChatHeaderTitle() {
   const [threadId] = useQueryState("threadId");
   const { threads } = useThreads();

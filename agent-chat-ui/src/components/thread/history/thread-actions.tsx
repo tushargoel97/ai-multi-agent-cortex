@@ -112,11 +112,8 @@ export function useThreadActions() {
   return { renameThread, deleteThread, togglePin };
 }
 
-/**
- * Claude-style thread actions menu: a frosted panel of rows, each an
- * icon + label + right-aligned keyboard hint, with a divider before a red
- * Delete. Self-contained (trigger + portaled menu + placement + shortcuts).
- */
+/** Thread actions menu: frosted panel of icon+label+shortcut rows with a
+ *  divider before a red Delete. Self-contained trigger + portaled menu. */
 export function ThreadActionsMenu({
   pinned,
   onStar,
@@ -145,7 +142,7 @@ export function ThreadActionsMenu({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  const W = 224; // w-56
+  const W = 176; // w-44
   const H = 150; // approx height for clamping
 
   useEffect(() => {

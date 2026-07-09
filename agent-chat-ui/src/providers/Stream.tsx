@@ -98,8 +98,7 @@ async function autoTitleThread(
       .map((c) => (c?.type === "text" ? (c.text ?? "") : ""))
       .join(" ");
   }
-  // Ask the model to synthesize a concise title; fall back to a trimmed copy
-  // of the first message if the endpoint is unavailable or returns nothing.
+  // Model-synthesized title; fall back to a trimmed first message on failure.
   let title = "";
   try {
     const r = await fetch("/api/title", {
