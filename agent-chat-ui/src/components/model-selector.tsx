@@ -810,8 +810,7 @@ export default function ModelSelector({
     {
       id: "unrestricted",
       name: "Unrestricted Mode",
-      description:
-        "Direct answers, no PII redaction, and a relaxed image pre-screen. Providers still enforce their own limits.",
+      description: "Take the gloves off",
       active: selection.unrestricted,
       onToggle: (v) => onChange({ ...selection, unrestricted: v }),
       tone: "warn",
