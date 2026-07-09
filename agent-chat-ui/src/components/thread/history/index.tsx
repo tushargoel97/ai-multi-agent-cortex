@@ -40,7 +40,7 @@ import {
 import { createClient } from "@/providers/client";
 import { getApiKey } from "@/lib/api-key";
 import { cn } from "@/lib/utils";
-import { useDropdown } from "@/hooks/use-dropdown";
+import { createPortal } from "react-dom";
 
 function getThreadLabel(t: Thread): string {
   const metaTitle = (t.metadata as Record<string, unknown> | undefined)?.title;
@@ -94,7 +94,9 @@ function isPinned(t: Thread): boolean {
   return Boolean((t.metadata as Record<string, unknown> | undefined)?.pinned);
 }
 
-/** ChatGPT-style per-thread "⋯" menu: Rename / Pin / Delete. */
+/** ChatGPT-style per-thread "⋯" menu: Rename / Pin / Delete. Rendered in a
+ *  portal (fixed position beside the trigger) so the sidebar's overflow never
+ *  clips it and it opens next to the row instead of over the thread list. */
 function ThreadMenu({
   pinned,
   onRename,
@@ -106,16 +108,54 @@ function ThreadMenu({
   onTogglePin: () => void;
   onDelete: () => void;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
-    estimatedHeight: 140,
-  });
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Position the menu next to the trigger, flipping / clamping to stay on-screen.
+  useEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const W = 176; // w-44
+    const H = 118; // three items
+    let left = r.right + 6;
+    if (left + W > window.innerWidth - 8) left = r.left - W - 6;
+    let top = r.top - 4;
+    if (top + H > window.innerHeight - 8) top = window.innerHeight - H - 8;
+    setPos({ top: Math.max(8, top), left: Math.max(8, left) });
+  }, [open]);
+
+  // Close on outside click / Escape / scroll (the portaled menu is off-DOM-tree).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onScroll = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
 
   const item =
     "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted";
 
   return (
-    <div ref={rootRef} className="relative">
+    <span ref={triggerRef} className="inline-flex">
       <Button
         size="icon"
         variant="ghost"
@@ -131,51 +171,52 @@ function ThreadMenu({
       >
         <MoreHorizontal className="size-3.5" />
       </Button>
-      {mounted && (
-        <div
-          role="menu"
-          onClick={(e) => e.stopPropagation()}
-          className={cn(
-            "animate-in fade-in-0 zoom-in-95 absolute right-0 z-50 w-40 rounded-md border border-border bg-background p-1 shadow-md transition-opacity",
-            openUp ? "bottom-full mb-1" : "top-full mt-1",
-            !open && "pointer-events-none opacity-0",
-          )}
-        >
-          <button
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              onRename();
-            }}
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+            style={{ position: "fixed", top: pos.top, left: pos.left }}
+            className="animate-in fade-in-0 zoom-in-95 z-[100] w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
           >
-            <Pencil className="size-3.5" /> Rename
-          </button>
-          <button
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              onTogglePin();
-            }}
-          >
-            {pinned ? (
-              <PinOff className="size-3.5" />
-            ) : (
-              <Pin className="size-3.5" />
-            )}
-            {pinned ? "Unpin" : "Pin"}
-          </button>
-          <button
-            className={cn(item, "text-destructive hover:text-destructive")}
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
-          >
-            <Trash2 className="size-3.5" /> Delete
-          </button>
-        </div>
-      )}
-    </div>
+            <button
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                onRename();
+              }}
+            >
+              <Pencil className="size-3.5" /> Rename
+            </button>
+            <button
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                onTogglePin();
+              }}
+            >
+              {pinned ? (
+                <PinOff className="size-3.5" />
+              ) : (
+                <Pin className="size-3.5" />
+              )}
+              {pinned ? "Unpin" : "Pin"}
+            </button>
+            <button
+              className={cn(item, "text-destructive hover:text-destructive")}
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+            >
+              <Trash2 className="size-3.5" /> Delete
+            </button>
+          </div>,
+          document.body,
+        )}
+    </span>
   );
 }
 
@@ -213,9 +254,10 @@ function ThreadRow({
 
   return (
     <div
-      className={`group relative flex w-full items-center gap-1 rounded-md px-1 ${
-        isActive ? "bg-muted" : ""
-      }`}
+      className={cn(
+        "group relative flex w-full items-center gap-1 rounded-md px-1",
+        isActive && "bg-muted",
+      )}
     >
       {editing ? (
         <div className="flex w-full items-center gap-1">

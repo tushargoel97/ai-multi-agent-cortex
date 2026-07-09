@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronDown, ChevronRight, Pin, Server } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Pin, Server, ShieldOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { useDropdown } from "@/hooks/use-dropdown";
+import { createPortal } from "react-dom";
 import { type ToggleDef } from "@/components/toggles-menu";
 import { cn } from "@/lib/utils";
 
@@ -269,23 +269,106 @@ function PromptToolbarMenu({
   toggles: ToggleDef[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const { open, setOpen, mounted, openUp } = useDropdown(rootRef, {
-    estimatedHeight: 380,
-  });
-  const [sub, setSub] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const subRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [menuBox, setMenuBox] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+    maxH: number;
+  }>({ left: 0, maxH: 400 });
+  const [subLimit, setSubLimit] = useState(0);
+  const [sub, setSub] = useState<
+    | { kind: "provider"; name: string; top: number; left: number; maxH: number }
+    | { kind: "mode"; top: number; left: number; maxH: number }
+    | null
+  >(null);
 
   useEffect(() => {
     if (!open) setSub(null);
+  }, [open]);
+
+  // Close on outside click / Escape / resize (menu + submenu are portaled).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        rootRef.current?.contains(t) ||
+        menuRef.current?.contains(t) ||
+        subRef.current?.contains(t)
+      )
+        return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onResize = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
   }, [open]);
 
   const panel =
     "rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg";
   const sectionLabel =
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
+  const MW = 256; // menu / submenu width (w-64)
+
+  // Open the menu clear of the composer (never over the chat box), on whichever
+  // side has more room; remember the boundary the submenu must not cross.
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const el = rootRef.current;
+    if (!el) {
+      setOpen(true);
+      return;
+    }
+    const composer =
+      (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
+    const cr = composer.getBoundingClientRect();
+    const pr = el.getBoundingClientRect();
+    const gap = 8;
+    const above = cr.top - 16;
+    const below = window.innerHeight - cr.bottom - 16;
+    const left = Math.max(8, Math.min(pr.left, window.innerWidth - MW - 8));
+    if (above >= below) {
+      setMenuBox({
+        left,
+        bottom: window.innerHeight - cr.top + gap,
+        maxH: Math.max(180, above),
+      });
+      setSubLimit(cr.top - gap);
+    } else {
+      setMenuBox({ left, top: cr.bottom + gap, maxH: Math.max(180, below) });
+      setSubLimit(window.innerHeight - gap);
+    }
+    setOpen(true);
+  };
 
   const choose = (id: string) => {
     onSelectModel(id);
     setOpen(false);
+  };
+
+  // A submenu opens to the right of the menu with its TOP aligned to the menu's
+  // top, capped so it can't overlap the composer either.
+  const openSub = (s: { kind: "provider"; name: string } | { kind: "mode" }) => {
+    const mr = menuRef.current?.getBoundingClientRect();
+    if (!mr) return;
+    let left = mr.right + 4;
+    if (left + MW > window.innerWidth - 8) left = mr.left - MW - 4;
+    const top = mr.top;
+    const maxH = Math.max(120, subLimit - top);
+    setSub({ ...s, top, left: Math.max(8, left), maxH });
   };
 
   const modelRow = (m: AvailableModel, hint?: string) => (
@@ -300,13 +383,18 @@ function PromptToolbarMenu({
     />
   );
 
+  const subProvider =
+    sub?.kind === "provider"
+      ? providers.find((p) => p.name === sub.name)
+      : undefined;
+
   return (
     <div ref={rootRef} className="relative inline-flex">
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 text-xs font-medium transition-colors hover:bg-muted"
       >
         {useLocal && <Server className="size-3.5 shrink-0 text-emerald-500" />}
@@ -322,82 +410,75 @@ function PromptToolbarMenu({
         />
       </button>
 
-      {mounted && (
-        <div
-          role="menu"
-          className={cn(
-            "absolute left-0 z-50 w-64 duration-150",
-            panel,
-            openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
-            open
-              ? "animate-in fade-in-0 zoom-in-95"
-              : "animate-out fade-out-0 zoom-out-95 pointer-events-none",
-          )}
-        >
-          {/* Auto */}
-          <div onMouseEnter={() => setSub(null)}>
-            <MenuRow
-              checked={autoSelected}
-              onClick={() => choose(AUTO_MODEL_ID)}
-            >
-              <span className="flex flex-col">
-                <span className="truncate">✨ Auto</span>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  Best model per task
-                </span>
-              </span>
-            </MenuRow>
-          </div>
-
-          {/* Pinned (hidden when nothing is pinned) */}
-          {pinnedModels.length > 0 && (
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            onScroll={() => setSub(null)}
+            style={{
+              position: "fixed",
+              left: menuBox.left,
+              top: menuBox.top,
+              bottom: menuBox.bottom,
+              maxHeight: menuBox.maxH,
+            }}
+            className={cn(
+              "animate-in fade-in-0 zoom-in-95 z-[90] w-64 overflow-y-auto",
+              panel,
+            )}
+          >
+            {/* Auto */}
             <div onMouseEnter={() => setSub(null)}>
-              <div className={sectionLabel}>Pinned</div>
-              {pinnedModels.map((m) => modelRow(m, m.provider_name))}
-            </div>
-          )}
-
-          {/* Models grouped by provider */}
-          {providers.length > 0 && (
-            <>
-              <div className="my-1 h-px bg-border" />
-              <div
-                className={sectionLabel}
-                onMouseEnter={() => setSub(null)}
+              <MenuRow
+                checked={autoSelected}
+                onClick={() => choose(AUTO_MODEL_ID)}
               >
-                Providers
+                <span className="flex flex-col">
+                  <span className="truncate">✨ Auto</span>
+                  <span className="truncate text-[11px] text-muted-foreground">
+                    Best model per task
+                  </span>
+                </span>
+              </MenuRow>
+            </div>
+
+            {/* Pinned (hidden when nothing is pinned) */}
+            {pinnedModels.length > 0 && (
+              <div onMouseEnter={() => setSub(null)}>
+                <div className={sectionLabel}>Pinned</div>
+                {pinnedModels.map((m) => modelRow(m, m.provider_name))}
               </div>
-              {providers.map((p) => (
-                <div key={p.name} className="relative">
+            )}
+
+            {/* Models grouped by provider */}
+            {providers.length > 0 && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <div className={sectionLabel} onMouseEnter={() => setSub(null)}>
+                  Providers
+                </div>
+                {providers.map((p) => (
                   <MenuRow
+                    key={p.name}
                     chevron
-                    active={sub === `p:${p.name}`}
-                    onMouseEnter={() => setSub(`p:${p.name}`)}
+                    active={sub?.kind === "provider" && sub.name === p.name}
+                    onMouseEnter={() =>
+                      openSub({ kind: "provider", name: p.name })
+                    }
                   >
                     {p.name}
                   </MenuRow>
-                  {sub === `p:${p.name}` && (
-                    <div
-                      className={cn(
-                        "absolute top-0 left-full z-50 ml-1 max-h-[320px] w-64 overflow-y-auto",
-                        panel,
-                      )}
-                    >
-                      {p.models.map((m) => modelRow(m))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )}
 
-          <div className="my-1 h-px bg-border" />
+            <div className="my-1 h-px bg-border" />
 
-          <div className="relative">
             <MenuRow
               chevron
-              active={sub === "mode"}
-              onMouseEnter={() => setSub("mode")}
+              active={sub?.kind === "mode"}
+              onMouseEnter={() => openSub({ kind: "mode" })}
             >
               <span className="flex items-center justify-between gap-2">
                 <span>Mode &amp; options</span>
@@ -406,13 +487,33 @@ function PromptToolbarMenu({
                 </span>
               </span>
             </MenuRow>
-            {sub === "mode" && (
-              <div
-                className={cn(
-                  "absolute bottom-0 left-full z-50 ml-1 w-64 p-1.5",
-                  panel,
-                )}
-              >
+          </div>,
+          document.body,
+        )}
+
+      {open &&
+        sub &&
+        createPortal(
+          <div
+            ref={subRef}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              top: sub.top,
+              left: sub.left,
+              maxHeight: sub.maxH,
+            }}
+            className={cn(
+              "animate-in fade-in-0 zoom-in-95 z-[100] w-64 overflow-y-auto",
+              panel,
+              sub.kind === "mode" && "p-1.5",
+            )}
+          >
+            {sub.kind === "provider" ? (
+              (subProvider?.models ?? []).map((m) => modelRow(m))
+            ) : (
+              <>
                 <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Mode
                 </div>
@@ -424,9 +525,7 @@ function PromptToolbarMenu({
                     className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent/60"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">
-                        {m.label}
-                      </span>
+                      <span className="block text-sm font-medium">{m.label}</span>
                       <span className="block text-[11px] text-muted-foreground">
                         {m.hint}
                       </span>
@@ -473,11 +572,11 @@ function PromptToolbarMenu({
                     />
                   </div>
                 ))}
-              </div>
+              </>
             )}
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -621,25 +720,38 @@ export default function ModelSelector({
 
   return (
     <>
-      <PromptToolbarMenu
-        triggerLabel={activeLabel}
-        modeLabel={modeLabel}
-        useLocal={selection.use_local}
-        autoSelected={selectedId === AUTO_MODEL_ID}
-        pinnedModels={pinnedModels}
-        providers={providers}
-        selectedId={selectedId}
-        isPinned={isPinned}
-        onSelectModel={(value) =>
-          onChange({ ...selection, model_id: value || null, use_local: false })
-        }
-        onTogglePin={togglePin}
-        mode={selection.mode}
-        onModeChange={(m) =>
-          onChange({ ...selection, mode: m as ModelSelection["mode"] })
-        }
-        toggles={toggles}
-      />
+      <div className="flex items-center gap-1.5">
+        <PromptToolbarMenu
+          triggerLabel={activeLabel}
+          modeLabel={modeLabel}
+          useLocal={selection.use_local}
+          autoSelected={selectedId === AUTO_MODEL_ID}
+          pinnedModels={pinnedModels}
+          providers={providers}
+          selectedId={selectedId}
+          isPinned={isPinned}
+          onSelectModel={(value) =>
+            onChange({ ...selection, model_id: value || null, use_local: false })
+          }
+          onTogglePin={togglePin}
+          mode={selection.mode}
+          onModeChange={(m) =>
+            onChange({ ...selection, mode: m as ModelSelection["mode"] })
+          }
+          toggles={toggles}
+        />
+        {selection.unrestricted && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...selection, unrestricted: false })}
+            title="Unrestricted mode is on, click to turn it off"
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+          >
+            <ShieldOff className="size-3.5" />
+            Unrestricted
+          </button>
+        )}
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

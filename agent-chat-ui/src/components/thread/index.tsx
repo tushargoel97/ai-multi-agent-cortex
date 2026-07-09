@@ -659,6 +659,7 @@ export function Thread() {
 
                   <div
                     ref={dropRef}
+                    data-prompt-composer
                     className={cn(
                       "bg-muted relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl shadow-sm transition-all",
                       dragOver
