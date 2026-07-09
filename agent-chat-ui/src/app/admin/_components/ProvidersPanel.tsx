@@ -295,7 +295,7 @@ export default function ProvidersPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-background">
+      <div className="rounded-lg border bg-background/60">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>

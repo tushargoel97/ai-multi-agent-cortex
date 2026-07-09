@@ -198,7 +198,7 @@ export default function LocalModelsPanel({
         </div>
       )}
 
-      <section className="rounded-xl border bg-background p-5 shadow-sm">
+      <section className="rounded-xl border bg-background/60 p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Search className="size-4" /> Search HuggingFace
         </h3>
@@ -277,7 +277,7 @@ export default function LocalModelsPanel({
         )}
       </section>
 
-      <section className="rounded-xl border bg-background p-5 shadow-sm">
+      <section className="rounded-xl border bg-background/60 p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Cpu className="size-4" /> Catalog
         </h3>
@@ -311,7 +311,7 @@ export default function LocalModelsPanel({
                   {m.tags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      className="rounded-sm bg-background/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                     >
                       {t}
                     </span>

@@ -154,7 +154,7 @@ export function Select({
         onMouseEnter={onTriggerMouseEnter}
         onKeyDown={onKeyDown}
         className={cn(
-          "inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          "inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-background/60 px-3 text-sm text-foreground outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}
       >
@@ -181,7 +181,7 @@ export function Select({
           role="listbox"
           data-state={open ? "open" : "closed"}
           className={cn(
-            "absolute z-50 max-h-64 w-max min-w-full max-w-[min(24rem,90vw)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg duration-150",
+            "glass absolute z-50 max-h-64 w-max min-w-full max-w-[min(24rem,90vw)] overflow-y-auto rounded-md border p-1 text-popover-foreground shadow-lg duration-150",
             openUp ? "bottom-full mb-1" : "top-full mt-1",
             align === "end" ? "right-0" : "left-0",
             open

@@ -236,7 +236,7 @@ export function ThreadActionsMenu({
             role="menu"
             onClick={(e) => e.stopPropagation()}
             style={{ position: "fixed", top: pos.top, left: pos.left, width: W }}
-            className="animate-in fade-in-0 zoom-in-95 z-[100] rounded-xl border border-black/10 bg-popover/65 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10"
+            className="glass animate-in fade-in-0 zoom-in-95 z-[100] rounded-xl border p-1.5 text-popover-foreground shadow-xl"
           >
             <button
               className={item}

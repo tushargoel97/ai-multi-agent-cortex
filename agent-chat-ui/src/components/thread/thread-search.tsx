@@ -244,7 +244,7 @@ export function ThreadSearch({
     >
       <div
         className={cn(
-          "overflow-hidden border border-black/10 bg-popover/65 shadow-2xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10",
+          "glass overflow-hidden border shadow-2xl",
           showSources ? "rounded-2xl" : "rounded-full",
         )}
       >

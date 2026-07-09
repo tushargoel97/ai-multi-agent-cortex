@@ -48,17 +48,17 @@ function AdminTabs() {
         </p>
       </div>
 
-      <div className="flex gap-1 border-b">
+      <div className="glass inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-sm">
         {TABS.map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
             <button
               key={id}
               onClick={() => select(id)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm transition ${
+              className={`flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm whitespace-nowrap transition-colors ${
                 active
-                  ? "border-foreground font-semibold text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "bg-background/80 font-medium text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/40 hover:text-foreground"
               }`}
             >
               <Icon className="size-4" />
@@ -68,7 +68,7 @@ function AdminTabs() {
         })}
       </div>
 
-      <div>
+      <div className="glass-surface rounded-2xl border p-6 shadow-sm">
         {tab === "providers" && (
           <ProvidersPanel onChanged={() => setBump((n) => n + 1)} />
         )}

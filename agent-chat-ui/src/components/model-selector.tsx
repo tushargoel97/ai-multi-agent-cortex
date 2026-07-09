@@ -370,7 +370,7 @@ function PromptToolbarMenu({
   }, [open]);
 
   const panel =
-    "rounded-xl border border-black/10 bg-popover/65 p-1 text-popover-foreground shadow-xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10";
+    "glass rounded-xl border p-1 text-popover-foreground shadow-xl";
   const sectionLabel =
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
@@ -764,7 +764,7 @@ export function ModeSelector({
               bottom: box.bottom,
               width: W,
             }}
-            className="animate-in fade-in-0 zoom-in-95 z-[90] rounded-xl border border-black/10 bg-popover/65 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl backdrop-saturate-150 dark:border-white/10"
+            className="glass animate-in fade-in-0 zoom-in-95 z-[90] rounded-xl border p-1.5 text-popover-foreground shadow-xl"
           >
             {(Object.keys(MODE_META) as Mode[]).map((k) => {
               const m = MODE_META[k];

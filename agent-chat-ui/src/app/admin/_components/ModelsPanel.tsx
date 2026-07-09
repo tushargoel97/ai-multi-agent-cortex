@@ -181,7 +181,7 @@ export default function ModelsPanel({
               from this profile (only enabled models are eligible).
             </p>
           </div>
-          <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-background/60 p-1">
             {(["balanced", "quality", "cost"] as const).map((p) => (
               <button
                 key={p}
@@ -275,7 +275,7 @@ export default function ModelsPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-background">
+      <div className="rounded-lg border bg-background/60">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>

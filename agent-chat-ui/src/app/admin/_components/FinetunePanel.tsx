@@ -1485,7 +1485,7 @@ export default function FinetunePanel({
                 {hfResults.map((m) => (
                   <li
                     key={m.id}
-                    className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1.5"
+                    className="flex items-center justify-between gap-2 rounded border bg-background/60 px-2 py-1.5"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-mono text-xs text-foreground">
@@ -1659,7 +1659,7 @@ export default function FinetunePanel({
             {finetuned.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center justify-between gap-2 rounded border bg-background px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-2 rounded border bg-background/60 px-3 py-2 text-sm"
               >
                 <div className="min-w-0">
                   <div className="truncate text-foreground">{m.display_name}</div>

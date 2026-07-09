@@ -440,7 +440,7 @@ export function Thread() {
       )}
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-background/65 backdrop-blur-xl backdrop-saturate-150"
+          className="glass-surface absolute z-20 h-full overflow-hidden border-r"
           style={{ width: sidebarWidth }}
           animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
           initial={{ x: -sidebarWidth }}
@@ -671,7 +671,7 @@ export function Thread() {
                     ref={dropRef}
                     data-prompt-composer
                     className={cn(
-                      "relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl bg-background/65 shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-all",
+                      "glass-surface relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl shadow-lg transition-all",
                       dragOver
                         ? "border-primary border-2 border-dotted"
                         : "border border-black/10 dark:border-white/10",

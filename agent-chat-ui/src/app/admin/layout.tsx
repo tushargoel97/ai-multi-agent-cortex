@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-muted/40 to-muted p-4">
         <form
           onSubmit={onSubmit}
-          className="flex w-full max-w-sm flex-col gap-5 rounded-xl border bg-background p-8 shadow-lg"
+          className="glass-surface flex w-full max-w-sm flex-col gap-5 rounded-2xl border p-8 shadow-xl"
         >
           <div className="flex flex-col items-center gap-2">
             <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
@@ -104,8 +104,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-muted/50">
-      <header className="flex items-center gap-6 border-b bg-background px-6 py-3 shadow-sm">
+    <div className="min-h-screen bg-gradient-to-br from-muted/60 via-background to-muted">
+      <header className="glass-surface sticky top-0 z-40 flex items-center gap-6 border-b px-6 py-3">
         <Link
           href="/admin"
           className="flex items-center gap-2 font-semibold tracking-tight"
@@ -129,7 +129,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               setUsername("");
               setPassword("");
             }}
-            className="flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted/50"
+            className="flex items-center gap-1.5 rounded-full border bg-background/60 px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             <LogOut className="size-4" />
             Sign out

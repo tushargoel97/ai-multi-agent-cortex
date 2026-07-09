@@ -148,6 +148,16 @@
   .shadow-inner-left {
     box-shadow: inset 9px 0 6px -1px rgb(0 0 0 / 0.02);
   }
+
+  /* macOS-style frosted glass, the single source of truth for the tint.
+     `.glass` = floating menus/popovers; `.glass-surface` = structural panels
+     (sidebar, composer, cards). Sites add border width, radius and shadow. */
+  .glass {
+    @apply border-black/10 bg-popover/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
+  }
+  .glass-surface {
+    @apply border-black/10 bg-background/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
+  }
 }
 
 /* Dark-mode overrides for hardcoded Tailwind gray/white classes used

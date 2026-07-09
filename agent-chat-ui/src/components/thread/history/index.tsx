@@ -422,7 +422,7 @@ export default function ThreadHistory() {
           <div
             ref={searchRef}
             className={cn(
-              "flex items-center gap-2 overflow-hidden rounded-full border border-black/10 bg-popover/65 px-3.5 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out dark:border-white/10",
+              "glass flex items-center gap-2 overflow-hidden rounded-full border px-3.5 py-2 shadow-lg transition-all duration-300 ease-out",
               searchOpen
                 ? "pointer-events-auto w-full opacity-100"
                 : "pointer-events-none w-8 opacity-0",

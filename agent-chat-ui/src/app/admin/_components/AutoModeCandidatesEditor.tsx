@@ -222,7 +222,7 @@ export default function AutoModeCandidatesEditor({
               <span className="text-muted-foreground text-xs">
                 Editing profile
               </span>
-              <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
+              <div className="flex items-center gap-1 rounded-full border border-border bg-background/60 p-1">
                 {PROFILES.map((p) => (
                   <button
                     key={p}
@@ -265,7 +265,7 @@ export default function AutoModeCandidatesEditor({
                 return (
                   <div
                     key={intent}
-                    className="rounded-md border bg-background p-3"
+                    className="rounded-md border bg-background/60 p-3"
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -373,7 +373,7 @@ export default function AutoModeCandidatesEditor({
                           }
                         }}
                         placeholder="model id (or 'finetuned')"
-                        className="h-8 flex-1 rounded-md border bg-background px-2 text-xs"
+                        className="h-8 flex-1 rounded-md border bg-background/60 px-2 text-xs"
                       />
                       <datalist id={`models-${key}`}>
                         <option value="finetuned" />

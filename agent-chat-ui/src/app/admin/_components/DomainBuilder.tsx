@@ -772,7 +772,7 @@ function SubdomainEditor({
         ) : (
           <div className="mt-2 max-h-[26rem] space-y-2 overflow-auto pr-1">
             {edit.entities.map((row, ri) => (
-              <div key={ri} className="rounded-md border bg-background p-2">
+              <div key={ri} className="rounded-md border bg-background/60 p-2">
                 <div className="flex items-center gap-2">
                   <Input
                     value={String(row.name ?? "")}
