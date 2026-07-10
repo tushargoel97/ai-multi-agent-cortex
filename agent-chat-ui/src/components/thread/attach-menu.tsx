@@ -25,9 +25,7 @@ async function captureScreenshot(): Promise<File | null> {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    const blob = await new Promise<Blob | null>((res) =>
-      canvas.toBlob(res, "image/png"),
-    );
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
     if (!blob) throw new Error("could not read a frame");
     return new File([blob], `screenshot-${Date.now()}.png`, {
       type: "image/png",
@@ -62,14 +60,11 @@ export function AttachMenu({ onFiles }: { onFiles: (f: File[]) => void }) {
     up: boolean;
   } | null>(null);
 
-  // Same placement rule as the other composer menus: anchor to the composer
-  // and open downward when there's room beneath it, upward otherwise.
   const toggle = () => {
     if (!open) {
       const el = rootRef.current;
       if (el) {
-        const composer =
-          (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
+        const composer = (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
         const cr = composer.getBoundingClientRect();
         const r = el.getBoundingClientRect();
         const gap = 8;
@@ -91,10 +86,7 @@ export function AttachMenu({ onFiles }: { onFiles: (f: File[]) => void }) {
     "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60";
 
   return (
-    <div
-      ref={rootRef}
-      className="inline-flex"
-    >
+    <div ref={rootRef} className="inline-flex">
       <button
         type="button"
         title="Add files or a screenshot"
@@ -103,12 +95,7 @@ export function AttachMenu({ onFiles }: { onFiles: (f: File[]) => void }) {
         onClick={toggle}
         className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors"
       >
-        <Plus
-          className={cn(
-            "size-5 transition-transform duration-200",
-            open && "rotate-45",
-          )}
-        />
+        <Plus className={cn("size-5 transition-transform duration-200", open && "rotate-45")} />
       </button>
       <input
         ref={fileRef}

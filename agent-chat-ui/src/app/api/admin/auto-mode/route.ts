@@ -22,9 +22,7 @@ function safeParseProfiles(value: string | undefined): Profiles {
   if (!value) return {};
   try {
     const data = JSON.parse(value);
-    return data && typeof data === "object" && !Array.isArray(data)
-      ? (data as Profiles)
-      : {};
+    return data && typeof data === "object" && !Array.isArray(data) ? (data as Profiles) : {};
   } catch {
     return {};
   }

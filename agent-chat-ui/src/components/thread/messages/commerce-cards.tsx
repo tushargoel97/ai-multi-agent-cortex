@@ -18,7 +18,7 @@ function Favicon({ domain }: { domain: string }) {
 
   if (failed) {
     return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-sm font-semibold text-muted-foreground">
+      <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold">
         {letter}
       </div>
     );
@@ -30,29 +30,19 @@ function Favicon({ domain }: { domain: string }) {
       alt=""
       width={36}
       height={36}
-      className="h-9 w-9 shrink-0 rounded-md bg-muted object-contain p-0.5"
+      className="bg-muted h-9 w-9 shrink-0 rounded-md object-contain p-0.5"
       onError={() => setFailed(true)}
     />
   );
 }
 
-function CardHeader({
-  icon,
-  title,
-  region,
-}: {
-  icon: ReactNode;
-  title: string;
-  region?: string;
-}) {
+function CardHeader({ icon, title, region }: { icon: ReactNode; title: string; region?: string }) {
   return (
-    <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+    <div className="text-foreground mb-2 flex items-center gap-2 text-sm font-medium">
       {icon}
       <span>{title}</span>
       {region ? (
-        <span className="text-xs font-normal text-muted-foreground">
-          · {region}
-        </span>
+        <span className="text-muted-foreground text-xs font-normal">· {region}</span>
       ) : null}
     </div>
   );
@@ -81,12 +71,12 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
   return (
     <div className="mx-auto w-full max-w-3xl">
       <CardHeader
-        icon={<ShoppingBag className="h-4 w-4 text-muted-foreground" />}
+        icon={<ShoppingBag className="text-muted-foreground h-4 w-4" />}
         title={data?.product ? `Where to buy ${data.product}` : "Shopping options"}
         region={data?.region}
       />
       {offers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+        <p className="border-border text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center text-xs">
           {data?.note || "No offers found, try a more specific product name."}
         </p>
       ) : (
@@ -97,21 +87,21 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
               href={o.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:border-foreground/30 hover:bg-muted/40"
+              className="group border-border bg-background hover:border-foreground/30 hover:bg-muted/40 flex items-center gap-3 rounded-lg border p-3 transition-colors"
             >
               <Favicon domain={o.retailer} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-foreground">
+                <div className="text-foreground truncate text-sm font-medium">
                   {o.title || prettyDomain(o.retailer)}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <span className="truncate">{prettyDomain(o.retailer)}</span>
                   {o.available === true ? (
                     <span className="shrink-0 rounded bg-green-500/15 px-1 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
                       In stock
                     </span>
                   ) : o.available === false ? (
-                    <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-[10px] font-medium">
                       Out of stock
                     </span>
                   ) : null}
@@ -119,18 +109,18 @@ export function ShoppingCards({ data }: { data: ShoppingData }) {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {o.price ? (
-                  <span className="text-sm font-semibold tabular-nums text-foreground">
+                  <span className="text-foreground text-sm font-semibold tabular-nums">
                     {o.price}
                   </span>
                 ) : null}
-                <ExternalLink className="h-4 w-4 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
+                <ExternalLink className="text-muted-foreground/60 group-hover:text-foreground h-4 w-4 transition-colors" />
               </div>
             </a>
           ))}
         </div>
       )}
       {offers.length > 0 && data?.note ? (
-        <p className="mt-2 text-[11px] text-muted-foreground/70">{data.note}</p>
+        <p className="text-muted-foreground/70 mt-2 text-[11px]">{data.note}</p>
       ) : null}
     </div>
   );
@@ -169,12 +159,12 @@ export function BookingCards({ data }: { data: BookingData }) {
   return (
     <div className="mx-auto w-full max-w-3xl">
       <CardHeader
-        icon={<Ticket className="h-4 w-4 text-muted-foreground" />}
+        icon={<Ticket className="text-muted-foreground h-4 w-4" />}
         title={label}
         region={data?.region}
       />
       {options.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+        <p className="border-border text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center text-xs">
           {data?.note || "No options found, try adding a city, date, or exact title."}
         </p>
       ) : (
@@ -185,29 +175,27 @@ export function BookingCards({ data }: { data: BookingData }) {
               href={o.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-start gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:border-foreground/30 hover:bg-muted/40"
+              className="group border-border bg-background hover:border-foreground/30 hover:bg-muted/40 flex items-start gap-3 rounded-lg border p-3 transition-colors"
             >
               <Favicon domain={o.platform} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-foreground">
+                <div className="text-foreground truncate text-sm font-medium">
                   {o.title || prettyDomain(o.platform)}
                 </div>
                 {o.snippet ? (
-                  <div className="line-clamp-2 text-xs text-muted-foreground">
-                    {o.snippet}
-                  </div>
+                  <div className="text-muted-foreground line-clamp-2 text-xs">{o.snippet}</div>
                 ) : null}
-                <div className="mt-0.5 truncate text-[11px] text-muted-foreground/70">
+                <div className="text-muted-foreground/70 mt-0.5 truncate text-[11px]">
                   {prettyDomain(o.platform)}
                 </div>
               </div>
-              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
+              <ExternalLink className="text-muted-foreground/60 group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 transition-colors" />
             </a>
           ))}
         </div>
       )}
       {options.length > 0 && data?.note ? (
-        <p className="mt-2 text-[11px] text-muted-foreground/70">{data.note}</p>
+        <p className="text-muted-foreground/70 mt-2 text-[11px]">{data.note}</p>
       ) : null}
     </div>
   );

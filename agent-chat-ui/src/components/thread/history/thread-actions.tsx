@@ -2,12 +2,7 @@
 
 import { Thread } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,8 +25,7 @@ export function getThreadLabel(t: Thread): string {
     Array.isArray((t.values as { messages: unknown[] }).messages) &&
     (t.values as { messages: { content: unknown }[] }).messages.length > 0
   ) {
-    const firstMessage = (t.values as { messages: { content: unknown }[] })
-      .messages[0];
+    const firstMessage = (t.values as { messages: { content: unknown }[] }).messages[0];
     const text = getContentString(firstMessage.content as never);
     if (text) return text.length > 80 ? text.slice(0, 80) + "…" : text;
   }
@@ -66,9 +60,7 @@ export function useThreadActions() {
       const newMetadata = { ...(t.metadata ?? {}), title };
       await client().threads.update(t.thread_id, { metadata: newMetadata });
       setThreads((prev) =>
-        prev.map((x) =>
-          x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x,
-        ),
+        prev.map((x) => (x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x)),
       );
       toast.success("Chat renamed");
     } catch (e) {
@@ -98,9 +90,7 @@ export function useThreadActions() {
       const newMetadata = { ...(t.metadata ?? {}), pinned };
       await client().threads.update(t.thread_id, { metadata: newMetadata });
       setThreads((prev) =>
-        prev.map((x) =>
-          x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x,
-        ),
+        prev.map((x) => (x.thread_id === t.thread_id ? { ...x, metadata: newMetadata } : x)),
       );
       toast.success(pinned ? "Chat starred" : "Chat unstarred");
     } catch (e) {
@@ -166,8 +156,7 @@ export function ThreadActionsMenu({
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t))
-        return;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -236,7 +225,7 @@ export function ThreadActionsMenu({
             role="menu"
             onClick={(e) => e.stopPropagation()}
             style={{ position: "fixed", top: pos.top, left: pos.left, width: W }}
-            className="glass animate-in fade-in-0 zoom-in-95 z-[100] rounded-xl border p-1.5 text-popover-foreground shadow-xl"
+            className="glass animate-in fade-in-0 zoom-in-95 text-popover-foreground z-[100] rounded-xl border p-1.5 shadow-xl"
           >
             <button
               className={item}
@@ -245,12 +234,7 @@ export function ThreadActionsMenu({
                 onStar();
               }}
             >
-              <Star
-                className={cn(
-                  "size-4 shrink-0",
-                  pinned && "fill-amber-400 text-amber-400",
-                )}
-              />
+              <Star className={cn("size-4 shrink-0", pinned && "fill-amber-400 text-amber-400")} />
               {pinned ? "Unstar" : "Star"}
               <span className={kbd}>P</span>
             </button>
@@ -265,7 +249,7 @@ export function ThreadActionsMenu({
               Rename
               <span className={kbd}>R</span>
             </button>
-            <div className="mx-1 my-1 h-px bg-border" />
+            <div className="bg-border mx-1 my-1 h-px" />
             <button
               className={cn(item, "text-red-500 hover:bg-red-500/10")}
               onClick={() => {

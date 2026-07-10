@@ -8,11 +8,7 @@ import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage } from "./messages/ai";
-import {
-  AgentActivity,
-  getRoutingIntent,
-  isInternalNoiseMessage,
-} from "./agent-activity";
+import { AgentActivity, getRoutingIntent, isInternalNoiseMessage } from "./agent-activity";
 import { AgentTrace } from "./agent-trace";
 import { ThreadSearch } from "./thread-search";
 import { SourcesProvider } from "./sources";
@@ -21,10 +17,7 @@ import { AttachMenu } from "./attach-menu";
 import { ActivityPanel } from "./activity-panel";
 import { getContentString } from "./utils";
 import { HumanMessage } from "./messages/human";
-import {
-  DO_NOT_RENDER_ID_PREFIX,
-  ensureToolCallsHaveResponses,
-} from "@/lib/ensure-tool-responses";
+import { DO_NOT_RENDER_ID_PREFIX, ensureToolCallsHaveResponses } from "@/lib/ensure-tool-responses";
 import { LangGraphLogoSVG } from "../icons/langgraph";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
@@ -49,22 +42,12 @@ import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { GitHubSVG } from "../icons/github";
 import { ThemeToggle } from "./theme-toggle";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ContentBlocksPreview } from "./ContentBlocksPreview";
 import ModelSelector, { ModeSelector } from "@/components/model-selector";
 import { useModelSelection } from "@/providers/ModelSelection";
-import {
-  useArtifactOpen,
-  ArtifactContent,
-  ArtifactTitle,
-  useArtifactContext,
-} from "./artifact";
+import { useArtifactOpen, ArtifactContent, ArtifactTitle, useArtifactContext } from "./artifact";
 
 // Commerce tool results render as answer cards (ShoppingCards / BookingCards),
 // so they stay visible instead of collapsing into the activity trace.
@@ -79,8 +62,7 @@ function isTraceMessage(m: Message): boolean {
   }
   if (m.type === "ai") {
     if (getRoutingIntent(m)) return true;
-    const hasToolCalls =
-      ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0;
+    const hasToolCalls = ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0;
     if (hasToolCalls) return true;
     // No visible text yet (thinking-only / still streaming) → activity.
     return getContentString(m.content).trim().length === 0;
@@ -88,9 +70,7 @@ function isTraceMessage(m: Message): boolean {
   return false;
 }
 
-type RenderItem =
-  | { kind: "message"; message: Message }
-  | { kind: "trace"; messages: Message[] };
+type RenderItem = { kind: "message"; message: Message } | { kind: "trace"; messages: Message[] };
 
 /** Fold each turn's consecutive activity messages into one trace item so the
  *  transcript shows a clean answer with a collapsible "Thought process". */
@@ -128,10 +108,7 @@ function StickyToBottomContent(props: {
       style={{ width: "100%", height: "100%" }}
       className={props.className}
     >
-      <div
-        ref={context.contentRef}
-        className={props.contentClassName}
-      >
+      <div ref={context.contentRef} className={props.contentClassName}>
         {props.content}
       </div>
 
@@ -145,11 +122,7 @@ function ScrollToBottom(props: { className?: string }) {
 
   if (isAtBottom) return null;
   return (
-    <Button
-      variant="outline"
-      className={props.className}
-      onClick={() => scrollToBottom()}
-    >
+    <Button variant="outline" className={props.className} onClick={() => scrollToBottom()}>
       <ArrowDown className="h-4 w-4" />
       <span>Scroll to bottom</span>
     </Button>
@@ -162,14 +135,11 @@ function OpenGitHubRepo() {
       <Tooltip>
         <TooltipTrigger asChild>
           <a
-            href="https://github.com/langchain-ai/agent-chat-ui"
+            href="https://github.com/tushargoel97/ai-multi-agent-cortex/"
             target="_blank"
-            className="flex items-center justify-center"
+            className="text-foreground flex items-center justify-center"
           >
-            <GitHubSVG
-              width="24"
-              height="24"
-            />
+            <GitHubSVG width="24" height="24" />
           </a>
         </TooltipTrigger>
         <TooltipContent side="left">
@@ -186,9 +156,7 @@ function Greeting() {
   const [greeting, setGreeting] = useState("Hello");
   useEffect(() => {
     const h = new Date().getHours();
-    setGreeting(
-      h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening",
-    );
+    setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
   }, []);
   return (
     <div className="flex flex-col items-center gap-1.5 text-center">
@@ -300,12 +268,9 @@ export function Thread() {
       ] as Message["content"],
     };
 
-    const toolMessages = threadId
-      ? ensureToolCallsHaveResponses(stream.messages)
-      : [];
+    const toolMessages = threadId ? ensureToolCallsHaveResponses(stream.messages) : [];
 
-    const context =
-      Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
+    const context = Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
 
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
@@ -317,11 +282,7 @@ export function Thread() {
         optimisticValues: (prev) => ({
           ...prev,
           context,
-          messages: [
-            ...(threadId ? (prev.messages ?? []) : []),
-            ...toolMessages,
-            newHumanMessage,
-          ],
+          messages: [...(threadId ? (prev.messages ?? []) : []), ...toolMessages, newHumanMessage],
         }),
       },
     );
@@ -337,9 +298,7 @@ export function Thread() {
     if (trimmed.length === 0 && contentBlocks.length === 0) return;
 
     const lastHuman = [...messages].reverse().find((m) => m.type === "human");
-    const lastHumanText = lastHuman
-      ? getContentString(lastHuman.content).trim()
-      : "";
+    const lastHumanText = lastHuman ? getContentString(lastHuman.content).trim() : "";
     const isRepeat = trimmed.length > 0 && trimmed === lastHumanText;
 
     // Swallow accidental duplicates (dup of the running turn, or rapid re-send).
@@ -348,12 +307,7 @@ export function Thread() {
       return;
     }
     const recent = lastSubmitRef.current;
-    if (
-      isRepeat &&
-      recent &&
-      recent.text === trimmed &&
-      Date.now() - recent.at < 3000
-    ) {
+    if (isRepeat && recent && recent.text === trimmed && Date.now() - recent.at < 3000) {
       return;
     }
 
@@ -378,9 +332,7 @@ export function Thread() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, pending]);
 
-  const handleRegenerate = (
-    parentCheckpoint: Checkpoint | null | undefined,
-  ) => {
+  const handleRegenerate = (parentCheckpoint: Checkpoint | null | undefined) => {
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
       streamMode: ["values"],
@@ -407,9 +359,7 @@ export function Thread() {
   };
 
   const chatStarted = !!threadId || !!messages.length;
-  const hasNoAIOrToolMessages = !messages.find(
-    (m) => m.type === "ai" || m.type === "tool",
-  );
+  const hasNoAIOrToolMessages = !messages.find((m) => m.type === "ai" || m.type === "tool");
 
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -428,7 +378,6 @@ export function Thread() {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatStarted]);
 
-  // Per-message "Sources" buttons open the activity drawer from anywhere.
   useEffect(() => {
     const onOpen = () => setActivityOpen(true);
     window.addEventListener("cortex:open-activity", onOpen);
@@ -452,15 +401,10 @@ export function Thread() {
           animate={{ x: chatHistoryOpen ? 0 : -sidebarWidth }}
           initial={{ x: -sidebarWidth }}
           transition={
-            isLargeScreen
-              ? { type: "spring", stiffness: 300, damping: 30 }
-              : { duration: 0 }
+            isLargeScreen ? { type: "spring", stiffness: 300, damping: 30 } : { duration: 0 }
           }
         >
-          <div
-            className="relative h-full"
-            style={{ width: sidebarWidth }}
-          >
+          <div className="relative h-full" style={{ width: sidebarWidth }}>
             <ThreadHistory />
           </div>
         </motion.div>
@@ -479,11 +423,7 @@ export function Thread() {
           )}
           layout={isLargeScreen}
           animate={{
-            marginLeft: chatHistoryOpen
-              ? isLargeScreen
-                ? sidebarWidth
-                : 0
-              : 0,
+            marginLeft: chatHistoryOpen ? (isLargeScreen ? sidebarWidth : 0) : 0,
             width: chatHistoryOpen
               ? isLargeScreen
                 ? `calc(100% - ${sidebarWidth}px)`
@@ -505,10 +445,8 @@ export function Thread() {
                   <button
                     type="button"
                     onClick={() => setChatHistoryOpen((p) => !p)}
-                    title={
-                      chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"
-                    }
-                    className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full border transition-colors"
+                    title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
+                    className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full transition-colors"
                   >
                     {chatHistoryOpen ? (
                       <ChevronLeft className="size-4" />
@@ -518,8 +456,18 @@ export function Thread() {
                   </button>
                 )}
               </div>
-              <div className="absolute top-2 right-4 flex items-center">
+              <div className="absolute top-2 right-4 flex items-center gap-4">
                 <OpenGitHubRepo />
+                <ThemeToggle />
+                <TooltipIconButton
+                  size="lg"
+                  className="p-4"
+                  tooltip="New thread"
+                  variant="ghost"
+                  onClick={() => setThreadId(null)}
+                >
+                  <SquarePen className="size-5" />
+                </TooltipIconButton>
               </div>
             </div>
           )}
@@ -531,10 +479,8 @@ export function Thread() {
                     <button
                       type="button"
                       onClick={() => setChatHistoryOpen((p) => !p)}
-                      title={
-                        chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"
-                      }
-                      className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full border transition-colors"
+                      title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
+                      className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full transition-colors"
                     >
                       {chatHistoryOpen ? (
                         <ChevronLeft className="size-4" />
@@ -556,13 +502,8 @@ export function Thread() {
                     damping: 30,
                   }}
                 >
-                  <LangGraphLogoSVG
-                    width={32}
-                    height={32}
-                  />
-                  <span className="text-xl font-semibold tracking-tight">
-                    Cortex
-                  </span>
+                  <LangGraphLogoSVG width={32} height={32} />
+                  <span className="text-xl font-semibold tracking-tight">Cortex</span>
                 </motion.button>
                 <div className="bg-border mx-1 hidden h-5 w-px sm:block" />
                 <ChatHeaderTitle />
@@ -626,17 +567,12 @@ export function Thread() {
                 contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
                 content={(() => {
                   const visible = messages.filter(
-                    (m) =>
-                      !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) &&
-                      !isInternalNoiseMessage(m),
+                    (m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) && !isInternalNoiseMessage(m),
                   );
                   const items = groupTurns(visible);
                   const lastVisible = visible[visible.length - 1];
                   return (
-                    <div
-                      ref={messagesScopeRef}
-                      style={{ display: "contents" }}
-                    >
+                    <div ref={messagesScopeRef} style={{ display: "contents" }}>
                       {items.map((item, index) =>
                         item.kind === "trace" ? (
                           <AgentTrace
@@ -688,8 +624,6 @@ export function Thread() {
                       ref={dropRef}
                       data-prompt-composer
                       className={cn(
-                        // Zooms 10% while hovered, focused (typing) or with a
-                        // toolbar menu open, then eases back when left alone.
                         "glass-surface relative z-10 mx-auto mb-8 w-full max-w-[46rem] origin-bottom rounded-3xl shadow-lg transition-all duration-300 ease-out",
                         "focus-within:scale-110 focus-within:shadow-xl hover:scale-110 data-[menu-open]:scale-110",
                         isLoading && "edge-glow",
@@ -707,8 +641,7 @@ export function Thread() {
                             <Clock className="size-3.5 shrink-0 animate-pulse" />
                             <span className="min-w-0 flex-1 truncate">
                               Queued:{" "}
-                              {pending.text.trim() ||
-                                `${pending.blocks.length} attachment(s)`}
+                              {pending.text.trim() || `${pending.blocks.length} attachment(s)`}
                             </span>
                             <button
                               type="button"
@@ -720,10 +653,7 @@ export function Thread() {
                             </button>
                           </div>
                         )}
-                        <ContentBlocksPreview
-                          blocks={contentBlocks}
-                          onRemove={removeBlock}
-                        />
+                        <ContentBlocksPreview blocks={contentBlocks} onRemove={removeBlock} />
                         <div className="relative">
                           <textarea
                             value={input}
@@ -742,19 +672,10 @@ export function Thread() {
                                 form?.requestSubmit();
                               }
                             }}
-                            placeholder={
-                              suggestions.length > 0
-                                ? ""
-                                : "Type your message..."
-                            }
+                            placeholder={suggestions.length > 0 ? "" : "Type your message..."}
                             className={cn(
                               "field-sizing-content max-h-[280px] min-h-[52px] w-full resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none",
-                              // Hide the native caret while a suggestion is
-                              // typing in the empty box; it reappears with
-                              // the first character the user types.
-                              !input &&
-                                suggestions.length > 0 &&
-                                "caret-transparent",
+                              !input && suggestions.length > 0 && "caret-transparent",
                             )}
                           />
                           {!input && !pending && contentBlocks.length === 0 && (
@@ -773,9 +694,7 @@ export function Thread() {
                           <ModeSelector
                             className="ml-auto"
                             mode={selection.mode}
-                            onModeChange={(m) =>
-                              setSelection({ ...selection, mode: m })
-                            }
+                            onModeChange={(m) => setSelection({ ...selection, mode: m })}
                           />
                           {stream.isLoading ? (
                             <Button
@@ -794,10 +713,7 @@ export function Thread() {
                               size="icon"
                               title="Send"
                               className="size-9 rounded-full shadow-sm transition-all"
-                              disabled={
-                                isLoading ||
-                                (!input.trim() && contentBlocks.length === 0)
-                              }
+                              disabled={isLoading || (!input.trim() && contentBlocks.length === 0)}
                             >
                               <ArrowUp className="size-5" />
                             </Button>
@@ -815,10 +731,7 @@ export function Thread() {
           <div className="absolute inset-0 flex min-w-[30vw] flex-col">
             <div className="grid grid-cols-[1fr_auto] border-b p-4">
               <ArtifactTitle className="truncate overflow-hidden" />
-              <button
-                onClick={closeArtifact}
-                className="cursor-pointer"
-              >
+              <button onClick={closeArtifact} className="cursor-pointer">
                 <XIcon className="size-5" />
               </button>
             </div>

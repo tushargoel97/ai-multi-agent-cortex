@@ -8,14 +8,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Switch } from "@/components/ui/switch";
 import { getAdminToken } from "../token";
-import {
-  Wrench,
-  Plug,
-  Trash2,
-  Plus,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { Wrench, Plug, Trash2, Plus, Loader2, RefreshCw } from "lucide-react";
 
 interface ToolRow {
   id: string;
@@ -118,8 +111,7 @@ export default function ToolsPanel() {
     if (
       !(await confirm({
         title: `Delete "${t.name}"?`,
-        description:
-          "It won't be re-added on restart, you can Restore it later.",
+        description: "It won't be re-added on restart, you can Restore it later.",
       }))
     )
       return;
@@ -263,10 +255,9 @@ export default function ToolsPanel() {
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold">Tools & MCP</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage built-in and third-party tools and register MCP servers.
-            Grant tools to agents in the Agents tab. Changes apply on the next
-            message.
+          <p className="text-muted-foreground mt-1 text-sm">
+            Manage built-in and third-party tools and register MCP servers. Grant tools to agents in
+            the Agents tab. Changes apply on the next message.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
@@ -275,7 +266,7 @@ export default function ToolsPanel() {
       </div>
 
       {error && (
-        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-3 py-2 text-sm">
           {error}
         </div>
       )}
@@ -287,27 +278,20 @@ export default function ToolsPanel() {
         </h3>
         <ul className="divide-y rounded-md border">
           {tools.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center justify-between gap-3 px-3 py-2"
-            >
+            <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-mono text-xs text-foreground">
-                    {t.name}
-                  </span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  <span className="text-foreground truncate font-mono text-xs">{t.name}</span>
+                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
                     {KIND_LABEL[t.kind] ?? t.kind}
                   </span>
                 </div>
                 {t.description && (
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {t.description}
-                  </p>
+                  <p className="text-muted-foreground truncate text-[11px]">{t.description}</p>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <Switch
                     checked={t.enabled}
                     disabled={busy === t.id}
@@ -328,7 +312,7 @@ export default function ToolsPanel() {
             </li>
           ))}
           {tools.length === 0 && (
-            <li className="px-3 py-4 text-sm text-muted-foreground">
+            <li className="text-muted-foreground px-3 py-4 text-sm">
               No tools yet, the langgraph server seeds built-ins on startup.
             </li>
           )}
@@ -338,18 +322,16 @@ export default function ToolsPanel() {
       {/* Removed tools */}
       {suppressed.length > 0 && (
         <section className="space-y-2">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <h3 className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
             <Trash2 className="size-4" /> Removed tools ({suppressed.length})
           </h3>
           <ul className="flex flex-wrap gap-2">
             {suppressed.map((name) => (
               <li
                 key={name}
-                className="flex items-center gap-1 rounded border bg-muted/40 px-2 py-1"
+                className="bg-muted/40 flex items-center gap-1 rounded border px-2 py-1"
               >
-                <span className="font-mono text-xs text-muted-foreground">
-                  {name}
-                </span>
+                <span className="text-muted-foreground font-mono text-xs">{name}</span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -391,9 +373,7 @@ export default function ToolsPanel() {
               className="h-9 w-48"
               placeholder={field}
               value={catalogCfg[field] ?? ""}
-              onChange={(e) =>
-                setCatalogCfg((p) => ({ ...p, [field]: e.target.value }))
-              }
+              onChange={(e) => setCatalogCfg((p) => ({ ...p, [field]: e.target.value }))}
             />
           ))}
           <Button
@@ -410,9 +390,7 @@ export default function ToolsPanel() {
           </Button>
         </div>
         {selectedCatalog && (
-          <p className="text-[11px] text-muted-foreground">
-            {selectedCatalog.description}
-          </p>
+          <p className="text-muted-foreground text-[11px]">{selectedCatalog.description}</p>
         )}
       </section>
 
@@ -423,28 +401,23 @@ export default function ToolsPanel() {
         </h3>
         <ul className="divide-y rounded-md border">
           {mcpServers.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center justify-between gap-3 px-3 py-2"
-            >
+            <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium">{s.name}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
                     {s.transport}
                   </span>
                 </div>
-                <p className="truncate font-mono text-[11px] text-muted-foreground">
+                <p className="text-muted-foreground truncate font-mono text-[11px]">
                   {s.url || s.command || ""}
                 </p>
                 {s.last_error && (
-                  <p className="truncate text-[11px] text-destructive">
-                    {s.last_error}
-                  </p>
+                  <p className="text-destructive truncate text-[11px]">{s.last_error}</p>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <Switch
                     checked={s.enabled}
                     disabled={busy === s.id}
@@ -461,9 +434,7 @@ export default function ToolsPanel() {
             </li>
           ))}
           {mcpServers.length === 0 && (
-            <li className="px-3 py-4 text-sm text-muted-foreground">
-              No MCP servers registered.
-            </li>
+            <li className="text-muted-foreground px-3 py-4 text-sm">No MCP servers registered.</li>
           )}
         </ul>
 
@@ -511,7 +482,7 @@ export default function ToolsPanel() {
             )}
             <Input
               className="h-9 w-56"
-              placeholder='headers/env JSON (optional)'
+              placeholder="headers/env JSON (optional)"
               value={mcpHeaders}
               onChange={(e) => setMcpHeaders(e.target.value)}
             />
@@ -528,9 +499,9 @@ export default function ToolsPanel() {
               Add
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Discovered MCP tools appear in the list above after the next
-            langgraph restart, then can be granted to agents in the Agents tab.
+          <p className="text-muted-foreground text-[11px]">
+            Discovered MCP tools appear in the list above after the next langgraph restart, then can
+            be granted to agents in the Agents tab.
           </p>
         </div>
       </section>

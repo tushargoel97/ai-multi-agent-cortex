@@ -1,10 +1,5 @@
 import { Copy, CopyCheck } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TooltipIconButton } from "../../tooltip-icon-button";
@@ -18,7 +13,7 @@ export function ThreadIdTooltip({ threadId }: { threadId: string }) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
-          <p className="rounded-md bg-muted px-1 py-[2px] font-mono text-[10px] leading-[12px] tracking-tighter">
+          <p className="bg-muted rounded-md px-1 py-[2px] font-mono text-[10px] leading-[12px] tracking-tighter">
             {firstThreeChars}...{lastThreeChars}
           </p>
         </TooltipTrigger>
@@ -39,9 +34,7 @@ export function ThreadIdCopyable({
 }) {
   const [copied, setCopied] = React.useState(false);
 
-  const handleCopy = async (
-    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
-  ) => {
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     e.stopPropagation();
     const ok = await copyTextToClipboard(threadId);
     if (!ok) return;
@@ -54,13 +47,10 @@ export function ThreadIdCopyable({
       onClick={(e) => handleCopy(e)}
       variant="ghost"
       tooltip="Copy thread ID"
-      className="flex w-fit flex-grow-0 cursor-pointer items-center gap-1 rounded-md border-[1px] border-border p-1 hover:bg-muted/50/90"
+      className="border-border hover:bg-muted/50/90 flex w-fit flex-grow-0 cursor-pointer items-center gap-1 rounded-md border-[1px] p-1"
     >
       <p className="font-mono text-xs">{showUUID ? threadId : "ID"}</p>
-      <AnimatePresence
-        mode="wait"
-        initial={false}
-      >
+      <AnimatePresence mode="wait" initial={false}>
         {copied ? (
           <motion.div
             key="check"
@@ -79,7 +69,7 @@ export function ThreadIdCopyable({
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.15 }}
           >
-            <Copy className="h-3 max-h-3 w-3 max-w-3 text-muted-foreground" />
+            <Copy className="text-muted-foreground h-3 max-h-3 w-3 max-w-3" />
           </motion.div>
         )}
       </AnimatePresence>

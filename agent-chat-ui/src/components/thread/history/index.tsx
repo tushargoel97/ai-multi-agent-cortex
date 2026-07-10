@@ -7,22 +7,9 @@ import { getContentString } from "../utils";
 import { useQueryState } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
 import { setSidebarResizing, setSidebarWidth } from "@/hooks/use-sidebar-width";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  ChevronLeft,
-  Search,
-  Plus,
-  Check,
-  X,
-  Star,
-  MoreVertical,
-} from "lucide-react";
+import { ChevronLeft, Search, Plus, Check, X, Star, MoreVertical } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,27 +21,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  getThreadLabel,
-  isPinned,
-  useThreadActions,
-  ThreadActionsMenu,
-} from "./thread-actions";
+import { getThreadLabel, isPinned, useThreadActions, ThreadActionsMenu } from "./thread-actions";
 
 /** Concatenated text of every message in a thread (for cross-thread search). */
 function threadText(t: Thread): string {
-  const msgs = (t.values as { messages?: { content: unknown }[] } | undefined)
-    ?.messages;
+  const msgs = (t.values as { messages?: { content: unknown }[] } | undefined)?.messages;
   if (!Array.isArray(msgs)) return "";
   return msgs.map((m) => getContentString(m.content as never)).join("\n");
 }
 
 /** `q` is expected already lower-cased. */
 function threadMatches(t: Thread, q: string): boolean {
-  return (
-    getThreadLabel(t).toLowerCase().includes(q) ||
-    threadText(t).toLowerCase().includes(q)
-  );
+  return getThreadLabel(t).toLowerCase().includes(q) || threadText(t).toLowerCase().includes(q);
 }
 
 /** A short …context… window around the first match, for the search result row. */
@@ -106,8 +84,8 @@ function ThreadRow({
   return (
     <div
       className={cn(
-        "group relative flex w-full items-center gap-1 rounded-md px-1",
-        isActive && "bg-muted",
+        "group hover:bg-muted/60 relative flex w-full items-center gap-1 rounded-full px-1 transition-colors",
+        isActive && "bg-muted hover:bg-muted",
       )}
     >
       {editing ? (
@@ -151,26 +129,23 @@ function ThreadRow({
         <>
           <Button
             variant="ghost"
-            className="h-auto min-h-9 w-full flex-1 flex-col items-start justify-center gap-0.5 truncate py-1 pr-7 text-left font-normal"
+            className={cn(
+              "h-auto min-h-9 w-full flex-1 flex-col items-start justify-center gap-0.5 truncate py-1 pr-7 text-left hover:bg-transparent",
+              isActive ? "font-medium" : "font-normal",
+            )}
             onClick={onClick}
           >
             <p className="flex w-full items-center gap-1 truncate text-sm">
-              {pinned && (
-                <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />
-              )}
-              <span className="truncate text-ellipsis">
-                {getThreadLabel(thread)}
-              </span>
+              {pinned && <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />}
+              <span className="truncate text-ellipsis">{getThreadLabel(thread)}</span>
             </p>
             {snippet && (
-              <p className="w-full truncate text-xs font-normal text-muted-foreground">
-                {snippet}
-              </p>
+              <p className="text-muted-foreground w-full truncate text-xs font-normal">{snippet}</p>
             )}
           </Button>
           <div
             className={cn(
-              "absolute right-1 top-1/2 -translate-y-1/2 transition-opacity",
+              "absolute top-1/2 right-1 -translate-y-1/2 transition-opacity",
               isActive
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
@@ -180,7 +155,7 @@ function ThreadRow({
               pinned={pinned}
               placement="beside"
               triggerTitle="More"
-              triggerClassName="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              triggerClassName="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
               triggerActiveClassName="bg-background text-foreground"
               trigger={<MoreVertical className="size-3.5" />}
               onStar={onTogglePin}
@@ -213,36 +188,31 @@ function ThreadList({
   const q = query.trim().toLowerCase();
   const filtered = q ? threads.filter((t) => threadMatches(t, q)) : threads;
   // Pinned threads float to the top (stable sort preserves recency within).
-  const shown = [...filtered].sort(
-    (a, b) => Number(isPinned(b)) - Number(isPinned(a)),
-  );
+  const shown = [...filtered].sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
 
   return (
     <>
-      <div className="flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
-        <div className="w-full px-2 pb-1 pt-1">
+      <div className="[&::-webkit-scrollbar-thumb]:bg-border flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+        <div className="w-full px-2 pt-1 pb-1">
           <button
             type="button"
             onClick={() => {
               setThreadId(null);
               onThreadClick?.("");
             }}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            className="text-foreground hover:bg-muted ml-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
           >
             <Plus className="size-4" />
             New chat
           </button>
         </div>
         {q && shown.length === 0 ? (
-          <p className="w-full px-4 py-6 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground w-full px-4 py-6 text-center text-sm">
             No chats match “{query.trim()}”.
           </p>
         ) : (
           shown.map((t) => (
-            <div
-              key={t.thread_id}
-              className="w-full px-2"
-            >
+            <div key={t.thread_id} className="w-full px-2">
               <ThreadRow
                 thread={t}
                 snippet={q ? matchSnippet(t, q) : null}
@@ -276,10 +246,7 @@ function ThreadList({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setPendingDelete(null)}
-            >
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
               Cancel
             </Button>
             <Button
@@ -302,12 +269,9 @@ function ThreadList({
 
 function ThreadHistoryLoading() {
   return (
-    <div className="flex h-full w-full flex-col items-start justify-start gap-2 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+    <div className="[&::-webkit-scrollbar-thumb]:bg-border flex h-full w-full flex-col items-start justify-start gap-2 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
       {Array.from({ length: 30 }).map((_, i) => (
-        <Skeleton
-          key={`skeleton-${i}`}
-          className="h-10 w-[280px]"
-        />
+        <Skeleton key={`skeleton-${i}`} className="h-10 w-[280px]" />
       ))}
     </div>
   );
@@ -317,8 +281,7 @@ export default function ThreadHistory() {
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
   const [chatHistoryOpen, setChatHistoryOpen] = useChatHistoryOpen();
 
-  const { getThreads, threads, setThreads, threadsLoading, setThreadsLoading } =
-    useThreads();
+  const { getThreads, threads, setThreads, threadsLoading, setThreadsLoading } = useThreads();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -377,21 +340,19 @@ export default function ThreadHistory() {
 
   return (
     <>
-      <div className="shadow-inner-right relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] border-border lg:flex">
+      <div className="shadow-inner-right border-border relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] lg:flex">
         <div
           className={cn(
-            "flex w-full items-center justify-between gap-2 px-3 pt-2",
+            "flex w-full items-center justify-between gap-2 pt-2 pr-3 pl-7",
             searchOpen && "invisible",
           )}
         >
-          <h1 className="truncate text-lg font-semibold tracking-tight">
-            History
-          </h1>
+          <h1 className="truncate text-lg font-semibold tracking-tight">History</h1>
           <div className="flex shrink-0 items-center gap-0.5">
             <Button
               size="icon"
               variant="ghost"
-              className="size-8 hover:bg-muted"
+              className="hover:bg-muted size-8"
               data-search-trigger
               onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
               title="Search chats"
@@ -402,21 +363,14 @@ export default function ThreadHistory() {
               type="button"
               onClick={() => setChatHistoryOpen((p) => !p)}
               title="Collapse sidebar"
-              className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full transition-colors"
             >
               <ChevronLeft className="size-4" />
             </button>
           </div>
         </div>
 
-        {threadsLoading ? (
-          <ThreadHistoryLoading />
-        ) : (
-          <ThreadList
-            threads={threads}
-            query={query}
-          />
-        )}
+        {threadsLoading ? <ThreadHistoryLoading /> : <ThreadList threads={threads} query={query} />}
 
         <div className="pointer-events-none absolute inset-x-2 top-2 z-30 flex justify-end">
           <div
@@ -428,7 +382,7 @@ export default function ThreadHistory() {
                 : "pointer-events-none w-8 opacity-0",
             )}
           >
-            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <Search className="text-muted-foreground size-4 shrink-0" />
             <input
               ref={searchInputRef}
               value={query}
@@ -436,13 +390,13 @@ export default function ThreadHistory() {
               onKeyDown={(e) => e.key === "Escape" && closeSearch()}
               placeholder="Search chats…"
               tabIndex={searchOpen ? 0 : -1}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
             <button
               type="button"
               onClick={closeSearch}
               tabIndex={searchOpen ? 0 : -1}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground shrink-0"
               title="Close search"
             >
               <X className="size-4" />
@@ -452,7 +406,7 @@ export default function ThreadHistory() {
 
         <div
           onPointerDown={startResize}
-          className="absolute right-0 top-0 z-40 h-full w-1.5 cursor-col-resize touch-none transition-colors hover:bg-primary/30"
+          className="hover:bg-primary/30 absolute top-0 right-0 z-40 h-full w-1.5 cursor-col-resize touch-none transition-colors"
           title="Drag to resize"
         />
       </div>
@@ -465,20 +419,17 @@ export default function ThreadHistory() {
             setChatHistoryOpen(open);
           }}
         >
-          <SheetContent
-            side="left"
-            className="flex flex-col lg:hidden"
-          >
+          <SheetContent side="left" className="flex flex-col lg:hidden">
             <SheetHeader>
               <SheetTitle>History</SheetTitle>
             </SheetHeader>
-            <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5">
-              <Search className="size-4 shrink-0 text-muted-foreground" />
+            <div className="border-border bg-muted/40 flex items-center gap-2 rounded-full border px-3 py-1.5">
+              <Search className="text-muted-foreground size-4 shrink-0" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search chats…"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
             </div>
             <ThreadList

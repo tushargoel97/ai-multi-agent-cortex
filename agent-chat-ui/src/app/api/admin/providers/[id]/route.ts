@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   const { id } = await params;
@@ -32,17 +29,11 @@ export async function PATCH(
   }
   fields.push(`updated_at = now()`);
   values.push(id);
-  await query(
-    `UPDATE llm_providers SET ${fields.join(", ")} WHERE id = $${i}`,
-    values,
-  );
+  await query(`UPDATE llm_providers SET ${fields.join(", ")} WHERE id = $${i}`, values);
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   const { id } = await params;

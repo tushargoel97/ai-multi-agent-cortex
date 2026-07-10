@@ -2,15 +2,8 @@ import { ContentBlock } from "@langchain/core/messages";
 import { toast } from "sonner";
 
 // Returns a Promise of a typed multimodal block for images or PDFs
-export async function fileToContentBlock(
-  file: File,
-): Promise<ContentBlock.Multimodal.Data> {
-  const supportedImageTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-  ];
+export async function fileToContentBlock(file: File): Promise<ContentBlock.Multimodal.Data> {
+  const supportedImageTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
   const supportedFileTypes = [...supportedImageTypes, "application/pdf"];
 
   if (!supportedFileTypes.includes(file.type)) {
@@ -55,11 +48,8 @@ export async function fileToBase64(file: File): Promise<string> {
 }
 
 // Type guard for Base64ContentBlock
-export function isBase64ContentBlock(
-  block: unknown,
-): block is ContentBlock.Multimodal.Data {
-  if (typeof block !== "object" || block === null || !("type" in block))
-    return false;
+export function isBase64ContentBlock(block: unknown): block is ContentBlock.Multimodal.Data {
+  if (typeof block !== "object" || block === null || !("type" in block)) return false;
   // file type (legacy)
   if (
     (block as { type: unknown }).type === "file" &&

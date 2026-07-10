@@ -45,17 +45,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   if (!authed) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-muted/40 to-muted p-4">
+      <div className="from-muted/40 to-muted flex min-h-screen w-full items-center justify-center bg-gradient-to-br p-4">
         <form
           onSubmit={onSubmit}
           className="glass-tint flex w-full max-w-sm flex-col gap-5 rounded-2xl border p-8 shadow-xl"
         >
           <div className="flex flex-col items-center gap-2">
-            <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
+            <div className="bg-primary flex size-10 items-center justify-center rounded-full text-white">
               <Lock className="size-5" />
             </div>
             <h1 className="text-xl font-semibold">Cortex Admin</h1>
-            <p className="text-center text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-center text-xs">
               Sign in to manage LLM providers and models.
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
 
           {error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <p className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-xs">
               {error}
             </p>
           )}
@@ -92,10 +92,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
 
-          <Link
-            href="/chat"
-            className="text-center text-xs text-muted-foreground hover:underline"
-          >
+          <Link href="/chat" className="text-muted-foreground text-center text-xs hover:underline">
             ← Back to chat
           </Link>
         </form>
@@ -104,22 +101,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-muted/60 via-background to-muted">
+    <div className="from-muted/60 via-background to-muted min-h-screen bg-gradient-to-br">
       <header className="glass-surface sticky top-0 z-40 flex items-center gap-6 border-b px-6 py-3">
-        <Link
-          href="/admin"
-          className="flex items-center gap-2 font-semibold tracking-tight"
-        >
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-white">
+        <Link href="/admin" className="flex items-center gap-2 font-semibold tracking-tight">
+          <div className="bg-primary flex size-7 items-center justify-center rounded-md text-white">
             <Lock className="size-4" />
           </div>
           Cortex Admin
         </Link>
         <div className="ml-auto flex items-center gap-3">
-          <Link
-            href="/chat"
-            className="text-sm text-muted-foreground hover:underline"
-          >
+          <Link href="/chat" className="text-muted-foreground text-sm hover:underline">
             ← Back to chat
           </Link>
           <button
@@ -129,7 +120,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               setUsername("");
               setPassword("");
             }}
-            className="flex items-center gap-1.5 rounded-full border bg-background/60 px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="bg-background/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors"
           >
             <LogOut className="size-4" />
             Sign out

@@ -1,21 +1,13 @@
 import { BaseMessage, isBaseMessage } from "@langchain/core/messages";
 import { format } from "date-fns";
 import { startCase } from "lodash";
-import {
-  Action,
-  Decision,
-  DecisionWithEdits,
-  HITLRequest,
-  SubmitType,
-} from "./types";
+import { Action, Decision, DecisionWithEdits, HITLRequest, SubmitType } from "./types";
 
 export function prettifyText(action: string) {
   return startCase(action.replace(/_/g, " "));
 }
 
-export function isArrayOfMessages(
-  value: Record<string, any>[],
-): value is BaseMessage[] {
+export function isArrayOfMessages(value: Record<string, any>[]): value is BaseMessage[] {
   if (
     value.every(isBaseMessage) ||
     (Array.isArray(value) &&
@@ -36,9 +28,7 @@ export function isArrayOfMessages(
 export function baseMessageObject(item: unknown): string {
   if (isBaseMessage(item)) {
     const contentText =
-      typeof item.content === "string"
-        ? item.content
-        : JSON.stringify(item.content, null);
+      typeof item.content === "string" ? item.content : JSON.stringify(item.content, null);
     let toolCallText = "";
     if ("tool_calls" in item) {
       toolCallText = JSON.stringify(item.tool_calls, null);
@@ -48,16 +38,9 @@ export function baseMessageObject(item: unknown): string {
     } else if ("getType" in item) {
       return `${(item as BaseMessage).getType()}:${contentText ? ` ${contentText}` : ""}${toolCallText ? ` - Tool calls: ${toolCallText}` : ""}`;
     }
-  } else if (
-    typeof item === "object" &&
-    item &&
-    "type" in item &&
-    "content" in item
-  ) {
+  } else if (typeof item === "object" && item && "type" in item && "content" in item) {
     const contentText =
-      typeof item.content === "string"
-        ? item.content
-        : JSON.stringify(item.content, null);
+      typeof item.content === "string" ? item.content : JSON.stringify(item.content, null);
     let toolCallText = "";
     if ("tool_calls" in item) {
       toolCallText = JSON.stringify(item.tool_calls, null);
@@ -74,10 +57,7 @@ export function baseMessageObject(item: unknown): string {
 
 export function unknownToPrettyDate(input: unknown): string | undefined {
   try {
-    if (
-      Object.prototype.toString.call(input) === "[object Date]" ||
-      new Date(input as string)
-    ) {
+    if (Object.prototype.toString.call(input) === "[object Date]" || new Date(input as string)) {
       return format(new Date(input as string), "MM/dd/yyyy hh:mm a");
     }
   } catch (_) {
@@ -88,9 +68,7 @@ export function unknownToPrettyDate(input: unknown): string | undefined {
 
 export function createDefaultHumanResponse(
   hitlRequest: HITLRequest,
-  initialHumanInterruptEditValue: React.MutableRefObject<
-    Record<string, string>
-  >,
+  initialHumanInterruptEditValue: React.MutableRefObject<Record<string, string>>,
 ): {
   responses: DecisionWithEdits[];
   defaultSubmitType: SubmitType | undefined;
@@ -99,9 +77,8 @@ export function createDefaultHumanResponse(
   const responses: DecisionWithEdits[] = [];
   const actionRequest = hitlRequest.action_requests?.[0];
   const reviewConfig =
-    hitlRequest.review_configs?.find(
-      (config) => config.action_name === actionRequest?.name,
-    ) ?? hitlRequest.review_configs?.[0];
+    hitlRequest.review_configs?.find((config) => config.action_name === actionRequest?.name) ??
+    hitlRequest.review_configs?.[0];
 
   if (!actionRequest || !reviewConfig) {
     return { responses: [], defaultSubmitType: undefined, hasApprove: false };
@@ -166,9 +143,7 @@ export function buildDecisionFromState(
     return { error: "Please enter a response." };
   }
 
-  const selectedDecision = responses.find(
-    (response) => response.type === selectedSubmitType,
-  );
+  const selectedDecision = responses.find((response) => response.type === selectedSubmitType);
 
   if (!selectedDecision) {
     return { error: "No response selected." };
@@ -202,10 +177,7 @@ export function buildDecisionFromState(
   return { error: "Unsupported response type." };
 }
 
-export function constructOpenInStudioURL(
-  deploymentUrl: string,
-  threadId?: string,
-) {
+export function constructOpenInStudioURL(deploymentUrl: string, threadId?: string) {
   const smithStudioURL = new URL("https://smith.langchain.com/studio/thread");
   // trim the trailing slash from deploymentUrl
   const trimmedDeploymentUrl = deploymentUrl.replace(/\/$/, "");
@@ -219,10 +191,7 @@ export function constructOpenInStudioURL(
   return smithStudioURL.toString();
 }
 
-export function haveArgsChanged(
-  args: unknown,
-  initialValues: Record<string, string>,
-): boolean {
+export function haveArgsChanged(args: unknown, initialValues: Record<string, string>): boolean {
   if (typeof args !== "object" || !args) {
     return false;
   }

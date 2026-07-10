@@ -32,11 +32,7 @@ const ConfirmContext = React.createContext<ConfirmFn | null>(null);
  *
  * Standard: prefer this over `window.confirm` for every confirmation.
  */
-export function ConfirmDialogProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function ConfirmDialogProvider({ children }: { children: React.ReactNode }) {
   const [options, setOptions] = React.useState<ConfirmOptions | null>(null);
   const resolverRef = React.useRef<((value: boolean) => void) | null>(null);
 

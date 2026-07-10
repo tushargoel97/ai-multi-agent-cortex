@@ -41,10 +41,7 @@ async function setSubagents(name: string, subagents: string[]) {
 
 /** Update an agent's system prompt / description / enabled / tools, or reset a
  * built-in to its packaged defaults ({ reset: true }). */
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ name: string }> },
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ name: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureAgentsTable();
@@ -84,10 +81,9 @@ export async function PATCH(
     if (!newName) {
       return NextResponse.json({ error: "invalid name" }, { status: 400 });
     }
-    const { rows: cur } = await query<{ kind: string }>(
-      `SELECT kind FROM agents WHERE name = $1`,
-      [name],
-    );
+    const { rows: cur } = await query<{ kind: string }>(`SELECT kind FROM agents WHERE name = $1`, [
+      name,
+    ]);
     if (!cur.length) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
@@ -97,10 +93,7 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const { rows: taken } = await query(
-      `SELECT 1 FROM agents WHERE name = $1`,
-      [newName],
-    );
+    const { rows: taken } = await query(`SELECT 1 FROM agents WHERE name = $1`, [newName]);
     if (taken.length) {
       return NextResponse.json(
         { error: `an agent named "${newName}" already exists` },
@@ -110,22 +103,19 @@ export async function PATCH(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(`UPDATE agents SET name = $1 WHERE name = $2`, [
+      await client.query(`UPDATE agents SET name = $1 WHERE name = $2`, [newName, name]);
+      await client.query(`UPDATE agent_tools SET agent_name = $1 WHERE agent_name = $2`, [
         newName,
         name,
       ]);
-      await client.query(
-        `UPDATE agent_tools SET agent_name = $1 WHERE agent_name = $2`,
-        [newName, name],
-      );
-      await client.query(
-        `UPDATE agent_subagents SET agent_name = $1 WHERE agent_name = $2`,
-        [newName, name],
-      );
-      await client.query(
-        `UPDATE agent_subagents SET subagent_name = $1 WHERE subagent_name = $2`,
-        [newName, name],
-      );
+      await client.query(`UPDATE agent_subagents SET agent_name = $1 WHERE agent_name = $2`, [
+        newName,
+        name,
+      ]);
+      await client.query(`UPDATE agent_subagents SET subagent_name = $1 WHERE subagent_name = $2`, [
+        newName,
+        name,
+      ]);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");
@@ -156,28 +146,28 @@ export async function PATCH(
     await query(`UPDATE agents SET ${fields.join(", ")} WHERE name = $${i}`, vals);
   }
   if (Array.isArray(body.tools)) {
-    await setGrants(name, body.tools.map((t: unknown) => String(t)));
+    await setGrants(
+      name,
+      body.tools.map((t: unknown) => String(t)),
+    );
   }
   if (Array.isArray(body.subagents)) {
-    await setSubagents(name, body.subagents.map((s: unknown) => String(s)));
+    await setSubagents(
+      name,
+      body.subagents.map((s: unknown) => String(s)),
+    );
   }
   return NextResponse.json({ ok: true, name });
 }
 
 /** Delete a custom agent (built-ins can only be reset). */
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ name: string }> },
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ name: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureAgentsTable();
   const { name } = await params;
 
-  const { rows } = await query<{ kind: string }>(
-    `SELECT kind FROM agents WHERE name = $1`,
-    [name],
-  );
+  const { rows } = await query<{ kind: string }>(`SELECT kind FROM agents WHERE name = $1`, [name]);
   if (!rows.length) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -189,10 +179,6 @@ export async function DELETE(
   }
   await query(`DELETE FROM agents WHERE name = $1 AND kind = 'custom'`, [name]);
   await query(`DELETE FROM agent_tools WHERE agent_name = $1`, [name]);
-  await query(
-    `DELETE FROM agent_subagents WHERE agent_name = $1 OR subagent_name = $1`,
-    [name],
-  );
+  await query(`DELETE FROM agent_subagents WHERE agent_name = $1 OR subagent_name = $1`, [name]);
   return NextResponse.json({ ok: true });
 }
-

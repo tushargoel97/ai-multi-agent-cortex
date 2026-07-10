@@ -44,11 +44,7 @@ async function adminFetch(url: string, init: RequestInit = {}) {
   });
 }
 
-export default function ModelsPanel({
-  refreshKey = 0,
-}: {
-  refreshKey?: number;
-}) {
+export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const confirm = useConfirm();
   const [models, setModels] = useState<Model[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -155,10 +151,7 @@ export default function ModelsPanel({
       }
       load();
     } catch (e) {
-      toast.error(
-        `Sync failed, ${e instanceof Error ? e.message : "network error"}`,
-        { id: t },
-      );
+      toast.error(`Sync failed, ${e instanceof Error ? e.message : "network error"}`, { id: t });
     } finally {
       setSyncing(false);
     }
@@ -188,8 +181,8 @@ export default function ModelsPanel({
           <div>
             <h3 className="text-sm font-semibold">✨ Auto mode profile</h3>
             <p className="text-muted-foreground text-xs">
-              When chat users pick “Auto”, the router intent selects the model
-              from this profile (only enabled models are eligible).
+              When chat users pick “Auto”, the router intent selects the model from this profile
+              (only enabled models are eligible).
             </p>
           </div>
           <div className="border-border bg-background/60 flex items-center gap-1 rounded-full border p-1">
@@ -218,20 +211,13 @@ export default function ModelsPanel({
         <div>
           <h2 className="text-lg font-semibold">Models</h2>
           <p className="text-muted-foreground text-sm">
-            Models attached to providers. Click <em>Sync from providers</em> to
-            fetch the latest model list from each provider&apos;s API. Mark
-            exactly one as default, chat users get this when they don&apos;t
-            pick one.
+            Models attached to providers. Click <em>Sync from providers</em> to fetch the latest
+            model list from each provider&apos;s API. Mark exactly one as default, chat users get
+            this when they don&apos;t pick one.
           </p>
         </div>
-        <Button
-          onClick={syncAll}
-          disabled={providers.length === 0 || syncing}
-          className="shrink-0"
-        >
-          <RefreshCw
-            className={`mr-2 size-4 ${syncing ? "animate-spin" : ""}`}
-          />
+        <Button onClick={syncAll} disabled={providers.length === 0 || syncing} className="shrink-0">
+          <RefreshCw className={`mr-2 size-4 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing…" : "Sync from providers"}
         </Button>
       </div>
@@ -300,17 +286,12 @@ export default function ModelsPanel({
           </thead>
           <tbody>
             {models.map((m) => (
-              <tr
-                key={m.id}
-                className="border-t"
-              >
+              <tr key={m.id} className="border-t">
                 <td className="p-3 font-medium">{m.display_name}</td>
                 <td className="p-3 font-mono text-xs">{m.model_id}</td>
                 <td className="p-3">
                   {m.provider_name}{" "}
-                  <span className="text-muted-foreground text-xs">
-                    ({m.provider_kind})
-                  </span>
+                  <span className="text-muted-foreground text-xs">({m.provider_kind})</span>
                 </td>
                 <td className="p-3">
                   <Switch
@@ -325,19 +306,13 @@ export default function ModelsPanel({
                   />
                 </td>
                 <td className="p-3 text-right">
-                  <DeleteButton
-                    onClick={() => del(m.id)}
-                    title="Delete model"
-                  />
+                  <DeleteButton onClick={() => del(m.id)} title="Delete model" />
                 </td>
               </tr>
             ))}
             {models.length === 0 && (
               <tr>
-                <td
-                  colSpan={6}
-                  className="text-muted-foreground p-3"
-                >
+                <td colSpan={6} className="text-muted-foreground p-3">
                   No models yet, add one above or sync from a provider.
                 </td>
               </tr>

@@ -22,9 +22,7 @@ interface UseInterruptedActionsValue {
   handleSubmit: (
     e: React.MouseEvent<HTMLButtonElement, MouseEvent> | KeyboardEvent,
   ) => Promise<void>;
-  handleResolve: (
-    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
-  ) => Promise<void>;
+  handleResolve: (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => Promise<void>;
   streaming: boolean;
   streamFinished: boolean;
   loading: boolean;
@@ -69,8 +67,10 @@ export default function useInterruptedActions({
     }
 
     try {
-      const { responses, defaultSubmitType, hasApprove } =
-        createDefaultHumanResponse(hitlValue, initialHumanInterruptEditValue);
+      const { responses, defaultSubmitType, hasApprove } = createDefaultHumanResponse(
+        hitlValue,
+        initialHumanInterruptEditValue,
+      );
       setHumanResponse(responses);
       setSelectedSubmitType(defaultSubmitType);
       setApproveAllowed(hasApprove);
@@ -107,10 +107,7 @@ export default function useInterruptedActions({
     e: React.MouseEvent<HTMLButtonElement, MouseEvent> | KeyboardEvent,
   ) => {
     e.preventDefault();
-    const { decision, error } = buildDecisionFromState(
-      humanResponse,
-      selectedSubmitType,
-    );
+    const { decision, error } = buildDecisionFromState(humanResponse, selectedSubmitType);
 
     if (!decision) {
       toast.error("Error", {
@@ -180,9 +177,7 @@ export default function useInterruptedActions({
     }
   };
 
-  const handleResolve = async (
-    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
-  ) => {
+  const handleResolve = async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     e.preventDefault();
     setLoading(true);
     initialHumanInterruptEditValue.current = {};
@@ -215,9 +210,8 @@ export default function useInterruptedActions({
   };
 
   const supportsMultipleMethods =
-    humanResponse.filter((response) =>
-      ["edit", "approve", "reject"].includes(response.type),
-    ).length > 1;
+    humanResponse.filter((response) => ["edit", "approve", "reject"].includes(response.type))
+      .length > 1;
 
   return {
     handleSubmit,

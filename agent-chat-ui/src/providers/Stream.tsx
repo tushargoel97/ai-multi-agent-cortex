@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  ReactNode,
-  useState,
-  useEffect,
-} from "react";
+import React, { createContext, useContext, ReactNode, useState, useEffect } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
 import {
@@ -81,22 +75,15 @@ async function autoTitleThread(
     const values = thread.values as
       | { messages?: { type?: string; content?: unknown }[] }
       | undefined;
-    firstHuman = values?.messages?.find(
-      (m) => (m as { type?: string }).type === "human",
-    );
+    firstHuman = values?.messages?.find((m) => (m as { type?: string }).type === "human");
     if (firstHuman) break;
   }
   if (!firstHuman) return;
-  const content = firstHuman.content as
-    | string
-    | { type?: string; text?: string }[]
-    | undefined;
+  const content = firstHuman.content as string | { type?: string; text?: string }[] | undefined;
   let text = "";
   if (typeof content === "string") text = content;
   else if (Array.isArray(content)) {
-    text = content
-      .map((c) => (c?.type === "text" ? (c.text ?? "") : ""))
-      .join(" ");
+    text = content.map((c) => (c?.type === "text" ? (c.text ?? "") : "")).join(" ");
   }
   // Model-synthesized title; fall back to a trimmed first message on failure.
   let title = "";
@@ -197,29 +184,21 @@ const StreamSession = ({
       let description = "An error occurred while streaming the response.";
       try {
         const raw =
-          err instanceof Error
-            ? err.message
-            : typeof err === "string"
-              ? err
-              : JSON.stringify(err);
-        const errName =
-          err instanceof Error
-            ? err.name
-            : (err as { name?: string } | null)?.name;
-        const errStatus = (err as { status?: number; code?: number } | null)
-          ?.status;
+          err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+        const errName = err instanceof Error ? err.name : (err as { name?: string } | null)?.name;
+        const errStatus = (err as { status?: number; code?: number } | null)?.status;
         // Stale thread (server restarted / in-memory state gone) → recover.
         const looksLikeMissingThread =
           errName === "NotFoundError" ||
           errStatus === 404 ||
-          (/404|not found|thread.*not.*exist/i.test(raw) &&
-            /thread/i.test(raw));
+          (/404|not found|thread.*not.*exist/i.test(raw) && /thread/i.test(raw));
         if (looksLikeMissingThread) {
           setThreadId(null);
-          getThreads().then(setThreads).catch(() => {});
+          getThreads()
+            .then(setThreads)
+            .catch(() => {});
           toast.message("Started a new conversation", {
-            description:
-              "The previous thread is no longer available. Send your message again.",
+            description: "The previous thread is no longer available. Send your message again.",
             duration: 6000,
           });
           return;
@@ -236,8 +215,7 @@ const StreamSession = ({
             if (inner) {
               try {
                 const innerParsed = JSON.parse(inner);
-                description =
-                  innerParsed?.error?.message ?? innerParsed?.message ?? inner;
+                description = innerParsed?.error?.message ?? innerParsed?.message ?? inner;
               } catch {
                 description = inner;
               }
@@ -271,8 +249,8 @@ const StreamSession = ({
         toast.error("Failed to connect to LangGraph server", {
           description: () => (
             <p>
-              Please ensure your graph is running at <code>{apiUrl}</code> and
-              your API key is correctly set (if connecting to a deployed graph).
+              Please ensure your graph is running at <code>{apiUrl}</code> and your API key is
+              correctly set (if connecting to a deployed graph).
             </p>
           ),
           duration: 10000,
@@ -283,11 +261,7 @@ const StreamSession = ({
     });
   }, [apiKey, apiUrl, authScheme]);
 
-  return (
-    <StreamContext.Provider value={streamValue}>
-      {children}
-    </StreamContext.Provider>
-  );
+  return <StreamContext.Provider value={streamValue}>{children}</StreamContext.Provider>;
 };
 
 // Default values for the form
@@ -295,13 +269,10 @@ const DEFAULT_API_URL = "http://localhost:2024";
 const DEFAULT_ASSISTANT_ID = "agent";
 const AGENT_BUILDER_AUTH_SCHEME = "langsmith-api-key";
 
-export const StreamProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
+export const StreamProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Get environment variables
   const envApiUrl: string | undefined = process.env.NEXT_PUBLIC_API_URL;
-  const envAssistantId: string | undefined =
-    process.env.NEXT_PUBLIC_ASSISTANT_ID;
+  const envAssistantId: string | undefined = process.env.NEXT_PUBLIC_ASSISTANT_ID;
   const envAuthScheme: string | undefined = process.env.NEXT_PUBLIC_AUTH_SCHEME;
 
   // Use URL params with env var fallbacks
@@ -315,9 +286,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
     defaultValue: envAuthScheme || "",
   });
   const [isAgentBuilder, setIsAgentBuilder] = useState(
-    () =>
-      (authScheme || envAuthScheme || "").toLowerCase() ===
-      AGENT_BUILDER_AUTH_SCHEME,
+    () => (authScheme || envAuthScheme || "").toLowerCase() === AGENT_BUILDER_AUTH_SCHEME,
   );
 
   // For API key, use localStorage with env var fallback
@@ -344,13 +313,11 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
           <div className="mt-14 flex flex-col gap-2 border-b p-6">
             <div className="flex flex-col items-start gap-2">
               <LangGraphLogoSVG className="h-7" />
-              <h1 className="text-xl font-semibold tracking-tight">
-                Agent Chat
-              </h1>
+              <h1 className="text-xl font-semibold tracking-tight">Agent Chat</h1>
             </div>
             <p className="text-muted-foreground">
-              Welcome to Agent Chat! Before you get started, you need to enter
-              the URL of the deployment and the assistant / graph ID.
+              Welcome to Agent Chat! Before you get started, you need to enter the URL of the
+              deployment and the assistant / graph ID.
             </p>
           </div>
           <form
@@ -377,8 +344,8 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
                 Deployment URL<span className="text-rose-500">*</span>
               </Label>
               <p className="text-muted-foreground text-sm">
-                This is the URL of your LangGraph deployment. Can be a local, or
-                production deployment.
+                This is the URL of your LangGraph deployment. Can be a local, or production
+                deployment.
               </p>
               <Input
                 id="apiUrl"
@@ -394,9 +361,8 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
                 Assistant / Graph ID<span className="text-rose-500">*</span>
               </Label>
               <p className="text-muted-foreground text-sm">
-                This is the ID of the graph (can be the graph name), or
-                assistant to fetch threads from, and invoke when actions are
-                taken.
+                This is the ID of the graph (can be the graph name), or assistant to fetch threads
+                from, and invoke when actions are taken.
               </p>
               <Input
                 id="assistantId"
@@ -410,10 +376,9 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             <div className="flex flex-col gap-2">
               <Label htmlFor="apiKey">LangSmith API Key</Label>
               <p className="text-muted-foreground text-sm">
-                This is <strong>NOT</strong> required if using a local LangGraph
-                server. This value is stored in your browser's local storage and
-                is only used to authenticate requests sent to your LangGraph
-                server.
+                This is <strong>NOT</strong> required if using a local LangGraph server. This value
+                is stored in your browser's local storage and is only used to authenticate requests
+                sent to your LangGraph server.
               </p>
               <PasswordInput
                 id="apiKey"
@@ -427,9 +392,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
-                  <Label htmlFor="agentBuilderEnabled">
-                    Built with Agent Builder
-                  </Label>
+                  <Label htmlFor="agentBuilderEnabled">Built with Agent Builder</Label>
                   <p className="text-muted-foreground text-sm">
                     Enable this for Agent Builder deployments.
                   </p>
@@ -443,10 +406,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             </div>
 
             <div className="mt-2 flex justify-end">
-              <Button
-                type="submit"
-                size="lg"
-              >
+              <Button type="submit" size="lg">
                 Continue
                 <ArrowRight className="size-5" />
               </Button>

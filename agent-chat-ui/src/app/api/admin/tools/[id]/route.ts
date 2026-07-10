@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import {
-  ensureToolTables,
-  getSuppressedTools,
-  setSuppressedTools,
-} from "@/lib/tool-tables";
+import { ensureToolTables, getSuppressedTools, setSuppressedTools } from "@/lib/tool-tables";
 
 /** Enable/disable a tool or update a LangChain tool's config. */
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureToolTables();
@@ -39,10 +32,7 @@ export async function PATCH(
 
 /** Remove any tool and suppress it (built-ins won't be re-seeded, MCP tools
  * won't be re-synced), cleaning up every agent that granted it. */
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureToolTables();

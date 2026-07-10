@@ -69,9 +69,7 @@ function isValidHitlRequest(
   );
 }
 
-function getDecisionStatus(
-  decision: Decision | undefined,
-): DecisionType | null {
+function getDecisionStatus(decision: Decision | undefined): DecisionType | null {
   if (!decision) return null;
   return decision.type;
 }
@@ -90,9 +88,7 @@ export function ThreadActionsView({
   const [threadId] = useQueryState("threadId");
   const [apiUrl] = useQueryState("apiUrl");
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [addressedActions, setAddressedActions] = useState<
-    Map<number, Decision>
-  >(new Map());
+  const [addressedActions, setAddressedActions] = useState<Map<number, Decision>>(new Map());
   const [submittingAll, setSubmittingAll] = useState(false);
 
   const hitlValue = interrupt.value;
@@ -100,17 +96,13 @@ export function ThreadActionsView({
     () => hitlValue?.action_requests ?? [],
     [hitlValue?.action_requests],
   );
-  const reviewConfigs = useMemo(
-    () => hitlValue?.review_configs ?? [],
-    [hitlValue?.review_configs],
-  );
+  const reviewConfigs = useMemo(() => hitlValue?.review_configs ?? [], [hitlValue?.review_configs]);
 
   const hasMultipleActions = actionRequests.length > 1;
   const currentAction = actionRequests[currentIndex];
   const matchingConfig =
-    reviewConfigs.find(
-      (config) => config.action_name === currentAction?.name,
-    ) ?? reviewConfigs[currentIndex];
+    reviewConfigs.find((config) => config.action_name === currentAction?.name) ??
+    reviewConfigs[currentIndex];
 
   const singleActionInterrupt = useMemo(() => {
     if (!currentAction || !matchingConfig) {
@@ -252,18 +244,13 @@ export function ThreadActionsView({
   const allAllowApprove = useMemo(() => {
     if (!hasMultipleActions) return false;
     return actionRequests.every((actionRequest) => {
-      const matching = reviewConfigs.find(
-        (config) => config.action_name === actionRequest.name,
-      );
+      const matching = reviewConfigs.find((config) => config.action_name === actionRequest.name);
       return matching?.allowed_decisions.includes("approve");
     });
   }, [actionRequests, reviewConfigs, hasMultipleActions]);
 
   const handleSaveDecision = () => {
-    const { decision, error } = buildDecisionFromState(
-      humanResponse,
-      selectedSubmitType,
-    );
+    const { decision, error } = buildDecisionFromState(humanResponse, selectedSubmitType);
 
     if (!decision || error) {
       toast.error("Error", {
@@ -293,15 +280,13 @@ export function ThreadActionsView({
 
   const currentTitle = getActionTitle(currentAction);
   const actionsDisabled = loading || streaming || submittingAll;
-  const hasAllDecisions =
-    hasMultipleActions && addressedActions.size === actionRequests.length;
+  const hasAllDecisions = hasMultipleActions && addressedActions.size === actionRequests.length;
 
   if (!isValidHitlRequest(interrupt)) {
     return (
-      <div className="flex min-h-full w-full flex-col items-center justify-center rounded-2xl bg-muted/50/50 p-8">
-        <p className="text-sm text-muted-foreground">
-          Unable to render interrupt. The data provided is not in the expected
-          HITL format.
+      <div className="bg-muted/50/50 flex min-h-full w-full flex-col items-center justify-center rounded-2xl p-8">
+        <p className="text-muted-foreground text-sm">
+          Unable to render interrupt. The data provided is not in the expected HITL format.
         </p>
       </div>
     );
@@ -324,7 +309,7 @@ export function ThreadActionsView({
             <Button
               size="sm"
               variant="outline"
-              className="flex items-center gap-1 bg-background"
+              className="bg-background flex items-center gap-1"
               onClick={handleOpenInStudio}
             >
               Studio
@@ -342,7 +327,7 @@ export function ThreadActionsView({
       <div className="flex w-full flex-row flex-wrap items-center justify-start gap-2">
         <Button
           variant="outline"
-          className="border-border bg-background font-normal text-foreground"
+          className="border-border bg-background text-foreground font-normal"
           onClick={handleResolve}
           disabled={actionsDisabled}
         >
@@ -351,7 +336,7 @@ export function ThreadActionsView({
         {hasMultipleActions && allAllowApprove && (
           <Button
             variant="outline"
-            className="border-border bg-background font-normal text-foreground"
+            className="border-border bg-background text-foreground font-normal"
             onClick={handleApproveAll}
             disabled={actionsDisabled}
           >
@@ -375,8 +360,7 @@ export function ThreadActionsView({
                   status === "approve" && "border-emerald-500 bg-emerald-200",
                   status === "reject" && "border-red-500 bg-red-200",
                   status === "edit" && "border-amber-500 bg-amber-200",
-                  index === currentIndex &&
-                    "outline-primary outline-2 outline-offset-2",
+                  index === currentIndex && "outline-primary outline-2 outline-offset-2",
                 )}
               >
                 <span className="sr-only">Action {index + 1}</span>
@@ -419,9 +403,7 @@ export function ThreadActionsView({
               size="sm"
               disabled={currentIndex === actionRequests.length - 1}
               onClick={() =>
-                setCurrentIndex((prev) =>
-                  Math.min(actionRequests.length - 1, prev + 1),
-                )
+                setCurrentIndex((prev) => Math.min(actionRequests.length - 1, prev + 1))
               }
             >
               Next
@@ -432,9 +414,7 @@ export function ThreadActionsView({
             disabled={!hasAllDecisions || submittingAll}
             onClick={handleSubmitAll}
           >
-            {submittingAll
-              ? "Submitting..."
-              : `Submit all ${actionRequests.length} decisions`}
+            {submittingAll ? "Submitting..." : `Submit all ${actionRequests.length} decisions`}
           </Button>
         </div>
       )}

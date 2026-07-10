@@ -30,15 +30,11 @@ export function DeleteButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive",
+        "text-destructive hover:bg-destructive/10 hover:text-destructive size-8 shrink-0",
         className,
       )}
     >
-      {busy ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <Trash2 className="size-4" />
-      )}
+      {busy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
       <span className="sr-only">{title}</span>
     </Button>
   );

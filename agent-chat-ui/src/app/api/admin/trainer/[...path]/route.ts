@@ -35,20 +35,14 @@ async function proxy(req: NextRequest, path: string) {
   }
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ path?: string[] }> },
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ path?: string[] }> }) {
   const auth = checkAdmin(req);
   if (auth) return auth;
   const { path = [] } = await params;
   return proxy(req, "/admin/" + path.join("/"));
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ path?: string[] }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ path?: string[] }> }) {
   const auth = checkAdmin(req);
   if (auth) return auth;
   const { path = [] } = await params;

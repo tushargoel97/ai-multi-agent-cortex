@@ -145,14 +145,7 @@ const BASE_MODELS = [
 ];
 
 const DEFAULT_MODEL_NAME = BASE_MODELS[0].output;
-const BUSY_PHASES = [
-  "training",
-  "fusing",
-  "converting",
-  "researching",
-  "scraping",
-  "importing",
-];
+const BUSY_PHASES = ["training", "fusing", "converting", "researching", "scraping", "importing"];
 
 function fmtParams(n?: number | null): string | null {
   if (!n || n <= 0) return null;
@@ -184,12 +177,7 @@ function LossSparkline({ history }: { history: LossPoint[] }) {
     })
     .join(" ");
   return (
-    <svg
-      width={w}
-      height={h}
-      className="rounded border bg-muted/50"
-      aria-label="training loss"
-    >
+    <svg width={w} height={h} className="bg-muted/50 rounded border" aria-label="training loss">
       <polyline
         points={points}
         fill="none"
@@ -201,11 +189,7 @@ function LossSparkline({ history }: { history: LossPoint[] }) {
   );
 }
 
-export default function FinetunePanel({
-  onChanged,
-}: {
-  onChanged?: () => void;
-}) {
+export default function FinetunePanel({ onChanged }: { onChanged?: () => void }) {
   const confirm = useConfirm();
   const [trainerUp, setTrainerUp] = useState<boolean | null>(null);
   const [status, setStatus] = useState<TrainerStatus>({ phase: "idle" });
@@ -380,8 +364,7 @@ export default function FinetunePanel({
           { headers: headers() },
         );
         const data = await r.json();
-        if (!r.ok)
-          throw new Error(data?.detail ?? data?.error ?? `preview ${r.status}`);
+        if (!r.ok) throw new Error(data?.detail ?? data?.error ?? `preview ${r.status}`);
         setPreview(data);
         setShowPreview(true);
       } catch (e) {
@@ -540,8 +523,8 @@ export default function FinetunePanel({
         await new Promise((r) => setTimeout(r, 2500));
         const s: TrainerStatus & {
           research_results?: { id: string; status: string; summary: string }[];
-        } = await fetch("/api/admin/trainer/progress", { headers: headers() }).then(
-          (x) => x.json(),
+        } = await fetch("/api/admin/trainer/progress", { headers: headers() }).then((x) =>
+          x.json(),
         );
         setStatus(s);
         if (s.phase === "research_done") {
@@ -626,9 +609,7 @@ export default function FinetunePanel({
     setBusy("convert");
     setError(null);
     setRegistered(false);
-    const name = modelName.startsWith("finetuned-")
-      ? modelName
-      : `finetuned-${modelName}`;
+    const name = modelName.startsWith("finetuned-") ? modelName : `finetuned-${modelName}`;
     try {
       await post("convert", { output_name: name });
       // Wait for fuse + GGUF conversion to finish (can take a few minutes).
@@ -695,10 +676,9 @@ export default function FinetunePanel({
     setHfSearching(true);
     setError(null);
     try {
-      const r = await fetch(
-        `/api/admin/trainer/hf/search?q=${encodeURIComponent(q)}`,
-        { headers: headers() },
-      );
+      const r = await fetch(`/api/admin/trainer/hf/search?q=${encodeURIComponent(q)}`, {
+        headers: headers(),
+      });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.detail ?? data?.error ?? `search ${r.status}`);
       setHfResults(data.results ?? []);
@@ -727,9 +707,7 @@ export default function FinetunePanel({
       if (Array.isArray(rows)) {
         setFinetuned(
           rows
-            .filter((m: { model_id?: string }) =>
-              m.model_id?.startsWith("finetuned-"),
-            )
+            .filter((m: { model_id?: string }) => m.model_id?.startsWith("finetuned-"))
             .map((m: { id: string; model_id: string; display_name?: string }) => ({
               id: m.id,
               model_id: m.model_id,
@@ -746,11 +724,7 @@ export default function FinetunePanel({
     void refreshFinetuned();
   }, [refreshFinetuned, registered]);
 
-  const deleteFinetuned = async (m: {
-    id: string;
-    model_id: string;
-    display_name: string;
-  }) => {
+  const deleteFinetuned = async (m: { id: string; model_id: string; display_name: string }) => {
     if (
       !(await confirm({
         title: `Delete "${m.display_name}"?`,
@@ -834,8 +808,8 @@ export default function FinetunePanel({
           <div>
             <p className="font-medium">Trainer service is not reachable.</p>
             <p className="mt-1">
-              The fine-tuning service runs on the host (MLX needs the Apple
-              Silicon GPU, it can’t run inside Docker). Start it with:
+              The fine-tuning service runs on the host (MLX needs the Apple Silicon GPU, it can’t
+              run inside Docker). Start it with:
             </p>
             <pre className="mt-2 rounded bg-amber-500/15 p-2 text-xs">
               cd trainer && uv run uvicorn app.main:app --host 0.0.0.0 --port 8200
@@ -849,7 +823,7 @@ export default function FinetunePanel({
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm">
           {error}
         </div>
       )}
@@ -858,7 +832,7 @@ export default function FinetunePanel({
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Database className="size-4 text-muted-foreground" />
+            <Database className="text-muted-foreground size-4" />
             <h2 className="font-medium">1 · Dataset</h2>
           </div>
           <div className="flex items-center gap-2">
@@ -882,61 +856,50 @@ export default function FinetunePanel({
               onClick={generateDataset}
               disabled={jobRunning || selectedSubs.length === 0}
             >
-              {busy === "dataset" ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : null}
+              {busy === "dataset" ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
               Generate dataset
             </Button>
           </div>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Builds the chat-format Q&amp;A training set for the subdomains you
-          toggle on below, one model trains across all of them. Create your own
-          domains/subdomains, add rows, or Smart-import sources. Web research
-          needs a FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in your .env.
+        <p className="text-muted-foreground mt-2 text-sm">
+          Builds the chat-format Q&amp;A training set for the subdomains you toggle on below, one
+          model trains across all of them. Create your own domains/subdomains, add rows, or
+          Smart-import sources. Web research needs a FIRECRAWL_API_KEY (or BRAVE/SERPAPI/TAVILY) in
+          your .env.
         </p>
 
         {/* Import sources, Smart import routes them to any domain/subdomain */}
         <div className="mt-4 rounded-md border border-dashed p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">Sources</p>
+            <p className="text-foreground text-sm font-medium">Sources</p>
           </div>
           {sources.length > 0 ? (
             <ul className="mt-2 space-y-1">
               {sources.map((s) => {
                 const Icon = SOURCE_ICONS[s.type] ?? FileText;
                 return (
-                  <li
-                    key={s.id}
-                    className="flex items-center gap-2 text-sm text-muted-foreground"
-                  >
-                    <Icon className="size-4 shrink-0 text-muted-foreground/70" />
+                  <li key={s.id} className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Icon className="text-muted-foreground/70 size-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate" title={s.name}>
                       {s.name}
                     </span>
                     {s.size_kb != null && (
-                      <span className="text-xs text-muted-foreground/70">
-                        {s.size_kb} KB
-                      </span>
+                      <span className="text-muted-foreground/70 text-xs">{s.size_kb} KB</span>
                     )}
-                    <DeleteButton
-                      onClick={() => deleteSource(s.id)}
-                      title="Remove source"
-                    />
+                    <DeleteButton onClick={() => deleteSource(s.id)} title="Remove source" />
                   </li>
                 );
               })}
             </ul>
           ) : (
-            <p className="mt-1 text-sm text-muted-foreground/70">
-              None yet, add PDFs, links, or a research topic, then Smart import
-              routes them to a domain/subdomain (auto-detected, or the one you
-              pick).
+            <p className="text-muted-foreground/70 mt-1 text-sm">
+              None yet, add PDFs, links, or a research topic, then Smart import routes them to a
+              domain/subdomain (auto-detected, or the one you pick).
             </p>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-muted/50">
+            <label className="text-muted-foreground hover:bg-muted/50 inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition">
               <Upload className="size-4" />
               Upload PDF / Excel / Image
               <input
@@ -959,14 +922,19 @@ export default function FinetunePanel({
                 onChange={(e) => setUrlInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addUrl()}
               />
-              <Button size="sm" variant="outline" onClick={addUrl} disabled={jobRunning || !urlInput.trim()}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={addUrl}
+                disabled={jobRunning || !urlInput.trim()}
+              >
                 <Link2 className="mr-1 size-4" /> Add URL
               </Button>
             </div>
           </div>
           <div className="mt-2 flex items-start gap-2">
             <textarea
-              className="min-h-16 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="focus-visible:ring-ring min-h-16 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2"
               placeholder="Research topic (e.g. Apple Silicon A-series and M-series chip specs) or paste seed text…"
               value={promptInput}
               disabled={jobRunning}
@@ -982,7 +950,7 @@ export default function FinetunePanel({
             </Button>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-            <label className="text-xs text-muted-foreground">Import into</label>
+            <label className="text-muted-foreground text-xs">Import into</label>
             <Select
               disabled={jobRunning}
               value={importTarget}
@@ -1030,60 +998,52 @@ export default function FinetunePanel({
         />
 
         {phase === "importing" && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
-            Analyzing sources, {" "}
-            <span className="font-mono">
-              {status.scrape_current ?? "working\u2026"}
-            </span>
+            Analyzing sources,{" "}
+            <span className="font-mono">{status.scrape_current ?? "working\u2026"}</span>
           </p>
         )}
         {proposal && (
-          <div className="mt-3 rounded-md border border-primary/30 bg-muted/30 p-3">
+          <div className="border-primary/30 bg-muted/30 mt-3 rounded-md border p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Sparkles className="size-4 text-foreground" />
-              <p className="text-sm font-medium text-foreground">
-                Proposed import
-              </p>
+              <Sparkles className="text-foreground size-4" />
+              <p className="text-foreground text-sm font-medium">Proposed import</p>
               {proposal.new_subdomain && (
                 <span className="rounded-full bg-emerald-500/15 px-2 text-[10px] text-emerald-600">
                   new subdomain
                 </span>
               )}
-              <span className="rounded-full bg-muted px-2 text-[10px] text-muted-foreground">
+              <span className="bg-muted text-muted-foreground rounded-full px-2 text-[10px]">
                 {proposal.render === "spec_table" ? "table" : "prose"}
               </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Save into</span>
+              <span className="text-muted-foreground text-xs">Save into</span>
               <Input
                 value={proposal.domain}
-                onChange={(e) =>
-                  setProposal({ ...proposal, domain: e.target.value })
-                }
+                onChange={(e) => setProposal({ ...proposal, domain: e.target.value })}
                 className="h-8 max-w-[10rem]"
               />
               <span className="text-muted-foreground">/</span>
               <Input
                 value={proposal.subdomain}
-                onChange={(e) =>
-                  setProposal({ ...proposal, subdomain: e.target.value })
-                }
+                onChange={(e) => setProposal({ ...proposal, subdomain: e.target.value })}
                 className="h-8 max-w-[10rem]"
               />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-xs">
               Fields: {proposal.fields.map((f) => f.key).join(", ") || "-"}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-xs">
               {proposal.entities.length} entit
               {proposal.entities.length === 1 ? "y" : "ies"} found
             </p>
             {proposal.entities.length > 0 && (
               <div className="mt-1 max-h-56 overflow-auto rounded border">
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-muted">
-                    <tr className="text-left text-muted-foreground">
+                  <thead className="bg-muted sticky top-0">
+                    <tr className="text-muted-foreground text-left">
                       <th className="p-1">name</th>
                       {proposal.fields.map((f) => (
                         <th key={f.key} className="p-1">
@@ -1095,11 +1055,11 @@ export default function FinetunePanel({
                   <tbody>
                     {proposal.entities.slice(0, 50).map((row, i) => (
                       <tr key={i} className="border-t">
-                        <td className="p-1 font-medium text-foreground">
+                        <td className="text-foreground p-1 font-medium">
                           {String(row.name ?? "")}
                         </td>
                         {proposal.fields.map((f) => (
-                          <td key={f.key} className="p-1 text-muted-foreground">
+                          <td key={f.key} className="text-muted-foreground p-1">
                             {String((row[f.key] as unknown) ?? "")}
                           </td>
                         ))}
@@ -1127,21 +1087,16 @@ export default function FinetunePanel({
                 )}
                 Approve &amp; save
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={discardProposal}
-                disabled={applying}
-              >
+              <Button size="sm" variant="ghost" onClick={discardProposal} disabled={applying}>
                 Discard
               </Button>
             </div>
           </div>
         )}
         {phase === "scraping" && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
-            Importing specs {status.scrape_done ?? 0}/{status.scrape_total ?? "…"}, {" "}
+            Importing specs {status.scrape_done ?? 0}/{status.scrape_total ?? "…"},{" "}
             <span className="font-mono">{status.scrape_current}</span>
           </p>
         )}
@@ -1154,38 +1109,32 @@ export default function FinetunePanel({
             {", now Generate dataset."}
           </p>
         )}
-        {phase === "scrape_done" &&
-          (status.scrape_outcomes?.length ?? 0) > 0 && (
-            <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-xs">
-              {status.scrape_outcomes!.map((o, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span
-                    className={
-                      "mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-medium " +
-                      (OUTCOME_STYLES[o.status] ?? "bg-muted text-muted-foreground")
-                    }
-                  >
-                    {o.status}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="font-mono break-all text-muted-foreground">
-                      {o.url}
-                    </span>
-                    {o.detail ? (
-                      <span className="text-muted-foreground">, {o.detail}</span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        {phase === "scrape_done" && (status.scrape_outcomes?.length ?? 0) > 0 && (
+          <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-xs">
+            {status.scrape_outcomes!.map((o, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span
+                  className={
+                    "mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-medium " +
+                    (OUTCOME_STYLES[o.status] ?? "bg-muted text-muted-foreground")
+                  }
+                >
+                  {o.status}
+                </span>
+                <span className="min-w-0">
+                  <span className="text-muted-foreground font-mono break-all">{o.url}</span>
+                  {o.detail ? <span className="text-muted-foreground">, {o.detail}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <p className="mt-2 text-sm">
           {hasDataset ? (
             <span className="text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="mr-1 inline size-4" />
-              {trainCount} train / {dataset.valid?.count ?? 0} validation
-              examples ready
+              {trainCount} train / {dataset.valid?.count ?? 0} validation examples ready
             </span>
           ) : (
             <span className="text-muted-foreground">No dataset generated yet.</span>
@@ -1204,20 +1153,20 @@ export default function FinetunePanel({
                     "rounded-full px-2.5 py-0.5 text-xs capitalize " +
                     (previewSplit === s
                       ? "bg-primary text-primary-foreground"
-                      : "border text-muted-foreground hover:bg-muted")
+                      : "text-muted-foreground hover:bg-muted border")
                   }
                 >
                   {s}
                 </button>
               ))}
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {preview.exists
                   ? `${preview.shown} of ${preview.total} pair(s)`
                   : "not generated yet"}
               </span>
               <button
                 onClick={() => setShowPreview(false)}
-                className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground ml-auto text-xs"
               >
                 Close
               </button>
@@ -1225,16 +1174,14 @@ export default function FinetunePanel({
             {preview.pairs.length > 0 ? (
               <ol className="max-h-96 space-y-2 overflow-y-auto p-3 text-xs">
                 {preview.pairs.map((p, i) => (
-                  <li key={i} className="rounded border border-border/60 p-2">
-                    <p className="font-medium text-foreground">Q: {p.q}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
-                      A: {p.a}
-                    </p>
+                  <li key={i} className="border-border/60 rounded border p-2">
+                    <p className="text-foreground font-medium">Q: {p.q}</p>
+                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap">A: {p.a}</p>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="p-3 text-xs text-muted-foreground">
+              <p className="text-muted-foreground p-3 text-xs">
                 {preview.exists
                   ? "No pairs in this split."
                   : "This split isn't generated yet, run Generate dataset (with your sources) first."}
@@ -1248,7 +1195,7 @@ export default function FinetunePanel({
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Lightbulb className="size-4 text-muted-foreground" />
+            <Lightbulb className="text-muted-foreground size-4" />
             <h2 className="font-medium">Knowledge gaps</h2>
             {gaps.filter((g) => g.status === "new").length > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -1270,15 +1217,14 @@ export default function FinetunePanel({
             Research gaps (web)
           </Button>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Questions the specialist couldn&apos;t answer are captured here
-          automatically. Research looks up the missing specs on the web and
-          adds them to the training data, then Generate dataset → Train bakes
-          them into the model&apos;s weights. The model never browses at answer
-          time.
+        <p className="text-muted-foreground mt-2 text-sm">
+          Questions the specialist couldn&apos;t answer are captured here automatically. Research
+          looks up the missing specs on the web and adds them to the training data, then Generate
+          dataset → Train bakes them into the model&apos;s weights. The model never browses at
+          answer time.
         </p>
         {phase === "researching" && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
             Researching… {status.gaps_done ?? 0}/{status.gaps_total ?? 0} gaps,{" "}
             {status.products_learned ?? 0} product(s) learned
@@ -1289,47 +1235,47 @@ export default function FinetunePanel({
             {gaps.map((g) => (
               <li
                 key={g.id}
-                className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm"
+                className="border-border/60 flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
               >
                 <span
                   className={
                     g.status === "researched"
                       ? "mt-0.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
                       : g.status === "trained"
-                        ? "mt-0.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                        ? "bg-muted text-muted-foreground mt-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
                         : "mt-0.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
                   }
                 >
                   {g.status}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-foreground" title={g.question}>
+                  <p className="text-foreground truncate" title={g.question}>
                     {g.question}
                   </p>
                   {g.researched_summary && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={g.researched_summary}>
+                    <p
+                      className="text-muted-foreground mt-0.5 truncate text-xs"
+                      title={g.researched_summary}
+                    >
                       {g.researched_summary}
                     </p>
                   )}
                 </div>
-                <DeleteButton
-                  onClick={() => dismissGap(g.id)}
-                  title="Dismiss gap"
-                />
+                <DeleteButton onClick={() => dismissGap(g.id)} title="Dismiss gap" />
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground/70">
-            No gaps captured yet, they appear when users ask about hardware
-            the model doesn&apos;t know.
+          <p className="text-muted-foreground/70 mt-3 text-sm">
+            No gaps captured yet, they appear when users ask about hardware the model doesn&apos;t
+            know.
           </p>
         )}
         {gaps.some((g) => g.status === "researched") && (
           <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
             <RefreshCw className="mr-1 inline size-4" />
-            Researched gaps ready, run Generate dataset, then Train, then
-            Convert &amp; Register to teach the model.
+            Researched gaps ready, run Generate dataset, then Train, then Convert &amp; Register to
+            teach the model.
           </p>
         )}
       </section>
@@ -1338,7 +1284,7 @@ export default function FinetunePanel({
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FlaskConical className="size-4 text-muted-foreground" />
+            <FlaskConical className="text-muted-foreground size-4" />
             <h2 className="font-medium">2 · Train (MLX LoRA)</h2>
           </div>
           {training ? (
@@ -1365,11 +1311,7 @@ export default function FinetunePanel({
                 )}
                 Quick top-up
               </Button>
-              <Button
-                size="sm"
-                onClick={startTraining}
-                disabled={jobRunning || !hasDataset}
-              >
+              <Button size="sm" onClick={startTraining} disabled={jobRunning || !hasDataset}>
                 {busy === "train" ? (
                   <Loader2 className="mr-1 size-4 animate-spin" />
                 ) : (
@@ -1383,7 +1325,7 @@ export default function FinetunePanel({
 
         <div className="mt-3 flex flex-wrap items-end gap-4">
           <div className="text-sm">
-            <span className="mb-1 block text-muted-foreground">Base model</span>
+            <span className="text-muted-foreground mb-1 block">Base model</span>
             <div className="flex items-center gap-2">
               <Select
                 disabled={training}
@@ -1397,7 +1339,7 @@ export default function FinetunePanel({
                   const bm = BASE_MODELS.find((b) => b.id === v);
                   if (bm) setModelName(bm.output);
                 }}
-                className="h-9 rounded-full bg-muted/50 px-4 hover:bg-muted"
+                className="bg-muted/50 hover:bg-muted h-9 rounded-full px-4"
                 menuClassName="max-w-[min(32rem,90vw)]"
                 options={[
                   ...BASE_MODELS.map((b) => ({ value: b.id, label: b.label })),
@@ -1411,7 +1353,7 @@ export default function FinetunePanel({
                 type="button"
                 onClick={() => setShowHf((v) => !v)}
                 disabled={training}
-                className="inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted/50 disabled:opacity-50"
+                className="text-muted-foreground hover:bg-muted/50 inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs transition disabled:opacity-50"
                 title="Search Hugging Face for a base model"
               >
                 <Globe className="size-3.5" /> HF
@@ -1419,7 +1361,7 @@ export default function FinetunePanel({
             </div>
           </div>
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">Iterations</span>
+            <span className="text-muted-foreground mb-1 block">Iterations</span>
             <Input
               type="number"
               className="w-28"
@@ -1430,7 +1372,7 @@ export default function FinetunePanel({
             />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">Batch size</span>
+            <span className="text-muted-foreground mb-1 block">Batch size</span>
             <Input
               type="number"
               className="w-24"
@@ -1442,14 +1384,14 @@ export default function FinetunePanel({
           </label>
         </div>
 
-        <p className="mt-2 text-xs text-muted-foreground/70">
+        <p className="text-muted-foreground/70 mt-2 text-xs">
           {hasAdapters
             ? "Only change the base / search Hugging Face to SWITCH base models. Retraining the existing model on the same base, a full “Start training” (fresh adapters) or a “Quick top-up” (warm-start), needs no change here."
             : "Choose the base model to train from, a preset, or “Search Hugging Face…” for any text-generation repo."}
         </p>
 
         {showHf && (
-          <div className="mt-3 rounded-md border bg-muted/30 p-3">
+          <div className="bg-muted/30 mt-3 rounded-md border p-3">
             <div className="flex items-center gap-2">
               <Input
                 placeholder="Search Hugging Face, e.g. Qwen3 4B instruct, Llama 3.2 3B"
@@ -1475,36 +1417,32 @@ export default function FinetunePanel({
                 Search
               </Button>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground/70">
-              Any text-generation repo works as a training base. mlx-lm
-              downloads it at train time; gated repos (e.g. google/gemma-*) need
-              an HF_TOKEN on the trainer host.
+            <p className="text-muted-foreground/70 mt-1 text-xs">
+              Any text-generation repo works as a training base. mlx-lm downloads it at train time;
+              gated repos (e.g. google/gemma-*) need an HF_TOKEN on the trainer host.
             </p>
             {hfResults.length > 0 && (
               <ul className="mt-2 max-h-56 space-y-1 overflow-auto">
                 {hfResults.map((m) => (
                   <li
                     key={m.id}
-                    className="flex items-center justify-between gap-2 rounded border bg-background/60 px-2 py-1.5"
+                    className="bg-background/60 flex items-center justify-between gap-2 rounded border px-2 py-1.5"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-mono text-xs text-foreground">
-                        {m.id}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-foreground truncate font-mono text-xs">{m.id}</div>
+                      <div className="text-muted-foreground text-[11px]">
                         {fmtParams(m.params) && (
-                          <span className="font-medium text-foreground/80">
+                          <span className="text-foreground/80 font-medium">
                             {fmtParams(m.params)} params
                           </span>
                         )}
                         {fmtBytes(m.size_bytes) && (
                           <span>
-                            {fmtParams(m.params) ? " · " : ""}~
-                            {fmtBytes(m.size_bytes)}
+                            {fmtParams(m.params) ? " · " : ""}~{fmtBytes(m.size_bytes)}
                           </span>
                         )}
-                        {(fmtParams(m.params) || fmtBytes(m.size_bytes)) && " · "}
-                        ↓ {m.downloads.toLocaleString()}
+                        {(fmtParams(m.params) || fmtBytes(m.size_bytes)) && " · "}↓{" "}
+                        {m.downloads.toLocaleString()}
                         {m.gated && (
                           <span className="ml-1 rounded bg-amber-500/15 px-1 text-amber-600">
                             gated
@@ -1529,24 +1467,17 @@ export default function FinetunePanel({
 
         {(training || phase === "trained" || (status.history?.length ?? 0) > 0) && (
           <div className="mt-4 space-y-2">
-            <div className="h-2 w-full overflow-hidden rounded bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${trainPct}%` }}
-              />
+            <div className="bg-muted h-2 w-full overflow-hidden rounded">
+              <div className="bg-primary h-full transition-all" style={{ width: `${trainPct}%` }} />
             </div>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span>
                 Iteration {status.iter ?? 0} / {status.total_iters ?? "-"}
               </span>
               <span>
-                Train loss:{" "}
-                {status.train_loss != null ? status.train_loss.toFixed(3) : "-"}
+                Train loss: {status.train_loss != null ? status.train_loss.toFixed(3) : "-"}
               </span>
-              <span>
-                Val loss:{" "}
-                {status.val_loss != null ? status.val_loss.toFixed(3) : "-"}
-              </span>
+              <span>Val loss: {status.val_loss != null ? status.val_loss.toFixed(3) : "-"}</span>
               {phase === "trained" && (
                 <span className="text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="mr-1 inline size-4" />
@@ -1555,19 +1486,17 @@ export default function FinetunePanel({
               )}
             </div>
             {phase === "trained" && (
-              <p className="text-xs text-muted-foreground">
-                LoRA adapters saved (<code>adapters.safetensors</code>), not a
-                servable model yet. Run <strong>Convert &amp; Register</strong>{" "}
-                below to fuse them into a GGUF the chat can load.
+              <p className="text-muted-foreground text-xs">
+                LoRA adapters saved (<code>adapters.safetensors</code>), not a servable model yet.
+                Run <strong>Convert &amp; Register</strong> below to fuse them into a GGUF the chat
+                can load.
               </p>
             )}
             {status.history && <LossSparkline history={status.history} />}
             {status.log_tail && status.log_tail.length > 0 && (
               <details className="text-xs">
-                <summary className="cursor-pointer text-muted-foreground">
-                  Training log
-                </summary>
-                <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted/50 p-2">
+                <summary className="text-muted-foreground cursor-pointer">Training log</summary>
+                <pre className="bg-muted/50 mt-1 max-h-48 overflow-auto rounded p-2">
                   {status.log_tail.join("\n")}
                 </pre>
               </details>
@@ -1580,28 +1509,23 @@ export default function FinetunePanel({
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <PackageCheck className="size-4 text-muted-foreground" />
+            <PackageCheck className="text-muted-foreground size-4" />
             <h2 className="font-medium">3 · Convert to GGUF &amp; register</h2>
           </div>
-          <Button
-            size="sm"
-            onClick={convertAndRegister}
-            disabled={jobRunning || training}
-          >
+          <Button size="sm" onClick={convertAndRegister} disabled={jobRunning || training}>
             {busy === "convert" || converting ? (
               <Loader2 className="mr-1 size-4 animate-spin" />
             ) : null}
             Convert &amp; Register
           </Button>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Fuses the LoRA adapters, converts to GGUF (q8_0), imports it into the
-          local llama.cpp service, and registers it in the model registry.
-          Requires a completed training run.
+        <p className="text-muted-foreground mt-2 text-sm">
+          Fuses the LoRA adapters, converts to GGUF (q8_0), imports it into the local llama.cpp
+          service, and registers it in the model registry. Requires a completed training run.
         </p>
         <div className="mt-3">
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">
+            <span className="text-muted-foreground mb-1 block">
               Model id (must keep the <code>finetuned-</code> prefix)
             </span>
             <Input
@@ -1613,7 +1537,7 @@ export default function FinetunePanel({
           </label>
         </div>
         {converting && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
             {phase === "fusing"
               ? "Fusing LoRA adapters into the base model…"
@@ -1621,28 +1545,25 @@ export default function FinetunePanel({
           </p>
         )}
         {busy === "convert" && phase === "done" && !registered && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             <Loader2 className="mr-1 inline size-4 animate-spin" />
             GGUF built
-            {status.gguf_filename ? ` (${status.gguf_filename})` : ""}, importing
-            into the local model service and registering it…
+            {status.gguf_filename ? ` (${status.gguf_filename})` : ""}, importing into the local
+            model service and registering it…
           </p>
         )}
         {registered && (
           <div className="mt-3 space-y-1 text-sm">
             <p className="text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="mr-1 inline size-4" />
-              Registered!{" "}
-              <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> was
-              written to the shared <code>models/</code> folder and imported into
-              the local model service.
+              Registered! <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> was written to
+              the shared <code>models/</code> folder and imported into the local model service.
             </p>
             <p className="text-muted-foreground">
-              The GGUF lives in the <code>./models</code> host mount, so it
-              persists across <code>ai</code> restarts and image rebuilds. It now
-              appears in the chat model dropdown, and hardware-spec questions
-              route to it automatically (with a web-search fallback for hardware
-              it wasn&apos;t trained on).
+              The GGUF lives in the <code>./models</code> host mount, so it persists across{" "}
+              <code>ai</code> restarts and image rebuilds. It now appears in the chat model
+              dropdown, and hardware-spec questions route to it automatically (with a web-search
+              fallback for hardware it wasn&apos;t trained on).
             </p>
           </div>
         )}
@@ -1651,7 +1572,7 @@ export default function FinetunePanel({
       {/* 4, Fine-tuned models */}
       <section className="rounded-lg border p-4">
         <div className="flex items-center gap-2">
-          <Database className="size-4 text-muted-foreground" />
+          <Database className="text-muted-foreground size-4" />
           <h2 className="font-medium">4 · Fine-tuned models</h2>
         </div>
         {finetuned.length > 0 ? (
@@ -1659,13 +1580,11 @@ export default function FinetunePanel({
             {finetuned.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center justify-between gap-2 rounded border bg-background/60 px-3 py-2 text-sm"
+                className="bg-background/60 flex items-center justify-between gap-2 rounded border px-3 py-2 text-sm"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-foreground">{m.display_name}</div>
-                  <code className="text-xs text-muted-foreground">
-                    {m.model_id}
-                  </code>
+                  <div className="text-foreground truncate">{m.display_name}</div>
+                  <code className="text-muted-foreground text-xs">{m.model_id}</code>
                 </div>
                 <DeleteButton
                   onClick={() => deleteFinetuned(m)}
@@ -1677,18 +1596,12 @@ export default function FinetunePanel({
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground/70">
-            No fine-tuned models registered yet, train one, then Convert &amp;
-            Register.
+          <p className="text-muted-foreground/70 mt-3 text-sm">
+            No fine-tuned models registered yet, train one, then Convert &amp; Register.
           </p>
         )}
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={clearArtifacts}
-            disabled={jobRunning}
-          >
+          <Button size="sm" variant="outline" onClick={clearArtifacts} disabled={jobRunning}>
             {busy === "clear-artifacts" ? (
               <Loader2 className="mr-1 size-4 animate-spin" />
             ) : (
@@ -1696,9 +1609,9 @@ export default function FinetunePanel({
             )}
             Clear training artifacts
           </Button>
-          <span className="text-xs text-muted-foreground/70">
-            Removes the LoRA adapters + fused files (shared working state, tied
-            to the current base). Do this before switching base models.
+          <span className="text-muted-foreground/70 text-xs">
+            Removes the LoRA adapters + fused files (shared working state, tied to the current
+            base). Do this before switching base models.
           </span>
         </div>
       </section>

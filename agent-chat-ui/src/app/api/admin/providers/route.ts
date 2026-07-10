@@ -37,13 +37,9 @@ export async function POST(req: Request) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   const body = await req.json();
-  const { name, kind, api_key, base_url, azure_endpoint, azure_api_version } =
-    body ?? {};
+  const { name, kind, api_key, base_url, azure_endpoint, azure_api_version } = body ?? {};
   if (!name || !kind) {
-    return NextResponse.json(
-      { error: "name and kind are required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "name and kind are required" }, { status: 400 });
   }
   if (!VALID_KINDS.includes(kind)) {
     return NextResponse.json(

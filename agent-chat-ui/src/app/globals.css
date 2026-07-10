@@ -158,13 +158,13 @@
      disables descendants' backdrop-filter (nested backdrop roots), and
      page-sized blur regions cause repaint jank. */
   .glass {
-    @apply border-black/10 bg-popover/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
+    @apply bg-popover/65 border-black/10 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
   }
   .glass-surface {
-    @apply border-black/10 bg-background/65 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
+    @apply bg-background/65 border-black/10 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10;
   }
   .glass-tint {
-    @apply border-black/10 bg-background/65 dark:border-white/10;
+    @apply bg-background/65 border-black/10 dark:border-white/10;
   }
 }
 
@@ -270,7 +270,7 @@
 }
 .imggen-frame::before,
 .imggen-fill::before {
-  opacity: 0.10;
+  opacity: 0.1;
 }
 .imggen-frame::after,
 .imggen-fill::after {
@@ -281,12 +281,7 @@
     rgb(0 0 0 / 0.5) 45%,
     transparent 72%
   );
-  mask-image: radial-gradient(
-    40% 40% at 50% 50%,
-    #000 0%,
-    rgb(0 0 0 / 0.5) 45%,
-    transparent 72%
-  );
+  mask-image: radial-gradient(40% 40% at 50% 50%, #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 72%);
   -webkit-mask-size: 250% 250%;
   mask-size: 250% 250%;
   -webkit-mask-repeat: no-repeat;

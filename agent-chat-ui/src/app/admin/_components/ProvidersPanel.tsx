@@ -37,11 +37,7 @@ async function adminFetch(url: string, init: RequestInit = {}) {
   });
 }
 
-export default function ProvidersPanel({
-  onChanged,
-}: {
-  onChanged?: () => void;
-}) {
+export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }) {
   const confirm = useConfirm();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,10 +115,9 @@ export default function ProvidersPanel({
       toast.error(data.error || "Sync failed", { id: t });
       return;
     }
-    toast.success(
-      `Synced ${data.total} models (${data.inserted} new, ${data.updated} updated)`,
-      { id: t },
-    );
+    toast.success(`Synced ${data.total} models (${data.inserted} new, ${data.updated} updated)`, {
+      id: t,
+    });
     onChanged?.();
   }
 
@@ -185,15 +180,11 @@ export default function ProvidersPanel({
         <div>
           <h2 className="text-lg font-semibold">LLM Providers</h2>
           <p className="text-muted-foreground text-sm">
-            Add a provider, set its API key, then click <em>Sync models</em> to
-            pull the latest list directly from the provider.
+            Add a provider, set its API key, then click <em>Sync models</em> to pull the latest list
+            directly from the provider.
           </p>
         </div>
-        <Button
-          onClick={syncAll}
-          disabled={loading || providers.length === 0}
-          className="shrink-0"
-        >
+        <Button onClick={syncAll} disabled={loading || providers.length === 0} className="shrink-0">
           <RefreshCw className="mr-2 size-4" />
           Sync all providers
         </Button>
@@ -201,31 +192,26 @@ export default function ProvidersPanel({
 
       {!loading &&
         providers.length > 0 &&
-        providers.filter(
-          (p) => !p.api_key_set && p.kind !== "local" && p.kind !== "azure_openai",
-        ).length > 0 && (
+        providers.filter((p) => !p.api_key_set && p.kind !== "local" && p.kind !== "azure_openai")
+          .length > 0 && (
           <div className="rounded-md border border-amber-200 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
             <strong>API keys missing</strong> on{" "}
             {
               providers.filter(
-                (p) =>
-                  !p.api_key_set &&
-                  p.kind !== "local" &&
-                  p.kind !== "azure_openai",
+                (p) => !p.api_key_set && p.kind !== "local" && p.kind !== "azure_openai",
               ).length
             }{" "}
-            provider(s). Click <em>Not set, click to add</em> in the API Key
-            column below to add your key, then use <em>Sync models</em> to pull
-            the latest list.
+            provider(s). Click <em>Not set, click to add</em> in the API Key column below to add
+            your key, then use <em>Sync models</em> to pull the latest list.
           </div>
         )}
 
       <form
         onSubmit={create}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-6 bg-muted/30"
+        className="bg-muted/30 grid grid-cols-1 gap-4 rounded-lg border p-6 md:grid-cols-2"
       >
         <div className="md:col-span-2">
-          <h3 className="font-semibold mb-2">Add new provider</h3>
+          <h3 className="mb-2 font-semibold">Add new provider</h3>
         </div>
         <div className="flex flex-col gap-2">
           <Label>Name</Label>
@@ -259,11 +245,7 @@ export default function ProvidersPanel({
           <Input
             value={form.base_url}
             onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-            placeholder={
-              form.kind === "local"
-                ? "http://ai:8100/v1"
-                : "Optional override"
-            }
+            placeholder={form.kind === "local" ? "http://ai:8100/v1" : "Optional override"}
           />
         </div>
         {form.kind === "azure_openai" && (
@@ -272,9 +254,7 @@ export default function ProvidersPanel({
               <Label>Azure Endpoint</Label>
               <Input
                 value={form.azure_endpoint}
-                onChange={(e) =>
-                  setForm({ ...form, azure_endpoint: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, azure_endpoint: e.target.value })}
                 placeholder="https://<resource>.openai.azure.com"
               />
             </div>
@@ -282,9 +262,7 @@ export default function ProvidersPanel({
               <Label>API Version</Label>
               <Input
                 value={form.azure_api_version}
-                onChange={(e) =>
-                  setForm({ ...form, azure_api_version: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, azure_api_version: e.target.value })}
                 placeholder="2024-12-01-preview"
               />
             </div>
@@ -295,7 +273,7 @@ export default function ProvidersPanel({
         </div>
       </form>
 
-      <div className="rounded-lg border bg-background/60">
+      <div className="bg-background/60 rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
@@ -310,14 +288,14 @@ export default function ProvidersPanel({
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="p-3 text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground p-3">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && providers.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-3 text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground p-3">
                   No providers configured yet.
                 </td>
               </tr>
@@ -326,9 +304,7 @@ export default function ProvidersPanel({
               <tr key={p.id} className="border-t">
                 <td className="p-3 font-medium">{p.name}</td>
                 <td className="p-3">
-                  <span className="rounded bg-muted px-2 py-0.5 text-xs">
-                    {p.kind}
-                  </span>
+                  <span className="bg-muted rounded px-2 py-0.5 text-xs">{p.kind}</span>
                 </td>
                 <td className="p-3">
                   <SetKey
@@ -336,15 +312,11 @@ export default function ProvidersPanel({
                     isSet={p.api_key_set}
                   />
                 </td>
-                <td className="p-3 text-xs text-muted-foreground">
-                  {p.base_url || "-"}
-                </td>
+                <td className="text-muted-foreground p-3 text-xs">{p.base_url || "-"}</td>
                 <td className="p-3">
                   <Switch
                     checked={p.enabled}
-                    onCheckedChange={(v) =>
-                      patchProvider(p.id, { enabled: v })
-                    }
+                    onCheckedChange={(v) => patchProvider(p.id, { enabled: v })}
                   />
                 </td>
                 <td className="p-3 text-right">
@@ -360,10 +332,7 @@ export default function ProvidersPanel({
                         Sync models
                       </Button>
                     )}
-                    <DeleteButton
-                      onClick={() => deleteProvider(p.id)}
-                      title="Delete provider"
-                    />
+                    <DeleteButton onClick={() => deleteProvider(p.id)} title="Delete provider" />
                   </div>
                 </td>
               </tr>
@@ -375,20 +344,14 @@ export default function ProvidersPanel({
   );
 }
 
-function SetKey({
-  onSave,
-  isSet,
-}: {
-  onSave: (key: string) => void;
-  isSet: boolean;
-}) {
+function SetKey({ onSave, isSet }: { onSave: (key: string) => void; isSet: boolean }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   if (!editing) {
     return (
       <button
         onClick={() => setEditing(true)}
-        className="text-xs text-muted-foreground hover:underline"
+        className="text-muted-foreground text-xs hover:underline"
       >
         {isSet ? "✓ Set, click to update" : "Not set, click to add"}
       </button>
@@ -413,11 +376,7 @@ function SetKey({
       >
         Save
       </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => setEditing(false)}
-      >
+      <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
         Cancel
       </Button>
     </div>

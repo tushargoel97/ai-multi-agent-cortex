@@ -7,10 +7,7 @@ const IMAGES_DIR = "/app/generated_images";
 
 const SAFE_NAME = /^[a-zA-Z0-9_-]+\.png$/;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ name: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
   if (!SAFE_NAME.test(name)) {
     return NextResponse.json({ error: "invalid image name" }, { status: 400 });

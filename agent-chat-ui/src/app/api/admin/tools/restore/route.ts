@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import {
-  ensureToolTables,
-  getSuppressedTools,
-  setSuppressedTools,
-} from "@/lib/tool-tables";
+import { ensureToolTables, getSuppressedTools, setSuppressedTools } from "@/lib/tool-tables";
 
 /** Un-suppress a previously deleted tool and re-list it. Built-in tools live
  * in code, so the langgraph server refreshes the full description on its next

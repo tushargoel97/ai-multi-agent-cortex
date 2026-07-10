@@ -49,8 +49,7 @@ async function generate(row: ModelRow, text: string): Promise<string> {
   const prompt = text.slice(0, 2000);
 
   if (row.kind === "anthropic") {
-    const base =
-      row.base_url?.replace(/\/$/, "") || "https://api.anthropic.com/v1";
+    const base = row.base_url?.replace(/\/$/, "") || "https://api.anthropic.com/v1";
     const r = await fetch(`${base}/messages`, {
       method: "POST",
       headers: {
@@ -72,12 +71,9 @@ async function generate(row: ModelRow, text: string): Promise<string> {
 
   if (row.kind === "google") {
     const base =
-      row.base_url?.replace(/\/$/, "") ||
-      "https://generativelanguage.googleapis.com/v1beta";
+      row.base_url?.replace(/\/$/, "") || "https://generativelanguage.googleapis.com/v1beta";
     const r = await fetch(
-      `${base}/models/${row.model_id}:generateContent?key=${encodeURIComponent(
-        row.api_key,
-      )}`,
+      `${base}/models/${row.model_id}:generateContent?key=${encodeURIComponent(row.api_key)}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },

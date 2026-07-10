@@ -13,7 +13,7 @@ function ResetButton({ handleReset }: { handleReset: () => void }) {
     <Button
       onClick={handleReset}
       variant="ghost"
-      className="flex items-center justify-center gap-2 text-muted-foreground hover:text-red-500"
+      className="text-muted-foreground flex items-center justify-center gap-2 hover:text-red-500"
     >
       <Undo2 className="h-4 w-4" />
       <span>Reset</span>
@@ -31,14 +31,11 @@ function ArgsRenderer({ args }: { args: Record<string, unknown> }) {
             : JSON.stringify(value, null);
 
         return (
-          <div
-            key={`args-${key}`}
-            className="flex flex-col items-start gap-1"
-          >
-            <p className="text-sm leading-[18px] text-wrap text-muted-foreground">
+          <div key={`args-${key}`} className="flex flex-col items-start gap-1">
+            <p className="text-muted-foreground text-sm leading-[18px] text-wrap">
               {prettifyText(key)}
             </p>
-            <span className="w-full max-w-full rounded-xl bg-zinc-100 p-3 text-[13px] leading-[18px] text-foreground">
+            <span className="text-foreground w-full max-w-full rounded-xl bg-zinc-100 p-3 text-[13px] leading-[18px]">
               <MarkdownText>{stringValue}</MarkdownText>
             </span>
           </div>
@@ -60,9 +57,7 @@ interface InboxItemInputProps {
   selectedSubmitType: SubmitType | undefined;
 
   setHumanResponse: React.Dispatch<React.SetStateAction<DecisionWithEdits[]>>;
-  setSelectedSubmitType: React.Dispatch<
-    React.SetStateAction<SubmitType | undefined>
-  >;
+  setSelectedSubmitType: React.Dispatch<React.SetStateAction<SubmitType | undefined>>;
   setHasAddedResponse: React.Dispatch<React.SetStateAction<boolean>>;
   setHasEdited: React.Dispatch<React.SetStateAction<boolean>>;
 
@@ -83,16 +78,9 @@ function ApproveOnly({
   ) => Promise<void> | void;
 }) {
   return (
-    <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-border p-6">
-      {Object.keys(actionRequestArgs).length > 0 && (
-        <ArgsRenderer args={actionRequestArgs} />
-      )}
-      <Button
-        variant="brand"
-        disabled={isLoading}
-        onClick={handleSubmit}
-        className="w-full"
-      >
+    <div className="border-border flex w-full flex-col items-start gap-4 rounded-lg border p-6">
+      {Object.keys(actionRequestArgs).length > 0 && <ArgsRenderer args={actionRequestArgs} />}
+      <Button variant="brand" disabled={isLoading} onClick={handleSubmit} className="w-full">
         Approve
       </Button>
     </div>
@@ -121,12 +109,8 @@ function EditActionCard({
   ) => Promise<void> | void;
 }) {
   const defaultRows = React.useRef<Record<string, number>>({});
-  const editResponse = humanResponse.find(
-    (response) => response.type === "edit",
-  );
-  const approveResponse = humanResponse.find(
-    (response) => response.type === "approve",
-  );
+  const editResponse = humanResponse.find((response) => response.type === "edit");
+  const approveResponse = humanResponse.find((response) => response.type === "approve");
 
   if (
     !editResponse ||
@@ -147,10 +131,7 @@ function EditActionCard({
   }
 
   const header = editResponse.acceptAllowed ? "Edit/Approve" : "Edit";
-  const buttonText =
-    editResponse.acceptAllowed && !editResponse.editsMade
-      ? "Approve"
-      : "Submit";
+  const buttonText = editResponse.acceptAllowed && !editResponse.editsMade ? "Approve" : "Submit";
 
   const handleReset = () => {
     if (!editResponse.edited_action?.args) {
@@ -183,56 +164,44 @@ function EditActionCard({
   };
 
   return (
-    <div className="flex w-full min-w-full flex-col items-start gap-4 rounded-lg border border-border p-6">
+    <div className="border-border flex w-full min-w-full flex-col items-start gap-4 rounded-lg border p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-foreground">{header}</p>
+        <p className="text-foreground text-base font-semibold">{header}</p>
         <ResetButton handleReset={handleReset} />
       </div>
 
-      {Object.entries(editResponse.edited_action.args).map(
-        ([key, value], idx) => {
-          const stringValue =
-            typeof value === "string" || typeof value === "number"
-              ? value.toString()
-              : JSON.stringify(value, null);
+      {Object.entries(editResponse.edited_action.args).map(([key, value], idx) => {
+        const stringValue =
+          typeof value === "string" || typeof value === "number"
+            ? value.toString()
+            : JSON.stringify(value, null);
 
-          if (defaultRows.current[key] === undefined) {
-            defaultRows.current[key] = !stringValue.length
-              ? 3
-              : Math.max(stringValue.length / 30, 7);
-          }
+        if (defaultRows.current[key] === undefined) {
+          defaultRows.current[key] = !stringValue.length ? 3 : Math.max(stringValue.length / 30, 7);
+        }
 
-          return (
-            <div
-              className="flex h-full w-full flex-col items-start gap-1 px-[1px]"
-              key={`allow-edit-args--${key}-${idx}`}
-            >
-              <div className="flex w-full flex-col items-start gap-[6px]">
-                <p className="min-w-fit text-sm font-medium">
-                  {prettifyText(key)}
-                </p>
-                <Textarea
-                  disabled={isLoading}
-                  className="h-full w-full max-w-full"
-                  value={stringValue}
-                  onChange={(event) =>
-                    onEditChange(event.target.value, editResponse, key)
-                  }
-                  onKeyDown={handleKeyDown}
-                  rows={defaultRows.current[key] || 8}
-                />
-              </div>
+        return (
+          <div
+            className="flex h-full w-full flex-col items-start gap-1 px-[1px]"
+            key={`allow-edit-args--${key}-${idx}`}
+          >
+            <div className="flex w-full flex-col items-start gap-[6px]">
+              <p className="min-w-fit text-sm font-medium">{prettifyText(key)}</p>
+              <Textarea
+                disabled={isLoading}
+                className="h-full w-full max-w-full"
+                value={stringValue}
+                onChange={(event) => onEditChange(event.target.value, editResponse, key)}
+                onKeyDown={handleKeyDown}
+                rows={defaultRows.current[key] || 8}
+              />
             </div>
-          );
-        },
-      )}
+          </div>
+        );
+      })}
 
       <div className="flex w-full items-center justify-end gap-2">
-        <Button
-          variant="brand"
-          disabled={isLoading}
-          onClick={handleSubmit}
-        >
+        <Button variant="brand" disabled={isLoading} onClick={handleSubmit}>
           {buttonText}
         </Button>
       </div>
@@ -258,9 +227,7 @@ function RejectActionCard({
   showArgs: boolean;
   actionArgs: Record<string, unknown>;
 }) {
-  const rejectResponse = humanResponse.find(
-    (response) => response.type === "reject",
-  );
+  const rejectResponse = humanResponse.find((response) => response.type === "reject");
 
   if (!rejectResponse) {
     return null;
@@ -274,9 +241,9 @@ function RejectActionCard({
   };
 
   return (
-    <div className="flex w-full max-w-full flex-col items-start gap-4 rounded-xl border border-border p-6">
+    <div className="border-border flex w-full max-w-full flex-col items-start gap-4 rounded-xl border p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-foreground">Reject</p>
+        <p className="text-foreground text-base font-semibold">Reject</p>
         <ResetButton handleReset={() => onChange("", rejectResponse)} />
       </div>
 
@@ -296,11 +263,7 @@ function RejectActionCard({
       </div>
 
       <div className="flex w-full items-center justify-end gap-2">
-        <Button
-          variant="brand"
-          disabled={isLoading}
-          onClick={handleSubmit}
-        >
+        <Button variant="brand" disabled={isLoading} onClick={handleSubmit}>
           Submit rejection
         </Button>
       </div>
@@ -325,17 +288,14 @@ export function InboxItemInput({
   setHasEdited,
   handleSubmit,
 }: InboxItemInputProps) {
-  const allowedDecisions =
-    interruptValue.review_configs?.[0]?.allowed_decisions ?? [];
+  const allowedDecisions = interruptValue.review_configs?.[0]?.allowed_decisions ?? [];
   const actionRequest = interruptValue.action_requests?.[0];
   const actionArgs = actionRequest?.args ?? {};
   const isEditAllowed = allowedDecisions.includes("edit");
   const isRejectAllowed = allowedDecisions.includes("reject");
   const hasArgs = Object.keys(actionArgs).length > 0;
-  const showArgsInReject =
-    hasArgs && !isEditAllowed && !approveAllowed && isRejectAllowed;
-  const showArgsOutsideCards =
-    hasArgs && !showArgsInReject && !isEditAllowed && !approveAllowed;
+  const showArgsInReject = hasArgs && !isEditAllowed && !approveAllowed && isRejectAllowed;
+  const showArgsOutsideCards = hasArgs && !showArgsInReject && !isEditAllowed && !approveAllowed;
 
   const onEditChange = (
     change: string | string[],
@@ -447,9 +407,7 @@ export function InboxItemInput({
 
     setHumanResponse((prev) =>
       prev.map((existing) =>
-        existing.type === "reject"
-          ? { type: "reject", message: change }
-          : existing,
+        existing.type === "reject" ? { type: "reject", message: change } : existing,
       ),
     );
   };
@@ -471,7 +429,7 @@ export function InboxItemInput({
         {supportsMultipleMethods ? (
           <div className="mx-auto mt-3 flex items-center gap-3">
             <Separator className="w-full" />
-            <p className="text-sm text-muted-foreground">Or</p>
+            <p className="text-muted-foreground text-sm">Or</p>
             <Separator className="w-full" />
           </div>
         ) : null}
@@ -485,11 +443,9 @@ export function InboxItemInput({
           handleSubmit={handleSubmit}
         />
 
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Submitting decision...</p>
-        )}
+        {isLoading && <p className="text-muted-foreground text-sm">Submitting decision...</p>}
         {selectedSubmitType && supportsMultipleMethods && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Currently selected: {prettifyText(selectedSubmitType)}
           </p>
         )}

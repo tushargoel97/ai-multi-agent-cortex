@@ -52,8 +52,7 @@ export function useDropdown(
 
   React.useEffect(() => {
     if (!open) return;
-    const inside = (t: Node) =>
-      !!rootRef.current?.contains(t) || !!insideRef?.current?.contains(t);
+    const inside = (t: Node) => !!rootRef.current?.contains(t) || !!insideRef?.current?.contains(t);
     const onDown = (e: MouseEvent) => {
       if (!inside(e.target as Node)) setOpen(false);
     };

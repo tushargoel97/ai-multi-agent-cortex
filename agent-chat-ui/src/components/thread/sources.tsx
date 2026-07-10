@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Message } from "@langchain/langgraph-sdk";
 import { cn } from "@/lib/utils";
@@ -46,11 +39,7 @@ function normalizeUrl(raw: string): string {
 /** Pull {title, url, snippet} entries out of a tool message's JSON payload
  *  (web_search and friends return a `results` array in this shape). */
 function toolResultSources(content: string): RichSource[] {
-  if (
-    !content.trimStart().startsWith("{") &&
-    !content.trimStart().startsWith("[")
-  )
-    return [];
+  if (!content.trimStart().startsWith("{") && !content.trimStart().startsWith("[")) return [];
   try {
     const data = JSON.parse(content) as unknown;
     const arrays: unknown[][] = [];
@@ -102,8 +91,7 @@ export function extractRichSources(
   for (const m of messages) {
     if (m.type !== "tool") continue;
     if (skip.has((m as { name?: string }).name ?? "")) continue;
-    const content =
-      typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
     const cacheKey = `${m.id}:${content.length}`;
     let parsed = toolSourceCache.get(cacheKey);
     if (!parsed) {
@@ -121,8 +109,7 @@ export function extractRichSources(
   // tool payloads didn't cover.
   for (const s of extractSources(messages, { skipToolNames: [...skip] })) {
     const key = normalizeUrl(s.url);
-    if (!byUrl.has(key))
-      byUrl.set(key, { url: s.url, domain: s.domain, label: s.label });
+    if (!byUrl.has(key)) byUrl.set(key, { url: s.url, domain: s.domain, label: s.label });
   }
   return [...byUrl.values()];
 }
@@ -147,9 +134,7 @@ export function SourcesProvider({
     }
     return m;
   }, [messages]);
-  return (
-    <SourcesContext.Provider value={map}>{children}</SourcesContext.Provider>
-  );
+  return <SourcesContext.Provider value={map}>{children}</SourcesContext.Provider>;
 }
 
 function nodeText(node: ReactNode): string {
@@ -157,9 +142,7 @@ function nodeText(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(nodeText).join("");
   if (typeof node === "object" && "props" in node)
-    return nodeText(
-      (node as { props?: { children?: ReactNode } }).props?.children,
-    );
+    return nodeText((node as { props?: { children?: ReactNode } }).props?.children);
   return "";
 }
 
@@ -188,14 +171,8 @@ function HoverCard({
       className="glass animate-in fade-in-0 zoom-in-95 z-[110] rounded-xl border p-3 shadow-xl"
     >
       <div className="flex items-center gap-2">
-        <img
-          src={favicon(source.domain)}
-          alt=""
-          className="size-4 shrink-0 rounded-sm"
-        />
-        <span className="text-muted-foreground truncate text-xs">
-          {source.domain}
-        </span>
+        <img src={favicon(source.domain)} alt="" className="size-4 shrink-0 rounded-sm" />
+        <span className="text-muted-foreground truncate text-xs">{source.domain}</span>
       </div>
       <a
         href={source.url}
@@ -206,9 +183,7 @@ function HoverCard({
         {source.title ?? source.label}
       </a>
       {source.snippet && (
-        <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
-          {source.snippet}
-        </p>
+        <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{source.snippet}</p>
       )}
     </div>,
     document.body,
@@ -238,10 +213,7 @@ export function CitationLink({
       href={href}
       target="_blank"
       rel="noreferrer"
-      className={cn(
-        "text-primary font-medium underline underline-offset-4",
-        className,
-      )}
+      className={cn("text-primary font-medium underline underline-offset-4", className)}
     >
       {children}
     </a>
@@ -283,11 +255,7 @@ export function CitationLink({
           className,
         )}
       >
-        <img
-          src={favicon(source.domain)}
-          alt=""
-          className="size-3 shrink-0 rounded-[3px]"
-        />
+        <img src={favicon(source.domain)} alt="" className="size-3 shrink-0 rounded-[3px]" />
         <span className="truncate">{label}</span>
       </a>
       {rect && (
@@ -318,8 +286,7 @@ export function MessageSources({ message }: { message: Message }) {
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(
-        map.get(normalizeUrl(s.url)) ??
-          map.get(key) ?? { url: s.url, domain: key, label: s.label },
+        map.get(normalizeUrl(s.url)) ?? map.get(key) ?? { url: s.url, domain: key, label: s.label },
       );
     }
     return out;
@@ -329,9 +296,7 @@ export function MessageSources({ message }: { message: Message }) {
   return (
     <button
       type="button"
-      onClick={() =>
-        window.dispatchEvent(new CustomEvent("cortex:open-activity"))
-      }
+      onClick={() => window.dispatchEvent(new CustomEvent("cortex:open-activity"))}
       title="Show sources & activity"
       className="bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground mr-auto flex items-center gap-1.5 rounded-full border border-black/10 py-1 pr-2.5 pl-1.5 text-xs transition-colors dark:border-white/10"
     >
@@ -349,9 +314,7 @@ export function MessageSources({ message }: { message: Message }) {
         ))}
       </span>
       Sources
-      {cited.length > 3 && (
-        <span className="text-muted-foreground/70">· {cited.length}</span>
-      )}
+      {cited.length > 3 && <span className="text-muted-foreground/70">· {cited.length}</span>}
     </button>
   );
 }

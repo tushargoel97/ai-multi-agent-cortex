@@ -8,52 +8,38 @@ function isComplexValue(value: any): boolean {
   return Array.isArray(value) || (typeof value === "object" && value !== null);
 }
 
-export function ToolCalls({
-  toolCalls,
-}: {
-  toolCalls: AIMessage["tool_calls"];
-}) {
+export function ToolCalls({ toolCalls }: { toolCalls: AIMessage["tool_calls"] }) {
   if (!toolCalls || toolCalls.length === 0) return null;
 
   return (
     <div className="mx-auto grid max-w-3xl gap-2">
       {toolCalls.map((tc, idx) => (
-        <ToolCallRow
-          key={idx}
-          name={tc.name}
-          args={tc.args as Record<string, any>}
-        />
+        <ToolCallRow key={idx} name={tc.name} args={tc.args as Record<string, any>} />
       ))}
     </div>
   );
 }
 
-function ToolCallRow({
-  name,
-  args,
-}: {
-  name: string;
-  args: Record<string, any>;
-}) {
+function ToolCallRow({ name, args }: { name: string; args: Record<string, any> }) {
   const [open, setOpen] = useState(false);
   const hasArgs = args && Object.keys(args).length > 0;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background">
+    <div className="border-border bg-background overflow-hidden rounded-lg border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+        className="text-foreground hover:bg-muted/50 flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
       >
         {open ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+          <ChevronDown className="text-muted-foreground/70 h-4 w-4" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground/70" />
+          <ChevronRight className="text-muted-foreground/70 h-4 w-4" />
         )}
-        <Sparkles className="h-4 w-4 text-muted-foreground/70" />
+        <Sparkles className="text-muted-foreground/70 h-4 w-4" />
         <span className="text-muted-foreground">Thinking</span>
         <span className="text-muted-foreground/70"></span>
-        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+        <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
           {name}
         </code>
       </button>
@@ -64,19 +50,19 @@ function ToolCallRow({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="overflow-hidden border-t border-border bg-muted/50"
+            className="border-border bg-muted/50 overflow-hidden border-t"
           >
             {hasArgs ? (
-              <table className="min-w-full divide-y divide-border">
-                <tbody className="divide-y divide-border">
+              <table className="divide-border min-w-full divide-y">
+                <tbody className="divide-border divide-y">
                   {Object.entries(args).map(([key, value], argIdx) => (
                     <tr key={argIdx}>
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap text-foreground">
+                      <td className="text-foreground px-3 py-1.5 text-xs font-medium whitespace-nowrap">
                         {key}
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                      <td className="text-muted-foreground px-3 py-1.5 text-xs">
                         {isComplexValue(value) ? (
-                          <code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs break-all">
+                          <code className="bg-background rounded px-1.5 py-0.5 font-mono text-xs break-all">
                             {JSON.stringify(value, null, 2)}
                           </code>
                         ) : (
@@ -88,9 +74,7 @@ function ToolCallRow({
                 </tbody>
               </table>
             ) : (
-              <code className="block px-3 py-2 text-xs text-muted-foreground">
-                {"{}"}
-              </code>
+              <code className="text-muted-foreground block px-3 py-2 text-xs">{"{}"}</code>
             )}
           </motion.div>
         )}
@@ -117,16 +101,10 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   // Rich cards for the commerce tools, the JSON comes straight from the tool
   // (not the model), so these render deterministically.
   if (isJsonContent && parsedContent && typeof parsedContent === "object") {
-    if (
-      message.name === "product_prices" &&
-      Array.isArray(parsedContent.offers)
-    ) {
+    if (message.name === "product_prices" && Array.isArray(parsedContent.offers)) {
       return <ShoppingCards data={parsedContent} />;
     }
-    if (
-      message.name === "find_bookings" &&
-      Array.isArray(parsedContent.options)
-    ) {
+    if (message.name === "find_bookings" && Array.isArray(parsedContent.options)) {
       return <BookingCards data={parsedContent} />;
     }
   }
@@ -137,20 +115,20 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
   return (
     <div className="mx-auto grid max-w-3xl gap-2">
-      <div className="overflow-hidden rounded-lg border border-border bg-background">
+      <div className="border-border bg-background overflow-hidden rounded-lg border">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+          className="text-foreground hover:bg-muted/50 flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
         >
           {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+            <ChevronDown className="text-muted-foreground/70 h-4 w-4" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground/70" />
+            <ChevronRight className="text-muted-foreground/70 h-4 w-4" />
           )}
-          <Wrench className="h-4 w-4 text-muted-foreground/70" />
+          <Wrench className="text-muted-foreground/70 h-4 w-4" />
           <span className="text-muted-foreground">Result from</span>
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+          <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
             {message.name ?? "tool"}
           </code>
         </button>
@@ -161,15 +139,15 @@ export function ToolResult({ message }: { message: ToolMessage }) {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="overflow-hidden border-t border-border bg-muted/50"
+              className="border-border bg-muted/50 overflow-hidden border-t"
             >
               <div className="max-h-96 overflow-auto p-3">
                 {isJsonContent ? (
-                  <pre className="font-mono text-xs whitespace-pre-wrap text-foreground">
+                  <pre className="text-foreground font-mono text-xs whitespace-pre-wrap">
                     {contentStr}
                   </pre>
                 ) : (
-                  <pre className="font-mono text-xs whitespace-pre-wrap text-foreground">
+                  <pre className="text-foreground font-mono text-xs whitespace-pre-wrap">
                     {contentStr}
                   </pre>
                 )}

@@ -18,10 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (username !== expectedUser || password !== expectedPass) {
-    return NextResponse.json(
-      { error: "Invalid credentials" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
   return NextResponse.json({ token: adminToken });

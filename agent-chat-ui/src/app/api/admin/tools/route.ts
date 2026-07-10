@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import {
-  ensureToolTables,
-  getSuppressedTools,
-  setSuppressedTools,
-} from "@/lib/tool-tables";
+import { ensureToolTables, getSuppressedTools, setSuppressedTools } from "@/lib/tool-tables";
 
 interface ToolRow {
   id: string;
@@ -71,10 +67,7 @@ export async function GET(req: Request) {
   const map: Record<string, string> = {};
   for (const r of settings) map[r.key] = r.value;
   const catalog = parseJson<CatalogEntry[]>(map["tool_catalog"], []);
-  const defaults = parseJson<Record<string, string[]>>(
-    map["agent_tool_defaults"],
-    {},
-  );
+  const defaults = parseJson<Record<string, string[]>>(map["agent_tool_defaults"], {});
 
   const grantsByAgent: Record<string, string[]> = {};
   for (const g of grants) (grantsByAgent[g.agent_name] ??= []).push(g.tool_name);

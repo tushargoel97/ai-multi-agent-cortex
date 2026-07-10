@@ -111,8 +111,7 @@ export default function DomainBuilder({
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok)
-        throw new Error(data?.detail ?? data?.error ?? `${path} ${r.status}`);
+      if (!r.ok) throw new Error(data?.detail ?? data?.error ?? `${path} ${r.status}`);
       return data;
     },
     [headers],
@@ -135,12 +134,14 @@ export default function DomainBuilder({
   };
 
   const deleteDomain = async (name: string) => {
-    if (!(await confirm({
-      title: `Delete domain "${name}"?`,
-      description:
-        "This permanently deletes the domain folder and every subdomain inside it, schemas, curated rows, and imported data.",
-      confirmText: "Delete",
-    })))
+    if (
+      !(await confirm({
+        title: `Delete domain "${name}"?`,
+        description:
+          "This permanently deletes the domain folder and every subdomain inside it, schemas, curated rows, and imported data.",
+        confirmText: "Delete",
+      }))
+    )
       return;
     setBusy(`del:${name}`);
     setError(null);
@@ -183,12 +184,14 @@ export default function DomainBuilder({
   };
 
   const deleteSubdomain = async (domain: string, name: string) => {
-    if (!(await confirm({
-      title: `Delete subdomain "${name}"?`,
-      description:
-        "This permanently deletes the subdomain's files, its schema, curated rows, and imported data.",
-      confirmText: "Delete",
-    })))
+    if (
+      !(await confirm({
+        title: `Delete subdomain "${name}"?`,
+        description:
+          "This permanently deletes the subdomain's files, its schema, curated rows, and imported data.",
+        confirmText: "Delete",
+      }))
+    )
       return;
     setBusy(`del:${domain}/${name}`);
     setError(null);
@@ -261,17 +264,13 @@ export default function DomainBuilder({
     try {
       let slug = edit.name.trim();
       if (!edit.builtin) {
-        const saved = await api(
-          "POST",
-          `domains/${encodeURIComponent(edit.domain)}/subdomains`,
-          {
-            name: edit.name.trim(),
-            description: edit.description,
-            render: edit.render,
-            fields: edit.fields,
-            overview: edit.overview.length ? edit.overview : null,
-          },
-        );
+        const saved = await api("POST", `domains/${encodeURIComponent(edit.domain)}/subdomains`, {
+          name: edit.name.trim(),
+          description: edit.description,
+          render: edit.render,
+          fields: edit.fields,
+          overview: edit.overview.length ? edit.overview : null,
+        });
         slug = saved?.name ?? slug;
       }
       await api(
@@ -298,22 +297,17 @@ export default function DomainBuilder({
   const addField = () =>
     edit && setEdit({ ...edit, fields: [...edit.fields, { key: "", label: "" }] });
   const removeField = (i: number) =>
-    edit &&
-    setEdit({ ...edit, fields: edit.fields.filter((_, k) => k !== i) });
+    edit && setEdit({ ...edit, fields: edit.fields.filter((_, k) => k !== i) });
 
   const setCell = (row: number, key: string, value: string) =>
     edit &&
     setEdit({
       ...edit,
-      entities: edit.entities.map((e, k) =>
-        k === row ? { ...e, [key]: value } : e,
-      ),
+      entities: edit.entities.map((e, k) => (k === row ? { ...e, [key]: value } : e)),
     });
-  const addRow = () =>
-    edit && setEdit({ ...edit, entities: [...edit.entities, { name: "" }] });
+  const addRow = () => edit && setEdit({ ...edit, entities: [...edit.entities, { name: "" }] });
   const removeRow = (i: number) =>
-    edit &&
-    setEdit({ ...edit, entities: edit.entities.filter((_, k) => k !== i) });
+    edit && setEdit({ ...edit, entities: edit.entities.filter((_, k) => k !== i) });
 
   const editorEl = edit ? (
     <SubdomainEditor
@@ -338,29 +332,22 @@ export default function DomainBuilder({
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <Layers className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">
-              Manage Domains
-            </h3>
+            <Layers className="text-muted-foreground size-4" />
+            <h3 className="text-foreground text-sm font-semibold">Manage Domains</h3>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your own knowledge domains, define a subdomain&apos;s fields
-            or let the assistant propose a schema, add rows, and train. The
-            built-in Hardware domain&apos;s rows are editable too (its fields and
-            answer style are fixed).
+          <p className="text-muted-foreground mt-1 text-sm">
+            Create your own knowledge domains, define a subdomain&apos;s fields or let the assistant
+            propose a schema, add rows, and train. The built-in Hardware domain&apos;s rows are
+            editable too (its fields and answer style are fixed).
           </p>
         </div>
-        <Button
-          size="sm"
-          className="shrink-0"
-          onClick={() => setShowNewDomain((s) => !s)}
-        >
+        <Button size="sm" className="shrink-0" onClick={() => setShowNewDomain((s) => !s)}>
           <Plus className="mr-1 size-4" /> New domain
         </Button>
       </div>
 
       {error && (
-        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-3 py-2 text-sm">
           {error}
         </div>
       )}
@@ -377,11 +364,7 @@ export default function DomainBuilder({
               onKeyDown={(e) => e.key === "Enter" && createDomain()}
             />
             <div className="ml-auto flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowNewDomain(false)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setShowNewDomain(false)}>
                 Cancel
               </Button>
               <Button
@@ -417,19 +400,17 @@ export default function DomainBuilder({
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
                   {open ? (
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronDown className="text-muted-foreground size-4 shrink-0" />
                   ) : (
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronRight className="text-muted-foreground size-4 shrink-0" />
                   )}
-                  <span className="shrink-0 text-sm font-medium capitalize">
-                    {d.name}
-                  </span>
+                  <span className="shrink-0 text-sm font-medium capitalize">{d.name}</span>
                   {d.builtin && (
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase">
                       built-in
                     </span>
                   )}
-                  <span className="shrink-0 text-xs text-muted-foreground/70">
+                  <span className="text-muted-foreground/70 shrink-0 text-xs">
                     {d.subdomains.length} subdomain
                     {d.subdomains.length === 1 ? "" : "s"}
                   </span>
@@ -437,7 +418,7 @@ export default function DomainBuilder({
                 <div className="flex shrink-0 items-center gap-2">
                   {keys.length > 0 && (
                     <span
-                      className="text-[10px] tabular-nums text-muted-foreground/70"
+                      className="text-muted-foreground/70 text-[10px] tabular-nums"
                       title="Subdomains selected for training"
                     >
                       {selCount}/{keys.length}
@@ -475,32 +456,26 @@ export default function DomainBuilder({
               {open && (
                 <div className="space-y-1 border-t px-3 py-3">
                   {d.subdomains.length === 0 && (
-                    <p className="text-xs text-muted-foreground/70">
+                    <p className="text-muted-foreground/70 text-xs">
                       No subdomains yet
                       {d.builtin ? "." : ", add one with the Subdomain button."}
                     </p>
                   )}
                   {d.subdomains.map((s) => (
                     <div key={s.name}>
-                      <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1.5 text-sm">
-                        <span className="capitalize text-foreground">
-                          {s.label}
-                        </span>
-                        <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                      <div className="bg-muted/40 flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm">
+                        <span className="text-foreground capitalize">{s.label}</span>
+                        <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px]">
                           {s.render === "spec_table" ? "table" : "prose"}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
+                        <span className="text-muted-foreground/70 min-w-0 flex-1 truncate text-xs">
                           {(s.fields ?? []).join(", ")}
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
                           <Switch
-                            checked={selectedSubs.includes(
-                              `${d.name}/${s.name}`,
-                            )}
+                            checked={selectedSubs.includes(`${d.name}/${s.name}`)}
                             disabled={selectDisabled}
-                            onCheckedChange={() =>
-                              onToggleSub(`${d.name}/${s.name}`)
-                            }
+                            onCheckedChange={() => onToggleSub(`${d.name}/${s.name}`)}
                             title="Include in training"
                           />
                           <Button
@@ -520,9 +495,7 @@ export default function DomainBuilder({
                           {!s.builtin && (
                             <DeleteButton
                               onClick={() => deleteSubdomain(d.name, s.name)}
-                              disabled={selectedSubs.includes(
-                                `${d.name}/${s.name}`,
-                              )}
+                              disabled={selectedSubs.includes(`${d.name}/${s.name}`)}
                               title={
                                 selectedSubs.includes(`${d.name}/${s.name}`)
                                   ? "Turn its training toggle off to delete"
@@ -532,16 +505,10 @@ export default function DomainBuilder({
                           )}
                         </div>
                       </div>
-                      {edit &&
-                        edit.domain === d.name &&
-                        edit.original === s.name &&
-                        editorEl}
+                      {edit && edit.domain === d.name && edit.original === s.name && editorEl}
                     </div>
                   ))}
-                  {edit &&
-                    edit.domain === d.name &&
-                    edit.original === null &&
-                    editorEl}
+                  {edit && edit.domain === d.name && edit.original === null && editorEl}
                 </div>
               )}
             </li>
@@ -583,14 +550,10 @@ function SubdomainEditor({
 }) {
   const [showTemplates, setShowTemplates] = useState(false);
   return (
-    <div className="mt-3 rounded-md border border-primary/30 bg-muted/30 p-3">
+    <div className="border-primary/30 bg-muted/30 mt-3 rounded-md border p-3">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-medium text-foreground">
-          {edit.builtin
-            ? "Edit rows"
-            : edit.original
-              ? "Edit subdomain"
-              : "New subdomain"}
+        <p className="text-foreground text-sm font-medium">
+          {edit.builtin ? "Edit rows" : edit.original ? "Edit subdomain" : "New subdomain"}
           <span className="text-muted-foreground">
             {" · "}
             {edit.builtin ? `hardware / ${edit.name}` : edit.domain}
@@ -602,160 +565,153 @@ function SubdomainEditor({
       </div>
 
       {edit.builtin ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mt-2 text-xs">
           Fixed hardware schema · answers render as a spec table.
           {edit.curated.length > 0 &&
             ` Built-in (edit these in facts.yaml): ${edit.curated.join(", ")}.`}
         </p>
       ) : (
         <>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <Input
-          placeholder="Subdomain name (e.g. games)"
-          value={edit.name}
-          disabled={!!edit.original}
-          onChange={(e) => setEdit({ ...edit, name: e.target.value })}
-          className="max-w-xs"
-        />
-        <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Switch
-            checked={edit.render === "spec_table"}
-            onCheckedChange={(v) =>
-              setEdit({ ...edit, render: v ? "spec_table" : "prose" })
-            }
-          />
-          Spec-table answers (hardware-style)
-        </label>
-      </div>
-      <Input
-        placeholder="Short description"
-        value={edit.description}
-        onChange={(e) => setEdit({ ...edit, description: e.target.value })}
-        className="mt-2"
-      />
-
-      {/* Smart schema proposal */}
-      <div className="mt-3 rounded border border-dashed p-2">
-        <p className="text-xs font-medium text-foreground">
-          Schema, define fields, or let the assistant propose them
-        </p>
-        <textarea
-          className="mt-1 min-h-14 w-full rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          placeholder="Paste a sample of your data or describe it, then Propose schema…"
-          value={edit.sample}
-          onChange={(e) => setEdit({ ...edit, sample: e.target.value })}
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          className="mt-1"
-          onClick={onProposeSchema}
-          disabled={busy === "schema"}
-        >
-          {busy === "schema" ? (
-            <Loader2 className="mr-1 size-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-1 size-4" />
-          )}
-          Propose schema
-        </Button>
-      </div>
-
-      {/* Fields editor */}
-      <div className="mt-3">
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-foreground">Fields</p>
-          <Button size="sm" variant="ghost" onClick={addField}>
-            <Plus className="mr-1 size-4" /> Add field
-          </Button>
-          <button
-            onClick={() => setShowTemplates((v) => !v)}
-            className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
-          >
-            {showTemplates ? "Hide" : "Edit"} question templates
-          </button>
-        </div>
-        {edit.fields.length === 0 && (
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            No fields yet, add some or propose a schema above.
-          </p>
-        )}
-        <div className="mt-1 space-y-2">
-          {edit.fields.map((f, i) => (
-            <div key={i} className="rounded border p-2">
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="key (snake_case)"
-                  value={f.key}
-                  onChange={(e) => setField(i, { key: e.target.value })}
-                  className="max-w-[10rem]"
-                />
-                <Input
-                  placeholder="Label"
-                  value={f.label}
-                  onChange={(e) => setField(i, { label: e.target.value })}
-                  className="max-w-[12rem]"
-                />
-                <DeleteButton
-                  onClick={() => removeField(i)}
-                  title="Remove field"
-                />
-              </div>
-              {showTemplates && (
-                <div className="mt-2 space-y-1 pl-1">
-                  <Input
-                    placeholder="Questions (one per line uses {name}), comma separated"
-                    value={(f.questions ?? []).join(" | ")}
-                    onChange={(e) =>
-                      setField(i, {
-                        questions: e.target.value
-                          .split("|")
-                          .map((q) => q.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                  />
-                  <Input
-                    placeholder="Answer template, uses {name} and {value}"
-                    value={f.answer ?? ""}
-                    onChange={(e) => setField(i, { answer: e.target.value })}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        {edit.fields.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <Input
+              placeholder="Subdomain name (e.g. games)"
+              value={edit.name}
+              disabled={!!edit.original}
+              onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+              className="max-w-xs"
+            />
+            <label className="text-muted-foreground inline-flex items-center gap-2 text-sm">
+              <Switch
+                checked={edit.render === "spec_table"}
+                onCheckedChange={(v) => setEdit({ ...edit, render: v ? "spec_table" : "prose" })}
+              />
+              Spec-table answers (hardware-style)
+            </label>
+          </div>
+          <Input
+            placeholder="Short description"
+            value={edit.description}
+            onChange={(e) => setEdit({ ...edit, description: e.target.value })}
             className="mt-2"
-            onClick={onProposeTemplates}
-            disabled={busy === "templates"}
-          >
-            {busy === "templates" ? (
-              <Loader2 className="mr-1 size-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-1 size-4" />
+          />
+
+          {/* Smart schema proposal */}
+          <div className="mt-3 rounded border border-dashed p-2">
+            <p className="text-foreground text-xs font-medium">
+              Schema, define fields, or let the assistant propose them
+            </p>
+            <textarea
+              className="focus-visible:ring-ring mt-1 min-h-14 w-full rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2"
+              placeholder="Paste a sample of your data or describe it, then Propose schema…"
+              value={edit.sample}
+              onChange={(e) => setEdit({ ...edit, sample: e.target.value })}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-1"
+              onClick={onProposeSchema}
+              disabled={busy === "schema"}
+            >
+              {busy === "schema" ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1 size-4" />
+              )}
+              Propose schema
+            </Button>
+          </div>
+
+          {/* Fields editor */}
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <p className="text-foreground text-xs font-medium">Fields</p>
+              <Button size="sm" variant="ghost" onClick={addField}>
+                <Plus className="mr-1 size-4" /> Add field
+              </Button>
+              <button
+                onClick={() => setShowTemplates((v) => !v)}
+                className="text-muted-foreground ml-auto text-xs underline-offset-2 hover:underline"
+              >
+                {showTemplates ? "Hide" : "Edit"} question templates
+              </button>
+            </div>
+            {edit.fields.length === 0 && (
+              <p className="text-muted-foreground/70 mt-1 text-xs">
+                No fields yet, add some or propose a schema above.
+              </p>
             )}
-            Auto-generate templates
-          </Button>
-        )}
-        {edit.overview.length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Overview sentences: {edit.overview.length} (auto)
-          </p>
-        )}
-      </div>
+            <div className="mt-1 space-y-2">
+              {edit.fields.map((f, i) => (
+                <div key={i} className="rounded border p-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="key (snake_case)"
+                      value={f.key}
+                      onChange={(e) => setField(i, { key: e.target.value })}
+                      className="max-w-[10rem]"
+                    />
+                    <Input
+                      placeholder="Label"
+                      value={f.label}
+                      onChange={(e) => setField(i, { label: e.target.value })}
+                      className="max-w-[12rem]"
+                    />
+                    <DeleteButton onClick={() => removeField(i)} title="Remove field" />
+                  </div>
+                  {showTemplates && (
+                    <div className="mt-2 space-y-1 pl-1">
+                      <Input
+                        placeholder="Questions (one per line uses {name}), comma separated"
+                        value={(f.questions ?? []).join(" | ")}
+                        onChange={(e) =>
+                          setField(i, {
+                            questions: e.target.value
+                              .split("|")
+                              .map((q) => q.trim())
+                              .filter(Boolean),
+                          })
+                        }
+                      />
+                      <Input
+                        placeholder="Answer template, uses {name} and {value}"
+                        value={f.answer ?? ""}
+                        onChange={(e) => setField(i, { answer: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {edit.fields.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={onProposeTemplates}
+                disabled={busy === "templates"}
+              >
+                {busy === "templates" ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 size-4" />
+                )}
+                Auto-generate templates
+              </Button>
+            )}
+            {edit.overview.length > 0 && (
+              <p className="text-muted-foreground/70 mt-1 text-xs">
+                Overview sentences: {edit.overview.length} (auto)
+              </p>
+            )}
+          </div>
         </>
       )}
 
       {/* Entries */}
       <div className="mt-3">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-foreground">
-            Entries ({edit.entities.length})
-          </p>
+          <p className="text-foreground text-xs font-medium">Entries ({edit.entities.length})</p>
           <Button
             size="sm"
             variant="secondary"
@@ -766,13 +722,13 @@ function SubdomainEditor({
           </Button>
         </div>
         {edit.entities.length === 0 ? (
-          <p className="mt-1 text-xs text-muted-foreground/70">
+          <p className="text-muted-foreground/70 mt-1 text-xs">
             No entries yet, add one, or use Smart import to fill them.
           </p>
         ) : (
           <div className="mt-2 max-h-[26rem] space-y-2 overflow-auto pr-1">
             {edit.entities.map((row, ri) => (
-              <div key={ri} className="rounded-md border bg-background/60 p-2">
+              <div key={ri} className="bg-background/60 rounded-md border p-2">
                 <div className="flex items-center gap-2">
                   <Input
                     value={String(row.name ?? "")}
@@ -780,16 +736,13 @@ function SubdomainEditor({
                     placeholder="Name"
                     className="h-8 flex-1 font-medium"
                   />
-                  <DeleteButton
-                    onClick={() => removeRow(ri)}
-                    title="Remove entry"
-                  />
+                  <DeleteButton onClick={() => removeRow(ri)} title="Remove entry" />
                 </div>
                 {edit.fields.length > 0 && (
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {edit.fields.map((f) => (
                       <label key={f.key} className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
                           {f.label || f.key}
                         </span>
                         <Input
@@ -809,9 +762,7 @@ function SubdomainEditor({
 
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" onClick={onSave} disabled={busy === "save"}>
-          {busy === "save" && (
-            <Loader2 className="mr-1 size-4 animate-spin" />
-          )}
+          {busy === "save" && <Loader2 className="mr-1 size-4 animate-spin" />}
           Save
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose}>

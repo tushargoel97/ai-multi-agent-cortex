@@ -22,9 +22,7 @@ export function ModelSelectionProvider({ children }: { children: ReactNode }) {
   // Seed with the SSR default so the first client render matches the server;
   // the real (localStorage) selection loads in the mount effect below. Reading
   // localStorage in the useState initializer causes a hydration mismatch.
-  const [selection, setSelectionState] = useState<ModelSelection>(
-    DEFAULT_SELECTION,
-  );
+  const [selection, setSelectionState] = useState<ModelSelection>(DEFAULT_SELECTION);
 
   // Re-read from localStorage after mount to avoid SSR mismatch
   useEffect(() => {
@@ -55,9 +53,7 @@ export function ModelSelectionProvider({ children }: { children: ReactNode }) {
 export function useModelSelection(): Ctx {
   const ctx = useContext(ModelSelectionContext);
   if (!ctx) {
-    throw new Error(
-      "useModelSelection must be used inside ModelSelectionProvider",
-    );
+    throw new Error("useModelSelection must be used inside ModelSelectionProvider");
   }
   return ctx;
 }

@@ -52,10 +52,7 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   return (
     <div className="flex items-center justify-between gap-4 rounded-t-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">
       <span className="lowercase [&>span]:text-xs">{language}</span>
-      <TooltipIconButton
-        tooltip="Copy"
-        onClick={onCopy}
-      >
+      <TooltipIconButton tooltip="Copy" onClick={onCopy}>
         {!isCopied && <CopyIcon />}
         {isCopied && <CheckIcon />}
       </TooltipIconButton>
@@ -66,10 +63,7 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
 const defaultComponents: any = {
   h1: ({ className, ...props }: { className?: string }) => (
     <h1
-      className={cn(
-        "mb-8 scroll-m-20 text-4xl font-extrabold tracking-tight last:mb-0",
-        className,
-      )}
+      className={cn("mb-8 scroll-m-20 text-4xl font-extrabold tracking-tight last:mb-0", className)}
       {...props}
     />
   ),
@@ -101,19 +95,10 @@ const defaultComponents: any = {
     />
   ),
   h5: ({ className, ...props }: { className?: string }) => (
-    <h5
-      className={cn(
-        "my-4 text-lg font-semibold first:mt-0 last:mb-0",
-        className,
-      )}
-      {...props}
-    />
+    <h5 className={cn("my-4 text-lg font-semibold first:mt-0 last:mb-0", className)} {...props} />
   ),
   h6: ({ className, ...props }: { className?: string }) => (
-    <h6
-      className={cn("my-4 font-semibold first:mt-0 last:mb-0", className)}
-      {...props}
-    />
+    <h6 className={cn("my-4 font-semibold first:mt-0 last:mb-0", className)} {...props} />
   ),
   p: ({
     className,
@@ -126,16 +111,9 @@ const defaultComponents: any = {
     // A markdown image renders as <GeneratedImage> (a <div>), and a <div> is
     // invalid inside a <p> (hydration error). When this paragraph wraps an
     // image, render a <div> instead to keep the DOM valid.
-    const hasBlockChild = node?.children?.some(
-      (c) => c?.type === "element" && c.tagName === "img",
-    );
+    const hasBlockChild = node?.children?.some((c) => c?.type === "element" && c.tagName === "img");
     const Tag = hasBlockChild ? "div" : "p";
-    return (
-      <Tag
-        className={cn("mt-5 mb-5 leading-7 first:mt-0 last:mb-0", className)}
-        {...props}
-      />
-    );
+    return <Tag className={cn("mt-5 mb-5 leading-7 first:mt-0 last:mb-0", className)} {...props} />;
   },
   a: ({
     className,
@@ -146,51 +124,30 @@ const defaultComponents: any = {
     href?: string;
     children?: React.ReactNode;
   }) => (
-    <CitationLink
-      href={href}
-      className={className}
-    >
+    <CitationLink href={href} className={className}>
       {children}
     </CitationLink>
   ),
   img: ({ src, alt }: { src?: unknown; alt?: string }) => (
-    <GeneratedImage
-      src={typeof src === "string" ? src : undefined}
-      alt={alt}
-    />
+    <GeneratedImage src={typeof src === "string" ? src : undefined} alt={alt} />
   ),
   blockquote: ({ className, ...props }: { className?: string }) => (
-    <blockquote
-      className={cn("border-l-2 pl-6 italic", className)}
-      {...props}
-    />
+    <blockquote className={cn("border-l-2 pl-6 italic", className)} {...props} />
   ),
   ul: ({ className, ...props }: { className?: string }) => (
-    <ul
-      className={cn("my-5 ml-6 list-disc [&>li]:mt-2", className)}
-      {...props}
-    />
+    <ul className={cn("my-5 ml-6 list-disc [&>li]:mt-2", className)} {...props} />
   ),
   ol: ({ className, ...props }: { className?: string }) => (
-    <ol
-      className={cn("my-5 ml-6 list-decimal [&>li]:mt-2", className)}
-      {...props}
-    />
+    <ol className={cn("my-5 ml-6 list-decimal [&>li]:mt-2", className)} {...props} />
   ),
   hr: ({ className, ...props }: { className?: string }) => (
-    <hr
-      className={cn("my-5 border-b", className)}
-      {...props}
-    />
+    <hr className={cn("my-5 border-b", className)} {...props} />
   ),
   // Spec-sheet style tables: framed grid, product-name header band, shaded
   // spec-label column, zebra rows, scrolls horizontally instead of wrapping.
   table: ({ className, ...props }: { className?: string }) => (
     <div className="border-border my-5 overflow-x-auto rounded-xl border shadow-sm">
-      <table
-        className={cn("w-full border-collapse text-sm", className)}
-        {...props}
-      />
+      <table className={cn("w-full border-collapse text-sm", className)} {...props} />
     </div>
   ),
   th: ({ className, ...props }: { className?: string }) => (
@@ -215,36 +172,20 @@ const defaultComponents: any = {
   ),
   tr: ({ className, ...props }: { className?: string }) => (
     <tr
-      className={cn(
-        "even:bg-muted/20 m-0 p-0 [&:last-child>td]:border-b-0",
-        className,
-      )}
+      className={cn("even:bg-muted/20 m-0 p-0 [&:last-child>td]:border-b-0", className)}
       {...props}
     />
   ),
   sup: ({ className, ...props }: { className?: string }) => (
-    <sup
-      className={cn("[&>a]:text-xs [&>a]:no-underline", className)}
-      {...props}
-    />
+    <sup className={cn("[&>a]:text-xs [&>a]:no-underline", className)} {...props} />
   ),
   pre: ({ className, ...props }: { className?: string }) => (
     <pre
-      className={cn(
-        "max-w-4xl overflow-x-auto rounded-lg bg-black text-white",
-        className,
-      )}
+      className={cn("max-w-4xl overflow-x-auto rounded-lg bg-black text-white", className)}
       {...props}
     />
   ),
-  code: ({
-    className,
-    children,
-    ...props
-  }: {
-    className?: string;
-    children: React.ReactNode;
-  }) => {
+  code: ({ className, children, ...props }: { className?: string; children: React.ReactNode }) => {
     const match = /language-(\w+)/.exec(className || "");
 
     if (match) {
@@ -253,14 +194,8 @@ const defaultComponents: any = {
 
       return (
         <>
-          <CodeHeader
-            language={language}
-            code={code}
-          />
-          <SyntaxHighlighter
-            language={language}
-            className={className}
-          >
+          <CodeHeader language={language} code={code} />
+          <SyntaxHighlighter language={language} className={className}>
             {code}
           </SyntaxHighlighter>
         </>
@@ -268,10 +203,7 @@ const defaultComponents: any = {
     }
 
     return (
-      <code
-        className={cn("rounded font-semibold", className)}
-        {...props}
-      >
+      <code className={cn("rounded font-semibold", className)} {...props}>
         {children}
       </code>
     );

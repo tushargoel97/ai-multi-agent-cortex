@@ -4,10 +4,7 @@ import { checkAdmin } from "@/lib/admin-auth";
 import { ensureToolTables } from "@/lib/tool-tables";
 
 /** Enable/disable or edit an MCP server. */
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureToolTables();
@@ -44,10 +41,7 @@ export async function PATCH(
 }
 
 /** Remove an MCP server (its discovered tool rows cascade-delete). */
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   await ensureToolTables();

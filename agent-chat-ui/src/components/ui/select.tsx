@@ -67,11 +67,8 @@ export function Select({
     insideRef: listRef,
   });
 
-  // The list renders in a body portal so no ancestor's backdrop-filter can
-  // disable its own blur (nested backdrop-filters don't compose). Fixed
-  // coordinates come from the trigger; hidden until the first placement,
-  // which measures the real list to decide downward vs upward (upward only
-  // when it truly doesn't fit below and there's more room above).
+  // Body portal: an ancestor's backdrop-filter would disable the list's own
+  // blur. Placement measures the rendered list, flipping up only when needed.
   const MAX_H = 320;
   const [pos, setPos] = React.useState<{
     left: number;
@@ -93,22 +90,14 @@ export function Select({
     const spaceAbove = r.top - gap - margin;
     const h = Math.min(lr.height, MAX_H);
     const up = h > spaceBelow && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(
-      96,
-      Math.min(up ? spaceAbove : spaceBelow, MAX_H),
-    );
-    const left = Math.max(
-      margin,
-      Math.min(r.left, window.innerWidth - lr.width - margin),
-    );
+    const maxHeight = Math.max(96, Math.min(up ? spaceAbove : spaceBelow, MAX_H));
+    const left = Math.max(margin, Math.min(r.left, window.innerWidth - lr.width - margin));
     setPos({
       left,
       minWidth: r.width,
       maxHeight,
       up,
-      ...(up
-        ? { bottom: window.innerHeight - r.top + gap }
-        : { top: r.bottom + gap }),
+      ...(up ? { bottom: window.innerHeight - r.top + gap } : { top: r.bottom + gap }),
     });
   }, [mounted, open]);
 
@@ -121,10 +110,7 @@ export function Select({
 
   React.useEffect(() => {
     if (!open) return;
-    const start =
-      selectedIndex >= 0
-        ? selectedIndex
-        : options.findIndex((o) => !o.disabled);
+    const start = selectedIndex >= 0 ? selectedIndex : options.findIndex((o) => !o.disabled);
     setHighlight(start);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -184,10 +170,7 @@ export function Select({
   };
 
   return (
-    <div
-      ref={rootRef}
-      className={cn("relative", fullWidth ? "flex w-full" : "inline-flex")}
-    >
+    <div ref={rootRef} className={cn("relative", fullWidth ? "flex w-full" : "inline-flex")}>
       <button
         type="button"
         role="combobox"
@@ -250,9 +233,7 @@ export function Select({
             )}
           >
             {options.length === 0 && (
-              <div className="text-muted-foreground px-2 py-1.5 text-xs">
-                No options
-              </div>
+              <div className="text-muted-foreground px-2 py-1.5 text-xs">No options</div>
             )}
             {options.map((o, i) => {
               const active = o.value === value;
@@ -268,23 +249,14 @@ export function Select({
                   onClick={() => choose(i)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none",
-                    i === highlight &&
-                      !o.disabled &&
-                      "bg-accent text-accent-foreground",
+                    i === highlight && !o.disabled && "bg-accent text-accent-foreground",
                     o.disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
-                  <Check
-                    className={cn(
-                      "size-4 shrink-0",
-                      active ? "opacity-100" : "opacity-0",
-                    )}
-                  />
+                  <Check className={cn("size-4 shrink-0", active ? "opacity-100" : "opacity-0")} />
                   <span className="min-w-0 flex-1 truncate">{o.label}</span>
                   {o.hint != null && (
-                    <span className="text-muted-foreground shrink-0 text-xs">
-                      {o.hint}
-                    </span>
+                    <span className="text-muted-foreground shrink-0 text-xs">{o.hint}</span>
                   )}
                 </button>
               );

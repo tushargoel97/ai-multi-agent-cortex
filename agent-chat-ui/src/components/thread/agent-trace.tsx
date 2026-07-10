@@ -61,8 +61,7 @@ export function deriveSteps(messages: Message[]): TraceStep[] {
     if (m.type === "ai") {
       const text = getContentString(m.content).trim();
       const toolCalls =
-        (m as { tool_calls?: { id?: string; name?: string; args?: unknown }[] })
-          .tool_calls ?? [];
+        (m as { tool_calls?: { id?: string; name?: string; args?: unknown }[] }).tool_calls ?? [];
       // A short preamble the model wrote before calling a tool (commentary).
       if (text && toolCalls.length > 0) {
         steps.push({
@@ -96,8 +95,7 @@ export function deriveSteps(messages: Message[]): TraceStep[] {
       continue;
     }
     if (m.type === "tool") {
-      const raw =
-        typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      const raw = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       steps.push({
         key: `${m.id}-result`,
         icon: BookOpen,
@@ -112,9 +110,7 @@ export function deriveSteps(messages: Message[]): TraceStep[] {
 
 function summarize(steps: TraceStep[]): string {
   const route = steps.find((s) => s.label.startsWith("Routed to"));
-  const actions = steps.filter(
-    (s) => !s.muted && !s.label.startsWith("Routed to"),
-  ).length;
+  const actions = steps.filter((s) => !s.muted && !s.label.startsWith("Routed to")).length;
   const bits: string[] = [];
   if (route) bits.push(route.label.replace("Routed to ", ""));
   if (actions > 0) bits.push(`${actions} step${actions > 1 ? "s" : ""}`);
@@ -142,19 +138,10 @@ function ImageGenLoader() {
  * (click to review the steps), mirroring how Claude / ChatGPT fold reasoning
  * away once the answer is ready.
  */
-export function AgentTrace({
-  messages,
-  live,
-}: {
-  messages: Message[];
-  live: boolean;
-}) {
+export function AgentTrace({ messages, live }: { messages: Message[]; live: boolean }) {
   const [open, setOpen] = useState(false);
 
-  if (
-    live &&
-    messages.some((m) => getRoutingIntent(m) === "image_generation")
-  ) {
+  if (live && messages.some((m) => getRoutingIntent(m) === "image_generation")) {
     return <ImageGenLoader />;
   }
 
@@ -168,12 +155,7 @@ export function AgentTrace({
     const routed = messages.find((m) => getRoutingIntent(m));
     const intent = routed ? getRoutingIntent(routed) : null;
     if (!intent) return null;
-    return (
-      <RoutingChip
-        intent={intent}
-        model={getRoutingModel(routed)}
-      />
-    );
+    return <RoutingChip intent={intent} model={getRoutingModel(routed)} />;
   }
 
   const expanded = live || open;
@@ -187,24 +169,16 @@ export function AgentTrace({
         aria-expanded={expanded}
         className={cn(
           "text-muted-foreground/80 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors",
-          live
-            ? "cursor-default"
-            : "hover:bg-muted/60 hover:text-muted-foreground",
+          live ? "cursor-default" : "hover:bg-muted/60 hover:text-muted-foreground",
         )}
       >
         {live ? (
           <Sparkles className="size-3.5 animate-pulse text-amber-500" />
         ) : (
-          <ChevronRight
-            className={cn("size-3.5 transition-transform", open && "rotate-90")}
-          />
+          <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
         )}
-        <span className="font-medium">
-          {live ? "Working through it" : "Thought process"}
-        </span>
-        {summary && (
-          <span className="text-muted-foreground/60">· {summary}</span>
-        )}
+        <span className="font-medium">{live ? "Working through it" : "Thought process"}</span>
+        {summary && <span className="text-muted-foreground/60">· {summary}</span>}
         {live && (
           <span className="ml-0.5 flex items-center gap-0.5">
             <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full" />
@@ -220,32 +194,19 @@ export function AgentTrace({
             const Icon = step.icon;
             const isLast = i === steps.length - 1;
             return (
-              <li
-                key={step.key}
-                className="flex items-start gap-2"
-              >
+              <li key={step.key} className="flex items-start gap-2">
                 <Icon
                   className={cn(
                     "mt-0.5 size-3.5 shrink-0",
-                    live && isLast
-                      ? "animate-pulse text-amber-500"
-                      : "text-muted-foreground/60",
+                    live && isLast ? "animate-pulse text-amber-500" : "text-muted-foreground/60",
                   )}
                 />
                 <div className="flex min-w-0 flex-col">
-                  <span
-                    className={
-                      step.muted
-                        ? "text-muted-foreground/70"
-                        : "text-foreground/80"
-                    }
-                  >
+                  <span className={step.muted ? "text-muted-foreground/70" : "text-foreground/80"}>
                     {step.label}
                   </span>
                   {step.detail && (
-                    <span className="text-muted-foreground/55 truncate">
-                      {step.detail}
-                    </span>
+                    <span className="text-muted-foreground/55 truncate">{step.detail}</span>
                   )}
                 </div>
               </li>

@@ -2,14 +2,7 @@
 
 import { Message } from "@langchain/langgraph-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Link2,
-  Search,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, Link2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getContentString } from "./utils";
 
@@ -19,10 +12,10 @@ interface HighlightCtor {
   new (...ranges: Range[]): unknown;
 }
 function highlightRegistry():
-  | Map<string, unknown> & {
+  | (Map<string, unknown> & {
       set: (k: string, v: unknown) => void;
       delete: (k: string) => void;
-    }
+    })
   | null {
   if (typeof CSS === "undefined") return null;
   const reg = (CSS as unknown as { highlights?: unknown }).highlights;
@@ -46,8 +39,7 @@ function findRanges(root: HTMLElement, q: string): Range[] {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
       const parent = (node as Text).parentElement;
-      if (!node.nodeValue || !node.nodeValue.trim())
-        return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
       // Skip our own UI, code we don't want doubled, and hidden nodes.
       if (parent?.closest("[data-search-ui]")) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
@@ -106,9 +98,7 @@ function useFind(
     const range = rangesRef.current[current];
     if (!reg || !Ctor || !range) return;
     reg.set(HL_CURRENT, new Ctor(range));
-    const el =
-      range.startContainer.parentElement ??
-      (range.startContainer as HTMLElement);
+    const el = range.startContainer.parentElement ?? (range.startContainer as HTMLElement);
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [current, count]);
 
@@ -162,10 +152,8 @@ export function extractSources(
     if (m.type !== "ai" && m.type !== "tool") continue;
     // Booking / shopping deep-link cards are destinations the user clicks, not
     // sources the agent consulted, skip them so Activity isn't padded out.
-    if (m.type === "tool" && skip.has((m as { name?: string }).name ?? ""))
-      continue;
-    const text =
-      typeof m.content === "string" ? m.content : getContentString(m.content);
+    if (m.type === "tool" && skip.has((m as { name?: string }).name ?? "")) continue;
+    const text = typeof m.content === "string" ? m.content : getContentString(m.content);
     let mm: RegExpExecArray | null;
     MD_LINK.lastIndex = 0;
     while ((mm = MD_LINK.exec(text))) add(mm[2], mm[1]);
@@ -212,8 +200,7 @@ export function ThreadSearch({
     const f = sourceFilter.trim().toLowerCase();
     if (!f) return sources;
     return sources.filter(
-      (s) =>
-        s.url.toLowerCase().includes(f) || s.label.toLowerCase().includes(f),
+      (s) => s.url.toLowerCase().includes(f) || s.label.toLowerCase().includes(f),
     );
   }, [sources, sourceFilter]);
 
@@ -240,7 +227,7 @@ export function ThreadSearch({
     <div
       ref={rootRef}
       data-search-ui
-      className="absolute top-3 left-1/2 z-30 w-[min(44rem,calc(100%-2rem))] -translate-x-1/2 animate-in fade-in-0 slide-in-from-top-2"
+      className="animate-in fade-in-0 slide-in-from-top-2 absolute top-3 left-1/2 z-30 w-[min(44rem,calc(100%-2rem))] -translate-x-1/2"
     >
       <div
         className={cn(
@@ -249,7 +236,7 @@ export function ThreadSearch({
         )}
       >
         <div className="flex items-center gap-2 px-4 py-2.5">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <Search className="text-muted-foreground size-4 shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -262,10 +249,10 @@ export function ThreadSearch({
               if (e.key === "Escape") onClose();
             }}
             placeholder="Find in conversation…"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
           {query.trim() && (
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
               {count ? `${current + 1}/${count}` : "0/0"}
             </span>
           )}
@@ -274,7 +261,7 @@ export function ThreadSearch({
               type="button"
               onClick={prev}
               disabled={!count}
-              className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+              className="text-muted-foreground hover:bg-muted rounded p-1 disabled:opacity-40"
               title="Previous (Shift+Enter)"
             >
               <ChevronUp className="size-4" />
@@ -283,7 +270,7 @@ export function ThreadSearch({
               type="button"
               onClick={next}
               disabled={!count}
-              className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+              className="text-muted-foreground hover:bg-muted rounded p-1 disabled:opacity-40"
               title="Next (Enter)"
             >
               <ChevronDown className="size-4" />
@@ -293,7 +280,7 @@ export function ThreadSearch({
             type="button"
             onClick={() => setShowSources((s) => !s)}
             className={cn(
-              "flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs transition-colors",
+              "border-border flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
               showSources
                 ? "bg-primary/10 text-foreground"
                 : "text-muted-foreground hover:bg-muted",
@@ -302,14 +289,12 @@ export function ThreadSearch({
           >
             <Link2 className="size-3.5" />
             Sources
-            {sources.length > 0 && (
-              <span className="tabular-nums">{sources.length}</span>
-            )}
+            {sources.length > 0 && <span className="tabular-nums">{sources.length}</span>}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-muted-foreground hover:bg-muted"
+            className="text-muted-foreground hover:bg-muted rounded p-1"
             title="Close (Esc)"
           >
             <X className="size-4" />
@@ -317,18 +302,18 @@ export function ThreadSearch({
         </div>
 
         {showSources && (
-          <div className="border-t border-border">
+          <div className="border-border border-t">
             <div className="px-3 py-2">
               <input
                 value={sourceFilter}
                 onChange={(e) => setSourceFilter(e.target.value)}
                 placeholder="Filter sources…"
-                className="w-full rounded-md bg-muted/60 px-2.5 py-1 text-xs outline-none placeholder:text-muted-foreground"
+                className="bg-muted/60 placeholder:text-muted-foreground w-full rounded-md px-2.5 py-1 text-xs outline-none"
               />
             </div>
             <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
               {filteredSources.length === 0 ? (
-                <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                <p className="text-muted-foreground px-2 py-3 text-center text-xs">
                   {sources.length === 0
                     ? "No sources cited in this conversation yet."
                     : "No sources match your filter."}
@@ -341,7 +326,7 @@ export function ThreadSearch({
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                        className="group hover:bg-muted flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -351,13 +336,9 @@ export function ThreadSearch({
                           height={16}
                           className="size-4 shrink-0 rounded-sm"
                         />
-                        <span className="min-w-0 flex-1 truncate">
-                          {s.label}
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {s.domain}
-                        </span>
-                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                        <span className="min-w-0 flex-1 truncate">{s.label}</span>
+                        <span className="text-muted-foreground shrink-0 text-xs">{s.domain}</span>
+                        <ExternalLink className="text-muted-foreground size-3.5 shrink-0 opacity-0 group-hover:opacity-100" />
                       </a>
                     </li>
                   ))}

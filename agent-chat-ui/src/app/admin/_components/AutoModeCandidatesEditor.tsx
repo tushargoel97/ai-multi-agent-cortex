@@ -65,11 +65,7 @@ async function adminFetch(url: string, init: RequestInit = {}) {
   });
 }
 
-export default function AutoModeCandidatesEditor({
-  refreshKey = 0,
-}: {
-  refreshKey?: number;
-}) {
+export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKey?: number }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState("balanced");
@@ -192,7 +188,7 @@ export default function AutoModeCandidatesEditor({
   }
 
   return (
-    <div className="rounded-lg border bg-muted/30">
+    <div className="bg-muted/30 rounded-lg border">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -204,8 +200,8 @@ export default function AutoModeCandidatesEditor({
             Auto-mode candidates
           </h3>
           <p className="text-muted-foreground text-xs">
-            Per-intent model order for each profile, the first enabled model
-            wins. Your edits layer over the shipped defaults.
+            Per-intent model order for each profile, the first enabled model wins. Your edits layer
+            over the shipped defaults.
           </p>
         </div>
         {open ? (
@@ -219,10 +215,8 @@ export default function AutoModeCandidatesEditor({
         <div className="space-y-4 border-t p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs">
-                Editing profile
-              </span>
-              <div className="flex items-center gap-1 rounded-full border border-border bg-background/60 p-1">
+              <span className="text-muted-foreground text-xs">Editing profile</span>
+              <div className="border-border bg-background/60 flex items-center gap-1 rounded-full border p-1">
                 {PROFILES.map((p) => (
                   <button
                     key={p}
@@ -236,9 +230,7 @@ export default function AutoModeCandidatesEditor({
                     }
                   >
                     {p}
-                    {p === activeProfile && (
-                      <span className="ml-1 opacity-70">(active)</span>
-                    )}
+                    {p === activeProfile && <span className="ml-1 opacity-70">(active)</span>}
                   </button>
                 ))}
               </div>
@@ -253,8 +245,8 @@ export default function AutoModeCandidatesEditor({
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : intents.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No defaults published yet, send one chat in Auto mode so the
-              graph mirrors its shipped candidate lists here.
+              No defaults published yet, send one chat in Auto mode so the graph mirrors its shipped
+              candidate lists here.
             </p>
           ) : (
             <div className="space-y-3">
@@ -263,18 +255,13 @@ export default function AutoModeCandidatesEditor({
                 const overridden = isOverridden(profile, intent);
                 const key = `${profile}::${intent}`;
                 return (
-                  <div
-                    key={intent}
-                    className="rounded-md border bg-background/60 p-3"
-                  >
+                  <div key={intent} className="bg-background/60 rounded-md border p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">
                           {INTENT_LABELS[intent] || intent}
                         </span>
-                        <code className="text-muted-foreground text-[11px]">
-                          {intent}
-                        </code>
+                        <code className="text-muted-foreground text-[11px]">{intent}</code>
                         {overridden && (
                           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600">
                             customized
@@ -295,54 +282,40 @@ export default function AutoModeCandidatesEditor({
 
                     <ol className="space-y-1.5">
                       {list.map((id, idx) => (
-                        <li
-                          key={`${id}-${idx}`}
-                          className="flex items-center gap-2"
-                        >
+                        <li key={`${id}-${idx}`} className="flex items-center gap-2">
                           <span className="text-muted-foreground w-5 text-right text-xs tabular-nums">
                             {idx + 1}.
                           </span>
                           <span
                             className={
-                              "flex-1 truncate text-xs " +
-                              (isKnown(id) ? "" : "text-amber-600")
+                              "flex-1 truncate text-xs " + (isKnown(id) ? "" : "text-amber-600")
                             }
-                            title={
-                              isKnown(id)
-                                ? id
-                                : `${id}, not an enabled registry model`
-                            }
+                            title={isKnown(id) ? id : `${id}, not an enabled registry model`}
                           >
                             {labelFor(id)}
                           </span>
                           <div className="flex items-center gap-0.5">
                             <button
                               type="button"
-                              onClick={() =>
-                                moveCandidate(profile, intent, idx, -1)
-                              }
+                              onClick={() => moveCandidate(profile, intent, idx, -1)}
                               disabled={idx === 0}
-                              className="text-muted-foreground rounded p-1 hover:bg-muted disabled:opacity-30"
+                              className="text-muted-foreground hover:bg-muted rounded p-1 disabled:opacity-30"
                               title="Move up"
                             >
                               <ArrowUp className="size-3.5" />
                             </button>
                             <button
                               type="button"
-                              onClick={() =>
-                                moveCandidate(profile, intent, idx, 1)
-                              }
+                              onClick={() => moveCandidate(profile, intent, idx, 1)}
                               disabled={idx === list.length - 1}
-                              className="text-muted-foreground rounded p-1 hover:bg-muted disabled:opacity-30"
+                              className="text-muted-foreground hover:bg-muted rounded p-1 disabled:opacity-30"
                               title="Move down"
                             >
                               <ArrowDown className="size-3.5" />
                             </button>
                             <button
                               type="button"
-                              onClick={() =>
-                                removeCandidate(profile, intent, idx)
-                              }
+                              onClick={() => removeCandidate(profile, intent, idx)}
                               className="rounded p-1 text-rose-500 hover:bg-rose-500/10"
                               title="Remove"
                             >
@@ -353,8 +326,7 @@ export default function AutoModeCandidatesEditor({
                       ))}
                       {list.length === 0 && (
                         <li className="text-muted-foreground text-xs italic">
-                          No candidates, this intent falls back to the fast
-                          tier.
+                          No candidates, this intent falls back to the fast tier.
                         </li>
                       )}
                     </ol>
@@ -363,9 +335,7 @@ export default function AutoModeCandidatesEditor({
                       <input
                         list={`models-${key}`}
                         value={drafts[key] || ""}
-                        onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [key]: e.target.value }))
-                        }
+                        onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -373,7 +343,7 @@ export default function AutoModeCandidatesEditor({
                           }
                         }}
                         placeholder="model id (or 'finetuned')"
-                        className="h-8 flex-1 rounded-md border bg-background/60 px-2 text-xs"
+                        className="bg-background/60 h-8 flex-1 rounded-md border px-2 text-xs"
                       />
                       <datalist id={`models-${key}`}>
                         <option value="finetuned" />
@@ -386,7 +356,7 @@ export default function AutoModeCandidatesEditor({
                       <button
                         type="button"
                         onClick={() => addCandidate(profile, intent)}
-                        className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                        className="hover:bg-muted flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
                       >
                         <Plus className="size-3.5" /> add
                       </button>

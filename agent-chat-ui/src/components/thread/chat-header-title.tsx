@@ -33,9 +33,7 @@ export function ChatHeaderTitle() {
   const [draft, setDraft] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const thread: Thread | undefined = threads.find(
-    (t) => t.thread_id === threadId,
-  );
+  const thread: Thread | undefined = threads.find((t) => t.thread_id === threadId);
   if (!threadId || !thread) return null;
 
   const label = getThreadLabel(thread);
@@ -61,13 +59,7 @@ export function ChatHeaderTitle() {
           onBlur={commit}
           className="h-8 w-64 text-sm"
         />
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-7"
-          onClick={commit}
-          title="Save"
-        >
+        <Button size="icon" variant="ghost" className="size-7" onClick={commit} title="Save">
           <Check className="size-4" />
         </Button>
         <Button
@@ -93,11 +85,9 @@ export function ChatHeaderTitle() {
         triggerActiveClassName="bg-muted"
         trigger={
           <>
-            {pinned && (
-              <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
-            )}
+            {pinned && <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />}
             <span className="truncate">{label}</span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="text-muted-foreground size-4 shrink-0" />
           </>
         }
         onStar={() => togglePin(thread)}
@@ -108,23 +98,16 @@ export function ChatHeaderTitle() {
         onDelete={() => setConfirmDelete(true)}
       />
 
-      <Dialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-      >
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete this chat?</DialogTitle>
             <DialogDescription>
-              “{label}” will be permanently deleted. This action cannot be
-              undone.
+              “{label}” will be permanently deleted. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setConfirmDelete(false)}
-            >
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
               Cancel
             </Button>
             <Button

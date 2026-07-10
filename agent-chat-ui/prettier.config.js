@@ -4,7 +4,8 @@
  */
 const config = {
   endOfLine: "auto",
-  singleAttributePerLine: true,
+  printWidth: 100,
+  singleAttributePerLine: false,
   plugins: ["prettier-plugin-tailwindcss"],
 };
 

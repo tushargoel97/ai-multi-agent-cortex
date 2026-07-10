@@ -17,18 +17,10 @@ import { Button } from "@/components/ui/button";
 import { cn, copyTextToClipboard } from "@/lib/utils";
 import { toast } from "sonner";
 
-function ContentCopyable({
-  content,
-  disabled,
-}: {
-  content: string;
-  disabled: boolean;
-}) {
+function ContentCopyable({ content, disabled }: { content: string; disabled: boolean }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async (
-    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
-  ) => {
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     e.stopPropagation();
     const ok = await copyTextToClipboard(content);
     if (!ok) {
@@ -46,10 +38,7 @@ function ContentCopyable({
       tooltip="Copy content"
       disabled={disabled}
     >
-      <AnimatePresence
-        mode="wait"
-        initial={false}
-      >
+      <AnimatePresence mode="wait" initial={false}>
         {copied ? (
           <motion.div
             key="check"
@@ -144,9 +133,7 @@ function MessageFeedback({ disabled }: { disabled: boolean }) {
         variant="ghost"
         onClick={() => pick("up")}
       >
-        <ThumbsUp
-          className={cn(feedback === "up" && "fill-current text-green-500")}
-        />
+        <ThumbsUp className={cn(feedback === "up" && "fill-current text-green-500")} />
       </TooltipIconButton>
       <TooltipIconButton
         disabled={disabled}
@@ -154,9 +141,7 @@ function MessageFeedback({ disabled }: { disabled: boolean }) {
         variant="ghost"
         onClick={() => pick("down")}
       >
-        <ThumbsDown
-          className={cn(feedback === "down" && "fill-current text-red-500")}
-        />
+        <ThumbsDown className={cn(feedback === "down" && "fill-current text-red-500")} />
       </TooltipIconButton>
     </>
   );
@@ -182,22 +167,16 @@ export function CommandBar({
   isLoading: boolean;
 }) {
   if (isHumanMessage && isAiMessage) {
-    throw new Error(
-      "Can only set one of isHumanMessage or isAiMessage to true, not both.",
-    );
+    throw new Error("Can only set one of isHumanMessage or isAiMessage to true, not both.");
   }
 
   if (!isHumanMessage && !isAiMessage) {
-    throw new Error(
-      "One of isHumanMessage or isAiMessage must be set to true.",
-    );
+    throw new Error("One of isHumanMessage or isAiMessage must be set to true.");
   }
 
   if (
     isHumanMessage &&
-    (isEditing === undefined ||
-      setIsEditing === undefined ||
-      handleSubmitEdit === undefined)
+    (isEditing === undefined || setIsEditing === undefined || handleSubmitEdit === undefined)
   ) {
     throw new Error(
       "If isHumanMessage is true, all of isEditing, setIsEditing, and handleSubmitEdit must be set.",
@@ -205,10 +184,7 @@ export function CommandBar({
   }
 
   const showEdit =
-    isHumanMessage &&
-    isEditing !== undefined &&
-    !!setIsEditing &&
-    !!handleSubmitEdit;
+    isHumanMessage && isEditing !== undefined && !!setIsEditing && !!handleSubmitEdit;
 
   if (isHumanMessage && isEditing && !!setIsEditing && !!handleSubmitEdit) {
     return (
@@ -237,10 +213,7 @@ export function CommandBar({
 
   return (
     <div className="flex items-center gap-2">
-      <ContentCopyable
-        content={content}
-        disabled={isLoading}
-      />
+      <ContentCopyable content={content} disabled={isLoading} />
       {isAiMessage && !!handleRegenerate && (
         <TooltipIconButton
           disabled={isLoading}

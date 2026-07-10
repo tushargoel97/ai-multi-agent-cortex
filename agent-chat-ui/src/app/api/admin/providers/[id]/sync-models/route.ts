@@ -54,8 +54,7 @@ async function listAnthropicModels(p: ProviderRow): Promise<SyncedModel[]> {
 async function listGoogleModels(p: ProviderRow): Promise<SyncedModel[]> {
   const key = p.api_key.trim();
   const base = (
-    p.base_url?.replace(/\/+$/, "") ||
-    "https://generativelanguage.googleapis.com/v1beta"
+    p.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta"
   ).replace(/\/openai$/, "");
   const r = await fetch(`${base}/models?pageSize=1000`, {
     headers: { "x-goog-api-key": key },
@@ -73,9 +72,7 @@ async function listGoogleModels(p: ProviderRow): Promise<SyncedModel[]> {
     }[];
   };
   return (data.models ?? [])
-    .filter((m) =>
-      (m.supportedGenerationMethods || []).includes("generateContent"),
-    )
+    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
     .map((m) => {
       const id = m.name.replace(/^models\//, "");
       return { model_id: id, display_name: m.displayName || id };
@@ -93,10 +90,7 @@ async function listLocalModels(p: ProviderRow): Promise<SyncedModel[]> {
   return data.data.map((m) => ({ model_id: m.id, display_name: m.id }));
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   const { id } = await params;
@@ -111,10 +105,7 @@ export async function POST(
   const provider = rows[0];
 
   if (!provider.api_key && provider.kind !== "local") {
-    return NextResponse.json(
-      { error: "Provider has no API key set" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Provider has no API key set" }, { status: 400 });
   }
 
   let models: SyncedModel[];

@@ -61,9 +61,7 @@ export interface ThreadValues {
   };
 }
 
-export type ThreadData<
-  ThreadValues extends Record<string, any> = Record<string, any>,
-> = {
+export type ThreadData<ThreadValues extends Record<string, any> = Record<string, any>> = {
   thread: Thread<ThreadValues>;
 } & (
   | {

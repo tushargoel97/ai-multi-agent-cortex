@@ -7,10 +7,7 @@ export function ToolCallTable({ toolCall }: { toolCall: ToolCall }) {
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            <th
-              className="bg-muted px-2 py-0 text-left text-sm"
-              colSpan={2}
-            >
+            <th className="bg-muted px-2 py-0 text-left text-sm" colSpan={2}>
               {toolCall.name}
             </th>
           </tr>
@@ -35,10 +32,7 @@ export function ToolCallTable({ toolCall }: { toolCall: ToolCall }) {
             }
 
             return (
-              <tr
-                key={key}
-                className="border-t"
-              >
+              <tr key={key} className="border-t">
                 <td className="w-1/3 px-2 py-1 text-xs font-medium">{key}</td>
                 <td className="px-2 py-1 font-mono text-xs">{valueStr}</td>
               </tr>

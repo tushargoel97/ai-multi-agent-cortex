@@ -60,20 +60,17 @@ export async function GET(req: Request) {
 
   const map: Record<string, string> = {};
   for (const r of settings) map[r.key] = r.value;
-  const agentDefaults = parseJson<
-    Record<string, { description: string; system_prompt: string }>
-  >(map["agent_defaults"], {});
-  const toolDefaults = parseJson<Record<string, string[]>>(
-    map["agent_tool_defaults"],
+  const agentDefaults = parseJson<Record<string, { description: string; system_prompt: string }>>(
+    map["agent_defaults"],
     {},
   );
+  const toolDefaults = parseJson<Record<string, string[]>>(map["agent_tool_defaults"], {});
 
   const grantsByAgent: Record<string, string[]> = {};
   for (const g of grants) (grantsByAgent[g.agent_name] ??= []).push(g.tool_name);
 
   const subsByAgent: Record<string, string[]> = {};
-  for (const s of subRows)
-    (subsByAgent[s.agent_name] ??= []).push(s.subagent_name);
+  for (const s of subRows) (subsByAgent[s.agent_name] ??= []).push(s.subagent_name);
 
   const out = agents.map((a) => ({
     id: a.id,
@@ -120,10 +117,7 @@ export async function POST(req: Request) {
     [name, description, systemPrompt],
   );
   if (!rows.length) {
-    return NextResponse.json(
-      { error: `an agent named "${name}" already exists` },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: `an agent named "${name}" already exists` }, { status: 409 });
   }
   if (Array.isArray(body.tools)) {
     for (const t of body.tools) {

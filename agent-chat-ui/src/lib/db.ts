@@ -6,8 +6,7 @@ declare global {
 }
 
 const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://cortex:cortex@localhost:5432/cortex";
+  process.env.DATABASE_URL || "postgresql://cortex:cortex@localhost:5432/cortex";
 
 export const pool: Pool =
   global.__pgPool ??

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   Brain,
   Check,
+  Wrench,
   ChevronDown,
   ChevronRight,
   Globe,
@@ -52,8 +53,8 @@ export interface ModelSelection {
   local_model_name: string;
   /** Relax the image safety pre-screen + configurable provider thresholds. */
   unrestricted: boolean;
-  /** Response mode: general (default) | thinking | research. */
-  mode: "general" | "thinking" | "research";
+  /** Response mode: general/instant (default) | thinking | research | engineer. */
+  mode: "general" | "thinking" | "research" | "engineer";
   /** Model ids pinned in the picker (UI-only, never sent to the graph). */
   pinned_models: string[];
 }
@@ -100,9 +101,7 @@ export function saveModelSelection(sel: ModelSelection) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sel));
 }
 
-export function selectionToConfigurable(
-  sel: ModelSelection,
-): Record<string, unknown> {
+export function selectionToConfigurable(sel: ModelSelection): Record<string, unknown> {
   if (sel.use_local) {
     return {
       local_base_url: sel.local_base_url,
@@ -170,10 +169,7 @@ function pinComposerZoom(el: HTMLElement | null, open: boolean) {
   else composer.removeAttribute("data-menu-open");
 }
 
-const MODE_META: Record<
-  Mode,
-  { label: string; hint: string; icon: LucideIcon }
-> = {
+const MODE_META: Record<Mode, { label: string; hint: string; icon: LucideIcon }> = {
   general: { label: "Instant", hint: "Fastest, direct answers.", icon: Zap },
   thinking: {
     label: "Thinking",
@@ -184,6 +180,11 @@ const MODE_META: Record<
     label: "Research",
     hint: "Deep web/KB research; clarifies first.",
     icon: Globe,
+  },
+  engineer: {
+    label: "Engineer",
+    hint: "Top coding models + debugger agent.",
+    icon: Wrench,
   },
 };
 
@@ -211,11 +212,7 @@ function ModelRow({
       >
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm">{label}</span>
-          {hint && (
-            <span className="text-muted-foreground truncate text-[11px]">
-              {hint}
-            </span>
-          )}
+          {hint && <span className="text-muted-foreground truncate text-[11px]">{hint}</span>}
         </span>
       </button>
       <button
@@ -227,18 +224,13 @@ function ModelRow({
         }}
         className={cn(
           "hover:bg-muted shrink-0 rounded p-1 opacity-0 transition-colors group-hover:opacity-100 focus:opacity-100",
-          pinned
-            ? "text-primary"
-            : "text-muted-foreground hover:text-foreground",
+          pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
       >
         <Pin className={cn("size-3.5", pinned && "fill-current")} />
       </button>
       <Check
-        className={cn(
-          "text-primary size-3.5 shrink-0",
-          selected ? "opacity-100" : "opacity-0",
-        )}
+        className={cn("text-primary size-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")}
       />
     </div>
   );
@@ -275,10 +267,7 @@ function MenuRow({
         <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
       ) : (
         <Check
-          className={cn(
-            "text-primary size-3.5 shrink-0",
-            checked ? "opacity-100" : "opacity-0",
-          )}
+          className={cn("text-primary size-3.5 shrink-0", checked ? "opacity-100" : "opacity-0")}
         />
       )}
     </button>
@@ -330,7 +319,6 @@ function PromptToolbarMenu({
     | { kind: "mode"; anchorTop: number; left: number }
     | null
   >(null);
-  // Measured submenu top; null (hidden) until the layout effect places it.
   const [subTop, setSubTop] = useState<number | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -403,8 +391,7 @@ function PromptToolbarMenu({
       setOpen(true);
       return;
     }
-    const composer =
-      (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
+    const composer = (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
     const cr = composer.getBoundingClientRect();
     const pr = el.getBoundingClientRect();
     const gap = 8;
@@ -454,8 +441,7 @@ function PromptToolbarMenu({
     const same =
       sub &&
       sub.kind === s.kind &&
-      (sub.kind !== "provider" ||
-        (s.kind === "provider" && sub.name === s.name));
+      (sub.kind !== "provider" || (s.kind === "provider" && sub.name === s.name));
     if (same) {
       clearHoverTimer();
       return;
@@ -487,21 +473,16 @@ function PromptToolbarMenu({
   );
 
   const subProvider =
-    sub?.kind === "provider"
-      ? providers.find((p) => p.name === sub.name)
-      : undefined;
+    sub?.kind === "provider" ? providers.find((p) => p.name === sub.name) : undefined;
 
   return (
-    <div
-      ref={rootRef}
-      className="relative inline-flex"
-    >
+    <div ref={rootRef} className="relative inline-flex">
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
-        className="border-border bg-muted/50 hover:bg-muted inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors"
+        className="hover:bg-muted inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
       >
         {useLocal && <Server className="size-3.5 shrink-0 text-emerald-500" />}
         <span className="truncate">{triggerLabel}</span>
@@ -535,14 +516,8 @@ function PromptToolbarMenu({
             )}
           >
             {/* Auto */}
-            <div
-              className="shrink-0"
-              onMouseEnter={closeSubSoon}
-            >
-              <MenuRow
-                checked={autoSelected}
-                onClick={() => choose(AUTO_MODEL_ID)}
-              >
+            <div className="shrink-0" onMouseEnter={closeSubSoon}>
+              <MenuRow checked={autoSelected} onClick={() => choose(AUTO_MODEL_ID)}>
                 <span className="flex flex-col">
                   <span className="truncate">✨ Auto</span>
                   <span className="text-muted-foreground truncate text-[11px]">
@@ -554,10 +529,7 @@ function PromptToolbarMenu({
 
             {/* Pinned: scrolls in place once tall enough to fill the menu. */}
             {pinnedModels.length > 0 && (
-              <div
-                className="flex min-h-0 flex-col"
-                onMouseEnter={closeSubSoon}
-              >
+              <div className="flex min-h-0 flex-col" onMouseEnter={closeSubSoon}>
                 <div className={cn(sectionLabel, "shrink-0")}>Pinned</div>
                 <div className="min-h-0 overflow-y-auto">
                   {pinnedModels.map((m) => modelRow(m, m.provider_name))}
@@ -569,10 +541,7 @@ function PromptToolbarMenu({
             {providers.length > 0 && (
               <div className="shrink-0">
                 <div className="bg-border my-1 h-px" />
-                <div
-                  className={sectionLabel}
-                  onMouseEnter={closeSubSoon}
-                >
+                <div className={sectionLabel} onMouseEnter={closeSubSoon}>
                   Providers
                 </div>
                 {providers.map((p) => (
@@ -580,17 +549,9 @@ function PromptToolbarMenu({
                     key={p.name}
                     chevron
                     active={sub?.kind === "provider" && sub.name === p.name}
-                    onClick={(e) =>
-                      openSubNow(
-                        { kind: "provider", name: p.name },
-                        e.currentTarget,
-                      )
-                    }
+                    onClick={(e) => openSubNow({ kind: "provider", name: p.name }, e.currentTarget)}
                     onMouseEnter={(e) =>
-                      openSubSoon(
-                        { kind: "provider", name: p.name },
-                        e.currentTarget,
-                      )
+                      openSubSoon({ kind: "provider", name: p.name }, e.currentTarget)
                     }
                   >
                     {p.name}
@@ -605,9 +566,7 @@ function PromptToolbarMenu({
                 chevron
                 active={sub?.kind === "mode"}
                 onClick={(e) => openSubNow({ kind: "mode" }, e.currentTarget)}
-                onMouseEnter={(e) =>
-                  openSubSoon({ kind: "mode" }, e.currentTarget)
-                }
+                onMouseEnter={(e) => openSubSoon({ kind: "mode" }, e.currentTarget)}
               >
                 Options
               </MenuRow>
@@ -645,10 +604,7 @@ function PromptToolbarMenu({
                   Options
                 </div>
                 {toggles.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-start gap-2 rounded-md px-2 py-1.5"
-                  >
+                  <div key={t.id} className="flex items-start gap-2 rounded-md px-2 py-1.5">
                     <label
                       htmlFor={`nm-${t.id}`}
                       className="min-w-0 flex-1 cursor-pointer select-none"
@@ -656,9 +612,7 @@ function PromptToolbarMenu({
                       <span
                         className={cn(
                           "block text-sm font-medium",
-                          t.tone === "warn" &&
-                            t.active &&
-                            "text-amber-600 dark:text-amber-400",
+                          t.tone === "warn" && t.active && "text-amber-600 dark:text-amber-400",
                         )}
                       >
                         {t.name}
@@ -722,14 +676,13 @@ export function ModeSelector({
       setOpen(true);
       return;
     }
-    const composer =
-      (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
+    const composer = (el.closest("[data-prompt-composer]") as HTMLElement | null) ?? el;
     const cr = composer.getBoundingClientRect();
     const pr = el.getBoundingClientRect();
     const gap = 8;
     const above = cr.top - gap;
     const below = window.innerHeight - cr.bottom - gap;
-    const left = Math.max(8, Math.min(pr.left, window.innerWidth - W - 8));
+    const left = Math.max(8, Math.min(pr.left, cr.right - W, window.innerWidth - W - 8));
     if (below >= 260 || below >= above) {
       setBox({ left, top: cr.bottom + gap });
     } else {
@@ -764,17 +717,14 @@ export function ModeSelector({
   }, [open]);
 
   return (
-    <div
-      ref={rootRef}
-      className={cn("relative inline-flex", className)}
-    >
+    <div ref={rootRef} className={cn("relative inline-flex", className)}>
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
         title="Response mode"
-        className="border-border bg-muted/50 hover:bg-muted inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors"
+        className="hover:bg-muted inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
       >
         <CurrentIcon className="text-muted-foreground size-3.5 shrink-0" />
         <span className="truncate">{current.label}</span>
@@ -817,9 +767,7 @@ export function ModeSelector({
                   <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium">{m.label}</span>
-                    <span className="text-muted-foreground block text-[11px]">
-                      {m.hint}
-                    </span>
+                    <span className="text-muted-foreground block text-[11px]">{m.hint}</span>
                   </span>
                   <Check
                     className={cn(
@@ -902,25 +850,18 @@ export default function ModelSelector({
         })();
 
   const pinnedIds = selection.pinned_models ?? [];
-  const selectedId = selection.use_local
-    ? null
-    : (selection.model_id ?? AUTO_MODEL_ID);
+  const selectedId = selection.use_local ? null : (selection.model_id ?? AUTO_MODEL_ID);
   const isPinned = (id: string) => pinnedIds.includes(id);
 
   // Pinned models (in pin order) show after Auto; the rest group by provider.
   const pinnedModels = loaded
-    ? pinnedIds
-        .map((id) => models.find((m) => m.id === id))
-        .filter((m): m is AvailableModel => !!m)
+    ? pinnedIds.map((id) => models.find((m) => m.id === id)).filter((m): m is AvailableModel => !!m)
     : [];
   const byProvider = new Map<string, AvailableModel[]>();
   if (loaded) {
     for (const m of models) {
       if (isPinned(m.id)) continue;
-      byProvider.set(m.provider_name, [
-        ...(byProvider.get(m.provider_name) ?? []),
-        m,
-      ]);
+      byProvider.set(m.provider_name, [...(byProvider.get(m.provider_name) ?? []), m]);
     }
   }
   const providers = [...byProvider.entries()]
@@ -931,9 +872,7 @@ export default function ModelSelector({
     const cur = selection.pinned_models ?? [];
     onChange({
       ...selection,
-      pinned_models: cur.includes(id)
-        ? cur.filter((x) => x !== id)
-        : [...cur, id],
+      pinned_models: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
     });
   };
 
@@ -999,73 +938,54 @@ export default function ModelSelector({
         )}
       </div>
 
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      >
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Configure Local LLM</DialogTitle>
             <DialogDescription>
-              Connect to any OpenAI-compatible endpoint (LM Studio, llama.cpp,
-              vLLM, Ollama via <code>/v1</code>).
+              Connect to any OpenAI-compatible endpoint (LM Studio, llama.cpp, vLLM, Ollama via{" "}
+              <code>/v1</code>).
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="lc-url"
-                className="text-xs"
-              >
+              <Label htmlFor="lc-url" className="text-xs">
                 Base URL
               </Label>
               <Input
                 id="lc-url"
                 value={draft.local_base_url}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, local_base_url: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, local_base_url: e.target.value }))}
                 placeholder="http://host.docker.internal:1234/v1"
               />
               <p className="text-muted-foreground text-[11px]">
-                When the chat runs in Docker, use{" "}
-                <code>host.docker.internal</code> instead of{" "}
+                When the chat runs in Docker, use <code>host.docker.internal</code> instead of{" "}
                 <code>localhost</code>.
               </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="lc-model"
-                className="text-xs"
-              >
+              <Label htmlFor="lc-model" className="text-xs">
                 Model name
               </Label>
               <Input
                 id="lc-model"
                 value={draft.local_model_name}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, local_model_name: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, local_model_name: e.target.value }))}
                 placeholder="llama-3.1-8b-instruct"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="lc-key"
-                className="text-xs"
-              >
+              <Label htmlFor="lc-key" className="text-xs">
                 API key (optional)
               </Label>
               <Input
                 id="lc-key"
                 type="password"
                 value={draft.local_api_key}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, local_api_key: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, local_api_key: e.target.value }))}
                 placeholder="leave blank if not required"
               />
             </div>

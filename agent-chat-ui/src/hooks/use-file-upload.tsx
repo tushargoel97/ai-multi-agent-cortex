@@ -15,11 +15,8 @@ interface UseFileUploadOptions {
   initialBlocks?: ContentBlock.Multimodal.Data[];
 }
 
-export function useFileUpload({
-  initialBlocks = [],
-}: UseFileUploadOptions = {}) {
-  const [contentBlocks, setContentBlocks] =
-    useState<ContentBlock.Multimodal.Data[]>(initialBlocks);
+export function useFileUpload({ initialBlocks = [] }: UseFileUploadOptions = {}) {
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock.Multimodal.Data[]>(initialBlocks);
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const dragCounter = useRef(0);
@@ -35,10 +32,7 @@ export function useFileUpload({
     }
     if (SUPPORTED_FILE_TYPES.includes(file.type)) {
       return blocks.some(
-        (b) =>
-          b.type === "image" &&
-          b.metadata?.name === file.name &&
-          b.mimeType === file.type,
+        (b) => b.type === "image" && b.metadata?.name === file.name && b.mimeType === file.type,
       );
     }
     return false;
@@ -47,18 +41,10 @@ export function useFileUpload({
   /** Validate, dedupe, convert and append files from any source (file
    *  selector, screenshot capture, …). */
   const addFiles = async (fileArray: File[]) => {
-    const validFiles = fileArray.filter((file) =>
-      SUPPORTED_FILE_TYPES.includes(file.type),
-    );
-    const invalidFiles = fileArray.filter(
-      (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
-    );
-    const duplicateFiles = validFiles.filter((file) =>
-      isDuplicate(file, contentBlocks),
-    );
-    const uniqueFiles = validFiles.filter(
-      (file) => !isDuplicate(file, contentBlocks),
-    );
+    const validFiles = fileArray.filter((file) => SUPPORTED_FILE_TYPES.includes(file.type));
+    const invalidFiles = fileArray.filter((file) => !SUPPORTED_FILE_TYPES.includes(file.type));
+    const duplicateFiles = validFiles.filter((file) => isDuplicate(file, contentBlocks));
+    const uniqueFiles = validFiles.filter((file) => !isDuplicate(file, contentBlocks));
 
     if (invalidFiles.length > 0) {
       toast.error(
@@ -113,18 +99,10 @@ export function useFileUpload({
       if (!e.dataTransfer) return;
 
       const files = Array.from(e.dataTransfer.files);
-      const validFiles = files.filter((file) =>
-        SUPPORTED_FILE_TYPES.includes(file.type),
-      );
-      const invalidFiles = files.filter(
-        (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
-      );
-      const duplicateFiles = validFiles.filter((file) =>
-        isDuplicate(file, contentBlocks),
-      );
-      const uniqueFiles = validFiles.filter(
-        (file) => !isDuplicate(file, contentBlocks),
-      );
+      const validFiles = files.filter((file) => SUPPORTED_FILE_TYPES.includes(file.type));
+      const invalidFiles = files.filter((file) => !SUPPORTED_FILE_TYPES.includes(file.type));
+      const duplicateFiles = validFiles.filter((file) => isDuplicate(file, contentBlocks));
+      const uniqueFiles = validFiles.filter((file) => !isDuplicate(file, contentBlocks));
 
       if (invalidFiles.length > 0) {
         toast.error(
@@ -202,9 +180,7 @@ export function useFileUpload({
    * Handle paste event for files (images, PDFs)
    * Can be used as onPaste={handlePaste} on a textarea or input
    */
-  const handlePaste = async (
-    e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
-  ) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     const items = e.clipboardData.items;
     if (!items) return;
     const files: File[] = [];
@@ -219,12 +195,8 @@ export function useFileUpload({
       return;
     }
     e.preventDefault();
-    const validFiles = files.filter((file) =>
-      SUPPORTED_FILE_TYPES.includes(file.type),
-    );
-    const invalidFiles = files.filter(
-      (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
-    );
+    const validFiles = files.filter((file) => SUPPORTED_FILE_TYPES.includes(file.type));
+    const invalidFiles = files.filter((file) => !SUPPORTED_FILE_TYPES.includes(file.type));
     const isDuplicate = (file: File) => {
       if (file.type === "application/pdf") {
         return contentBlocks.some(
@@ -236,10 +208,7 @@ export function useFileUpload({
       }
       if (SUPPORTED_FILE_TYPES.includes(file.type)) {
         return contentBlocks.some(
-          (b) =>
-            b.type === "image" &&
-            b.metadata?.name === file.name &&
-            b.mimeType === file.type,
+          (b) => b.type === "image" && b.metadata?.name === file.name && b.mimeType === file.type,
         );
       }
       return false;

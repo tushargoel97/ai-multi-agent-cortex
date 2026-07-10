@@ -6,15 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
-import {
-  Download,
-  Search,
-  Cpu,
-  Loader2,
-  CheckCircle2,
-  PlayCircle,
-  Plus,
-} from "lucide-react";
+import { Download, Search, Cpu, Loader2, CheckCircle2, PlayCircle, Plus } from "lucide-react";
 
 interface CatalogModel {
   name: string;
@@ -43,11 +35,7 @@ interface ProgressEntry {
   status: string;
 }
 
-export default function LocalModelsPanel({
-  onChanged,
-}: {
-  onChanged?: () => void;
-}) {
+export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void }) {
   const confirm = useConfirm();
   const [catalog, setCatalog] = useState<CatalogModel[]>([]);
   const [loaded, setLoaded] = useState<string | null>(null);
@@ -92,10 +80,9 @@ export default function LocalModelsPanel({
     setSearching(true);
     setError(null);
     try {
-      const r = await fetch(
-        `/api/admin/local/search?q=${encodeURIComponent(query)}`,
-        { headers: headers() },
-      );
+      const r = await fetch(`/api/admin/local/search?q=${encodeURIComponent(query)}`, {
+        headers: headers(),
+      });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error ?? "search failed");
       setHits(data.results ?? []);
@@ -106,11 +93,7 @@ export default function LocalModelsPanel({
     }
   };
 
-  const startDownload = async (
-    name: string,
-    repo_id?: string,
-    filename?: string,
-  ) => {
+  const startDownload = async (name: string, repo_id?: string, filename?: string) => {
     setBusy(name);
     setError(null);
     try {
@@ -184,21 +167,20 @@ export default function LocalModelsPanel({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Local Models</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Self-hosted GGUF models running inside the <code>ai</code> container.
-          Search HuggingFace or pick from the curated catalog. Loading a model
-          auto-registers it under the <em>Self-Hosted</em> provider so it
-          appears in the chat dropdown.
+        <p className="text-muted-foreground mt-1 text-sm">
+          Self-hosted GGUF models running inside the <code>ai</code> container. Search HuggingFace
+          or pick from the curated catalog. Loading a model auto-registers it under the{" "}
+          <em>Self-Hosted</em> provider so it appears in the chat dropdown.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+        <div className="bg-destructive/10 text-destructive rounded-md border border-red-200 px-4 py-2 text-sm">
           {error}
         </div>
       )}
 
-      <section className="rounded-xl border bg-background/60 p-5 shadow-sm">
+      <section className="bg-background/60 rounded-xl border p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Search className="size-4" /> Search HuggingFace
         </h3>
@@ -221,7 +203,7 @@ export default function LocalModelsPanel({
         {hits.length > 0 && (
           <div className="mt-4 max-h-96 overflow-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
+              <thead className="bg-muted/50 text-muted-foreground text-xs tracking-wider uppercase">
                 <tr>
                   <th className="px-3 py-2 text-left">Repo</th>
                   <th className="px-3 py-2 text-left">File</th>
@@ -238,20 +220,20 @@ export default function LocalModelsPanel({
                       <td className="px-3 py-2 font-mono text-xs">
                         {h.repo_id}
                         {h.in_catalog && (
-                          <span className="ml-2 rounded-sm bg-muted px-1 text-[10px] uppercase">
+                          <span className="bg-muted ml-2 rounded-sm px-1 text-[10px] uppercase">
                             catalog
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                      <td className="text-muted-foreground px-3 py-2 font-mono text-[11px]">
                         {h.filename}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      <td className="text-muted-foreground px-3 py-2 text-right tabular-nums">
                         {h.downloads.toLocaleString()}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {dl ? (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             {dl.status} {dl.progress}%
                           </span>
                         ) : (
@@ -259,9 +241,7 @@ export default function LocalModelsPanel({
                             size="sm"
                             variant="outline"
                             disabled={busy === name}
-                            onClick={() =>
-                              startDownload(name, h.repo_id, h.filename)
-                            }
+                            onClick={() => startDownload(name, h.repo_id, h.filename)}
                           >
                             <Plus className="mr-1 size-3.5" />
                             Add
@@ -277,7 +257,7 @@ export default function LocalModelsPanel({
         )}
       </section>
 
-      <section className="rounded-xl border bg-background/60 p-5 shadow-sm">
+      <section className="bg-background/60 rounded-xl border p-5 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Cpu className="size-4" /> Catalog
         </h3>
@@ -285,25 +265,20 @@ export default function LocalModelsPanel({
           {catalog.map((m) => {
             const dl = progress[m.name];
             return (
-              <div
-                key={m.name}
-                className="flex flex-col gap-2 rounded-lg border bg-muted/50 p-4"
-              >
+              <div key={m.name} className="bg-muted/50 flex flex-col gap-2 rounded-lg border p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-medium">
                       {m.name}{" "}
                       {m.active && (
-                        <span className="ml-1 rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">
+                        <span className="ml-1 rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 uppercase dark:text-emerald-400">
                           active
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {m.description}
-                    </div>
+                    <div className="text-muted-foreground text-xs">{m.description}</div>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-right text-xs">
                     {m.parameters} · {m.size_mb}MB
                   </div>
                 </div>
@@ -311,7 +286,7 @@ export default function LocalModelsPanel({
                   {m.tags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm bg-background/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      className="bg-background/60 text-muted-foreground rounded-sm px-1.5 py-0.5 text-[10px]"
                     >
                       {t}
                     </span>
@@ -326,7 +301,7 @@ export default function LocalModelsPanel({
                         {dl.downloaded_mb}/{dl.total_mb}MB · {dl.progress}%
                       </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="bg-muted h-1.5 overflow-hidden rounded-full">
                       <div
                         className="h-full bg-emerald-500 transition-all"
                         style={{ width: `${dl.progress}%` }}
@@ -374,11 +349,8 @@ export default function LocalModelsPanel({
         </div>
       </section>
 
-      <div className="text-xs text-muted-foreground">
-        Currently loaded:{" "}
-        <code>
-          {loaded ?? "(none, load a model to enable self-hosted chat)"}
-        </code>
+      <div className="text-muted-foreground text-xs">
+        Currently loaded: <code>{loaded ?? "(none, load a model to enable self-hosted chat)"}</code>
       </div>
     </div>
   );

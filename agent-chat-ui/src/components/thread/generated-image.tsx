@@ -14,8 +14,7 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const [zoomed, setZoomed] = useState(false);
-  // ChatGPT-style top-down develop, only for images that actually took time
-  // to arrive; cache hits (thread switches, scrollback) render instantly.
+  // Top-down develop only for slow arrivals; cache hits render instantly.
   const [revealing, setRevealing] = useState(false);
   const mountedAt = useRef(Date.now());
   const imgRef = useRef<HTMLImageElement>(null);
@@ -48,9 +47,7 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   async function download() {
     if (!src) return;
     const name =
-      (alt?.trim()
-        ? alt.trim().replace(/\s+/g, "-").toLowerCase()
-        : "generated-image") + ".png";
+      (alt?.trim() ? alt.trim().replace(/\s+/g, "-").toLowerCase() : "generated-image") + ".png";
     try {
       const res = await fetch(src);
       const blob = await res.blob();

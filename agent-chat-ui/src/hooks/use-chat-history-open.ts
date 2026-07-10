@@ -31,9 +31,7 @@ export function useChatHistoryOpen(): [
   boolean,
   (next: boolean | ((p: boolean) => boolean)) => void,
 ] {
-  const [value, setValue] = useState<boolean>(() =>
-    current === null ? true : current,
-  );
+  const [value, setValue] = useState<boolean>(() => (current === null ? true : current));
 
   useEffect(() => {
     if (current === null) current = read();
@@ -48,9 +46,7 @@ export function useChatHistoryOpen(): [
   const set = useCallback(
     (next: boolean | ((p: boolean) => boolean)) => {
       const resolved =
-        typeof next === "function"
-          ? (next as (p: boolean) => boolean)(current ?? value)
-          : next;
+        typeof next === "function" ? (next as (p: boolean) => boolean)(current ?? value) : next;
       write(resolved);
     },
     [value],

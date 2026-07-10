@@ -7,15 +7,7 @@ import { getAdminToken } from "../token";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Bot,
-  Plus,
-  Loader2,
-  RefreshCw,
-  ChevronDown,
-  ChevronRight,
-  RotateCcw,
-} from "lucide-react";
+import { Bot, Plus, Loader2, RefreshCw, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 
 interface AgentRow {
   id: string;
@@ -99,8 +91,7 @@ export default function AgentsPanel() {
       e.system_prompt !== a.system_prompt ||
       e.description !== a.description ||
       [...e.tools].sort().join(",") !== [...a.tools].sort().join(",") ||
-      [...e.subagents].sort().join(",") !==
-        [...(a.subagents ?? [])].sort().join(",")
+      [...e.subagents].sort().join(",") !== [...(a.subagents ?? [])].sort().join(",")
     );
   };
 
@@ -132,8 +123,7 @@ export default function AgentsPanel() {
 
   const saveAgent = async (a: AgentRow) => {
     const e = edits[a.name];
-    const renamed =
-      a.kind === "custom" && !!e.name.trim() && slugify(e.name) !== a.name;
+    const renamed = a.kind === "custom" && !!e.name.trim() && slugify(e.name) !== a.name;
     const body: Record<string, unknown> = {
       system_prompt: e.system_prompt,
       description: e.description,
@@ -145,15 +135,13 @@ export default function AgentsPanel() {
     if (renamed) setExpanded(slugify(e.name));
   };
 
-  const toggleEnabled = (a: AgentRow) =>
-    patch(a.name, { enabled: !a.enabled }, `en-${a.name}`);
+  const toggleEnabled = (a: AgentRow) => patch(a.name, { enabled: !a.enabled }, `en-${a.name}`);
 
   const resetAgent = async (a: AgentRow) => {
     if (
       !(await confirm({
         title: `Reset "${a.name}" to default?`,
-        description:
-          "Restores the packaged system prompt and clears custom tool grants.",
+        description: "Restores the packaged system prompt and clears custom tool grants.",
         confirmText: "Reset",
       }))
     )
@@ -238,10 +226,10 @@ export default function AgentsPanel() {
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold">Agents</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Edit each agent&apos;s system prompt, tool access, and subagents, or
-            create custom agents. Custom agents auto-route via the router by
-            their description, no restart. Changes apply on the next message.
+          <p className="text-muted-foreground mt-1 text-sm">
+            Edit each agent&apos;s system prompt, tool access, and subagents, or create custom
+            agents. Custom agents auto-route via the router by their description, no restart.
+            Changes apply on the next message.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -255,7 +243,7 @@ export default function AgentsPanel() {
       </div>
 
       {error && (
-        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-3 py-2 text-sm">
           {error}
         </div>
       )}
@@ -279,58 +267,43 @@ export default function AgentsPanel() {
             />
           </div>
           <textarea
-            className="min-h-28 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="focus-visible:ring-ring min-h-28 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2"
             placeholder="System prompt, how this agent should behave…"
             value={newPrompt}
             onChange={(e) => setNewPrompt(e.target.value)}
           />
           <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Tools
-            </p>
+            <p className="text-muted-foreground mb-1 text-xs font-medium">Tools</p>
             <ul className="max-h-56 space-y-0.5 overflow-y-auto rounded-md border p-2">
               {tools.map((t) => (
                 <li
                   key={t}
-                  className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
+                  className="hover:bg-muted/50 flex items-center justify-between gap-2 rounded px-2 py-1.5"
                 >
-                  <span className="truncate font-mono text-xs text-muted-foreground">
-                    {t}
-                  </span>
+                  <span className="text-muted-foreground truncate font-mono text-xs">{t}</span>
                   <Switch
                     checked={newTools.includes(t)}
                     onCheckedChange={() =>
                       setNewTools((prev) =>
-                        prev.includes(t)
-                          ? prev.filter((x) => x !== t)
-                          : [...prev, t],
+                        prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
                       )
                     }
                   />
                 </li>
               ))}
               {tools.length === 0 && (
-                <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
-                  No enabled tools.
-                </li>
+                <li className="text-muted-foreground/70 px-2 py-1.5 text-xs">No enabled tools.</li>
               )}
             </ul>
           </div>
           <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowNew(false)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setShowNew(false)}>
               Cancel
             </Button>
             <Button
               size="sm"
               disabled={
-                busy === "create" ||
-                !newName.trim() ||
-                !newDesc.trim() ||
-                !newPrompt.trim()
+                busy === "create" || !newName.trim() || !newDesc.trim() || !newPrompt.trim()
               }
               onClick={() => void createAgent()}
             >
@@ -364,14 +337,12 @@ export default function AgentsPanel() {
                   onClick={() => setExpanded(open ? null : a.name)}
                 >
                   {open ? (
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronDown className="text-muted-foreground size-4 shrink-0" />
                   ) : (
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronRight className="text-muted-foreground size-4 shrink-0" />
                   )}
-                  <span className="shrink-0 text-sm font-medium capitalize">
-                    {a.name}
-                  </span>
-                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  <span className="shrink-0 text-sm font-medium capitalize">{a.name}</span>
+                  <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase">
                     {a.kind}
                   </span>
                   {a.edited && a.kind === "builtin" && (
@@ -379,11 +350,11 @@ export default function AgentsPanel() {
                       edited
                     </span>
                   )}
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
                     {a.description}
                   </span>
                 </button>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <Switch
                     checked={a.enabled}
                     disabled={busy === `en-${a.name}`}
@@ -420,64 +391,52 @@ export default function AgentsPanel() {
                 <div className="space-y-3 border-t px-3 py-3">
                   {a.kind === "custom" && (
                     <div>
-                      <p className="mb-1 text-xs font-medium text-muted-foreground">
-                        Name
-                      </p>
+                      <p className="text-muted-foreground mb-1 text-xs font-medium">Name</p>
                       <Input
                         value={e.name}
-                        onChange={(ev) =>
-                          setEdit(a.name, { name: ev.target.value })
-                        }
+                        onChange={(ev) => setEdit(a.name, { name: ev.target.value })}
                       />
-                      <p className="mt-1 text-[11px] text-muted-foreground/70">
-                        Renaming re-slugs (spaces/symbols → underscores) and
-                        updates every tool grant + subagent link.
+                      <p className="text-muted-foreground/70 mt-1 text-[11px]">
+                        Renaming re-slugs (spaces/symbols → underscores) and updates every tool
+                        grant + subagent link.
                       </p>
                     </div>
                   )}
                   <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                    <p className="text-muted-foreground mb-1 text-xs font-medium">
                       Description (routing hint)
                     </p>
                     <Input
                       value={e.description}
-                      onChange={(ev) =>
-                        setEdit(a.name, { description: ev.target.value })
-                      }
+                      onChange={(ev) => setEdit(a.name, { description: ev.target.value })}
                     />
                   </div>
                   <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      System prompt
-                    </p>
+                    <p className="text-muted-foreground mb-1 text-xs font-medium">System prompt</p>
                     <textarea
-                      className="min-h-40 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="focus-visible:ring-ring min-h-40 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2"
                       value={e.system_prompt}
-                      onChange={(ev) =>
-                        setEdit(a.name, { system_prompt: ev.target.value })
-                      }
+                      onChange={(ev) => setEdit(a.name, { system_prompt: ev.target.value })}
                     />
                   </div>
                   <div className="rounded-md border">
                     <button
                       type="button"
                       onClick={() =>
-                        setOpenCard((c) =>
-                          c === `${a.name}:tools` ? "" : `${a.name}:tools`,
-                        )
+                        setOpenCard((c) => (c === `${a.name}:tools` ? "" : `${a.name}:tools`))
                       }
                       className="flex w-full items-center justify-between px-3 py-2 text-left"
                     >
-                      <span className="text-xs font-medium text-muted-foreground">
+                      <span className="text-muted-foreground text-xs font-medium">
                         Tool access{" "}
                         <span className="text-muted-foreground/60">
                           ({e.tools.length}/{tools.length})
                         </span>
                       </span>
                       {openCard === `${a.name}:tools` ? (
-                        <ChevronDown className="size-4 text-muted-foreground" />
+                        <ChevronDown className="text-muted-foreground size-4" />
                       ) : (
-                        <ChevronRight className="size-4 text-muted-foreground" />
+                        <ChevronRight className="text-muted-foreground size-4" />
                       )}
                     </button>
                     {openCard === `${a.name}:tools` && (
@@ -485,9 +444,9 @@ export default function AgentsPanel() {
                         {tools.map((t) => (
                           <li
                             key={t}
-                            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
+                            className="hover:bg-muted/50 flex items-center justify-between gap-2 rounded px-2 py-1.5"
                           >
-                            <span className="truncate font-mono text-xs text-muted-foreground">
+                            <span className="text-muted-foreground truncate font-mono text-xs">
                               {t}
                             </span>
                             <Switch
@@ -497,7 +456,7 @@ export default function AgentsPanel() {
                           </li>
                         ))}
                         {tools.length === 0 && (
-                          <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                          <li className="text-muted-foreground/70 px-2 py-1.5 text-xs">
                             No enabled tools.
                           </li>
                         )}
@@ -508,25 +467,21 @@ export default function AgentsPanel() {
                     <button
                       type="button"
                       onClick={() =>
-                        setOpenCard((c) =>
-                          c === `${a.name}:subs` ? "" : `${a.name}:subs`,
-                        )
+                        setOpenCard((c) => (c === `${a.name}:subs` ? "" : `${a.name}:subs`))
                       }
                       className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
                     >
-                      <span className="min-w-0 text-xs font-medium text-muted-foreground">
+                      <span className="text-muted-foreground min-w-0 text-xs font-medium">
                         Subagents{" "}
-                        <span className="text-muted-foreground/60">
-                          ({e.subagents.length})
-                        </span>
-                        <span className="ml-1 font-normal text-muted-foreground/60">
+                        <span className="text-muted-foreground/60">({e.subagents.length})</span>
+                        <span className="text-muted-foreground/60 ml-1 font-normal">
                           delegated subtasks; shared memory read-only
                         </span>
                       </span>
                       {openCard === `${a.name}:subs` ? (
-                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        <ChevronDown className="text-muted-foreground size-4 shrink-0" />
                       ) : (
-                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        <ChevronRight className="text-muted-foreground size-4 shrink-0" />
                       )}
                     </button>
                     {openCard === `${a.name}:subs` && (
@@ -536,29 +491,26 @@ export default function AgentsPanel() {
                           .map((x) => (
                             <li
                               key={x.id}
-                              className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50"
+                              className="hover:bg-muted/50 flex items-center justify-between gap-2 rounded px-2 py-1.5"
                             >
                               <span className="min-w-0">
-                                <span className="font-mono text-xs capitalize text-foreground">
+                                <span className="text-foreground font-mono text-xs capitalize">
                                   {x.name}
                                 </span>
                                 {x.description && (
-                                  <span className="block truncate text-[11px] text-muted-foreground">
+                                  <span className="text-muted-foreground block truncate text-[11px]">
                                     {x.description}
                                   </span>
                                 )}
                               </span>
                               <Switch
                                 checked={e.subagents.includes(x.name)}
-                                onCheckedChange={() =>
-                                  toggleEditSubagent(a.name, x.name)
-                                }
+                                onCheckedChange={() => toggleEditSubagent(a.name, x.name)}
                               />
                             </li>
                           ))}
-                        {agents.filter((x) => x.name !== a.name && x.enabled)
-                          .length === 0 && (
-                          <li className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                        {agents.filter((x) => x.name !== a.name && x.enabled).length === 0 && (
+                          <li className="text-muted-foreground/70 px-2 py-1.5 text-xs">
                             No other agents to delegate to.
                           </li>
                         )}
@@ -571,9 +523,7 @@ export default function AgentsPanel() {
                       disabled={busy === a.name || !dirty(a)}
                       onClick={() => void saveAgent(a)}
                     >
-                      {busy === a.name ? (
-                        <Loader2 className="mr-1 size-4 animate-spin" />
-                      ) : null}
+                      {busy === a.name ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
                       Save
                     </Button>
                   </div>
@@ -583,9 +533,9 @@ export default function AgentsPanel() {
           );
         })}
         {agents.length === 0 && (
-          <li className="rounded-md border px-3 py-4 text-sm text-muted-foreground">
-            <Bot className="mr-1 inline size-4" /> Agents appear after the
-            langgraph server starts (it seeds the built-ins).
+          <li className="text-muted-foreground rounded-md border px-3 py-4 text-sm">
+            <Bot className="mr-1 inline size-4" /> Agents appear after the langgraph server starts
+            (it seeds the built-ins).
           </li>
         )}
       </ul>

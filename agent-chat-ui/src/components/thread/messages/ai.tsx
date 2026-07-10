@@ -33,9 +33,7 @@ function CustomComponent({
 }) {
   const artifact = useArtifact();
   const { values } = useStreamContext();
-  const customComponents = values.ui?.filter(
-    (ui) => ui.metadata?.message_id === message.id,
-  );
+  const customComponents = values.ui?.filter((ui) => ui.metadata?.message_id === message.id);
 
   if (!customComponents?.length) return null;
   return (
@@ -82,22 +80,16 @@ interface InterruptProps {
   hasNoAIOrToolMessages: boolean;
 }
 
-function Interrupt({
-  interrupt,
-  isLastMessage,
-  hasNoAIOrToolMessages,
-}: InterruptProps) {
+function Interrupt({ interrupt, isLastMessage, hasNoAIOrToolMessages }: InterruptProps) {
   const fallbackValue = Array.isArray(interrupt)
     ? (interrupt as Record<string, any>[])
-    : (((interrupt as { value?: unknown } | undefined)?.value ??
-        interrupt) as Record<string, any>);
+    : (((interrupt as { value?: unknown } | undefined)?.value ?? interrupt) as Record<string, any>);
 
   return (
     <>
-      {isAgentInboxInterruptSchema(interrupt) &&
-        (isLastMessage || hasNoAIOrToolMessages) && (
-          <ThreadView interrupt={interrupt} />
-        )}
+      {isAgentInboxInterruptSchema(interrupt) && (isLastMessage || hasNoAIOrToolMessages) && (
+        <ThreadView interrupt={interrupt} />
+      )}
       {interrupt &&
       !isAgentInboxInterruptSchema(interrupt) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
@@ -118,17 +110,11 @@ export function AssistantMessage({
 }) {
   const content = message?.content ?? [];
   const contentString = getContentString(content);
-  const [hideToolCalls] = useQueryState(
-    "hideToolCalls",
-    parseAsBoolean.withDefault(false),
-  );
+  const [hideToolCalls] = useQueryState("hideToolCalls", parseAsBoolean.withDefault(false));
 
   const thread = useStreamContext();
-  const isLastMessage =
-    thread.messages[thread.messages.length - 1].id === message?.id;
-  const hasNoAIOrToolMessages = !thread.messages.find(
-    (m) => m.type === "ai" || m.type === "tool",
-  );
+  const isLastMessage = thread.messages[thread.messages.length - 1].id === message?.id;
+  const hasNoAIOrToolMessages = !thread.messages.find((m) => m.type === "ai" || m.type === "tool");
   const meta = message ? thread.getMessagesMetadata(message) : undefined;
   const threadInterrupt = thread.interrupt;
 
@@ -138,15 +124,9 @@ export function AssistantMessage({
     : undefined;
 
   const hasToolCalls =
-    message &&
-    "tool_calls" in message &&
-    message.tool_calls &&
-    message.tool_calls.length > 0;
+    message && "tool_calls" in message && message.tool_calls && message.tool_calls.length > 0;
   const toolCallsHaveContents =
-    hasToolCalls &&
-    message.tool_calls?.some(
-      (tc) => tc.args && Object.keys(tc.args).length > 0,
-    );
+    hasToolCalls && message.tool_calls?.some((tc) => tc.args && Object.keys(tc.args).length > 0);
   const hasAnthropicToolCalls = !!anthropicStreamedToolCalls?.length;
   const isToolResult = message?.type === "tool";
 
@@ -167,22 +147,13 @@ export function AssistantMessage({
         idx >= 0
           ? thread.messages
               .slice(idx + 1)
-              .find(
-                (m) =>
-                  m.type === "ai" &&
-                  getContentString(m.content).includes("/api/images/"),
-              )
+              .find((m) => m.type === "ai" && getContentString(m.content).includes("/api/images/"))
           : undefined;
       chipModel =
-        (result as { response_metadata?: { model_name?: string } } | undefined)
-          ?.response_metadata?.model_name ?? null;
+        (result as { response_metadata?: { model_name?: string } } | undefined)?.response_metadata
+          ?.model_name ?? null;
     }
-    return (
-      <RoutingChip
-        intent={routingIntent}
-        model={chipModel}
-      />
-    );
+    return <RoutingChip intent={routingIntent} model={chipModel} />;
   }
 
   return (
@@ -205,18 +176,15 @@ export function AssistantMessage({
               </div>
             )}
 
-            {message &&
-              contentString.length > 0 &&
-              (!isLoading || !isLastMessage) && (
-                <MessageSources message={message} />
-              )}
+            {message && contentString.length > 0 && (!isLoading || !isLastMessage) && (
+              <MessageSources message={message} />
+            )}
 
             {(() => {
               const usage = getUsage(message);
               if (!usage) return null;
-              const model = (
-                message as { response_metadata?: { model_name?: string } }
-              ).response_metadata?.model_name;
+              const model = (message as { response_metadata?: { model_name?: string } })
+                .response_metadata?.model_name;
               return (
                 <div className="text-muted-foreground/70 flex items-center gap-1.5 text-[11px] tabular-nums">
                   {model && <span>{model}</span>}
@@ -239,21 +207,12 @@ export function AssistantMessage({
                 {(hasToolCalls && toolCallsHaveContents && (
                   <ToolCalls toolCalls={message.tool_calls} />
                 )) ||
-                  (hasAnthropicToolCalls && (
-                    <ToolCalls toolCalls={anthropicStreamedToolCalls} />
-                  )) ||
-                  (hasToolCalls && (
-                    <ToolCalls toolCalls={message.tool_calls} />
-                  ))}
+                  (hasAnthropicToolCalls && <ToolCalls toolCalls={anthropicStreamedToolCalls} />) ||
+                  (hasToolCalls && <ToolCalls toolCalls={message.tool_calls} />)}
               </>
             )}
 
-            {message && (
-              <CustomComponent
-                message={message}
-                thread={thread}
-              />
-            )}
+            {message && <CustomComponent message={message} thread={thread} />}
             <Interrupt
               interrupt={threadInterrupt}
               isLastMessage={isLastMessage}

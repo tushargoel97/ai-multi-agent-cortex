@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
-/** Placeholder prompt examples for the composer, generated with the cheapest
- *  OpenAI model (per user choice) at ~200 tokens/call. The key comes from the
- *  provider registry in Postgres, same as the graph uses. Any failure returns
- *  an empty list and the composer keeps its static placeholder. */
+/** Composer placeholder examples via the cheapest OpenAI model; key comes
+ *  from the provider registry. Any failure returns an empty list. */
 
 const MODEL = process.env.SUGGESTIONS_MODEL || "gpt-4.1-nano";
 
@@ -55,9 +53,7 @@ export async function POST(req: NextRequest) {
         .slice(0, 12)
         .map((c: string) => c.replace(/\s+/g, " ").slice(0, 220));
     }
-  } catch {
-    // fall through with empty context
-  }
+  } catch {}
   if (context.length === 0) return NextResponse.json({ suggestions: [] });
 
   const key = context.join("|");
@@ -92,8 +88,7 @@ export async function POST(req: NextRequest) {
     const text: string = data?.choices?.[0]?.message?.content ?? "";
     const suggestions = parseLines(text);
     if (suggestions.length > 0) {
-      if (cache.size >= CACHE_MAX)
-        cache.delete(cache.keys().next().value as string);
+      if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
       cache.set(key, suggestions);
     }
     return NextResponse.json({ suggestions });

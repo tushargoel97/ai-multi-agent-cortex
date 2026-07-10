@@ -42,9 +42,8 @@ function AdminTabs() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage LLM providers, models, and self-hosted local models, all in
-          one place.
+        <p className="text-muted-foreground text-sm">
+          Manage LLM providers, models, and self-hosted local models, all in one place.
         </p>
       </div>
 
@@ -57,7 +56,7 @@ function AdminTabs() {
               onClick={() => select(id)}
               className={`flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm whitespace-nowrap transition-colors ${
                 active
-                  ? "bg-background/80 font-medium text-foreground shadow-sm"
+                  ? "bg-background/80 text-foreground font-medium shadow-sm"
                   : "text-muted-foreground hover:bg-background/40 hover:text-foreground"
               }`}
             >
@@ -69,16 +68,10 @@ function AdminTabs() {
       </div>
 
       <div className="glass-tint rounded-2xl border p-6 shadow-sm">
-        {tab === "providers" && (
-          <ProvidersPanel onChanged={() => setBump((n) => n + 1)} />
-        )}
+        {tab === "providers" && <ProvidersPanel onChanged={() => setBump((n) => n + 1)} />}
         {tab === "models" && <ModelsPanel refreshKey={bump} />}
-        {tab === "local" && (
-          <LocalModelsPanel onChanged={() => setBump((n) => n + 1)} />
-        )}
-        {tab === "finetune" && (
-          <FinetunePanel onChanged={() => setBump((n) => n + 1)} />
-        )}
+        {tab === "local" && <LocalModelsPanel onChanged={() => setBump((n) => n + 1)} />}
+        {tab === "finetune" && <FinetunePanel onChanged={() => setBump((n) => n + 1)} />}
         {tab === "tools" && <ToolsPanel />}
         {tab === "agents" && <AgentsPanel />}
       </div>
@@ -88,7 +81,7 @@ function AdminTabs() {
 
 export default function AdminHome() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={<div className="text-muted-foreground p-4 text-sm">Loading…</div>}>
       <AdminTabs />
     </Suspense>
   );

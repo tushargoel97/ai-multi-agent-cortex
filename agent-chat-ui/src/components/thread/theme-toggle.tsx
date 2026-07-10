@@ -23,11 +23,7 @@ export function ThemeToggle() {
       variant="ghost"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
-      {isDark ? (
-        <Sun className="size-5" />
-      ) : (
-        <Moon className="size-5" />
-      )}
+      {isDark ? <Sun className="size-5" /> : <Moon className="size-5" />}
     </TooltipIconButton>
   );
 }

@@ -25,8 +25,7 @@ export function getThinkingString(content: Message["content"]): string {
   return content
     .map((c) => {
       const block = c as { type?: string; thinking?: string; reasoning?: string };
-      if (block?.type === "thinking" && typeof block.thinking === "string")
-        return block.thinking;
+      if (block?.type === "thinking" && typeof block.thinking === "string") return block.thinking;
       if (block?.type === "reasoning" && typeof block.reasoning === "string")
         return block.reasoning;
       return "";

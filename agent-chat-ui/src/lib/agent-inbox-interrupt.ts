@@ -15,8 +15,7 @@ export function isAgentInboxInterruptSchema(
   }
 
   const hitlValue = interrupt.value as Partial<HITLRequest>;
-  const { action_requests: actionRequests, review_configs: reviewConfigs } =
-    hitlValue;
+  const { action_requests: actionRequests, review_configs: reviewConfigs } = hitlValue;
 
   if (!Array.isArray(actionRequests) || actionRequests.length === 0) {
     return false;

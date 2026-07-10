@@ -16,16 +16,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name required" }, { status: 400 });
   }
   if ((transport === "streamable_http" || transport === "sse") && !body.url) {
-    return NextResponse.json(
-      { error: "url required for http transports" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "url required for http transports" }, { status: 400 });
   }
   if (transport === "stdio" && !body.command) {
-    return NextResponse.json(
-      { error: "command required for stdio transport" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "command required for stdio transport" }, { status: 400 });
   }
 
   try {

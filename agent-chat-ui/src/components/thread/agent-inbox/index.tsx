@@ -29,13 +29,9 @@ export function ThreadView({ interrupt }: ThreadViewProps) {
   }, [interrupts.length]);
 
   const activeInterrupt = interrupts[activeInterruptIndex];
-  const activeDescription =
-    activeInterrupt?.value?.action_requests?.[0]?.description ?? "";
+  const activeDescription = activeInterrupt?.value?.action_requests?.[0]?.description ?? "";
 
-  const handleShowSidePanel = (
-    showStateFlag: boolean,
-    showDescriptionFlag: boolean,
-  ) => {
+  const handleShowSidePanel = (showStateFlag: boolean, showDescriptionFlag: boolean) => {
     if (showStateFlag && showDescriptionFlag) {
       console.error("Cannot show both state and description");
       return;
@@ -57,7 +53,7 @@ export function ThreadView({ interrupt }: ThreadViewProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-2xl bg-muted/50 p-8 lg:flex-row">
+    <div className="bg-muted/50 flex h-full w-full flex-col rounded-2xl p-8 lg:flex-row">
       {showSidePanel ? (
         <StateView
           handleShowSidePanel={handleShowSidePanel}
@@ -70,9 +66,7 @@ export function ThreadView({ interrupt }: ThreadViewProps) {
           {interrupts.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
               {interrupts.map((it, idx) => {
-                const title =
-                  it.value?.action_requests?.[0]?.name ??
-                  `Interrupt ${idx + 1}`;
+                const title = it.value?.action_requests?.[0]?.name ?? `Interrupt ${idx + 1}`;
                 return (
                   <button
                     key={it.id ?? idx}

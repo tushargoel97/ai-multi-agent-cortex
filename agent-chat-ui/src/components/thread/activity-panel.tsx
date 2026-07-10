@@ -2,13 +2,7 @@
 
 import { Message } from "@langchain/langgraph-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Activity,
-  CheckCircle2,
-  ExternalLink,
-  ListChecks,
-  X,
-} from "lucide-react";
+import { Activity, CheckCircle2, ExternalLink, ListChecks, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deriveSteps } from "./agent-trace";
 import { extractRichSources, favicon } from "./sources";
@@ -30,8 +24,7 @@ function useTurnTimer(live: boolean) {
       startRef.current = Date.now();
       setElapsed(0);
       const id = setInterval(
-        () =>
-          setElapsed(Math.round((Date.now() - (startRef.current ?? 0)) / 1000)),
+        () => setElapsed(Math.round((Date.now() - (startRef.current ?? 0)) / 1000)),
         1000,
       );
       return () => clearInterval(id);
@@ -73,10 +66,7 @@ export function ActivityPanel({
   open: boolean;
   onClose: () => void;
 }) {
-  const steps = useMemo(
-    () => deriveSteps(lastTurnMessages(messages)),
-    [messages],
-  );
+  const steps = useMemo(() => deriveSteps(lastTurnMessages(messages)), [messages]);
   const sources = useMemo(
     () =>
       extractRichSources(messages, {
@@ -84,10 +74,7 @@ export function ActivityPanel({
       }),
     [messages],
   );
-  const domains = useMemo(
-    () => [...new Set(sources.map((s) => s.domain))],
-    [sources],
-  );
+  const domains = useMemo(() => [...new Set(sources.map((s) => s.domain))], [sources]);
   const [allChips, setAllChips] = useState(false);
   const { elapsed, lastTook } = useTurnTimer(live);
 
@@ -154,10 +141,7 @@ export function ActivityPanel({
                 const Icon = step.icon;
                 const isLast = i === steps.length - 1;
                 return (
-                  <li
-                    key={step.key}
-                    className="flex items-start gap-2"
-                  >
+                  <li key={step.key} className="flex items-start gap-2">
                     <Icon
                       className={cn(
                         "mt-0.5 size-3.5 shrink-0",
@@ -168,18 +152,12 @@ export function ActivityPanel({
                     />
                     <div className="flex min-w-0 flex-col">
                       <span
-                        className={
-                          step.muted
-                            ? "text-muted-foreground/70"
-                            : "text-foreground/80"
-                        }
+                        className={step.muted ? "text-muted-foreground/70" : "text-foreground/80"}
                       >
                         {step.label}
                       </span>
                       {step.detail && (
-                        <span className="text-muted-foreground/55 line-clamp-2">
-                          {step.detail}
-                        </span>
+                        <span className="text-muted-foreground/55 line-clamp-2">{step.detail}</span>
                       )}
                     </div>
                   </li>
@@ -187,9 +165,7 @@ export function ActivityPanel({
               })}
             </ol>
           ) : (
-            <p className="text-muted-foreground text-xs">
-              No tool activity for the latest turn.
-            </p>
+            <p className="text-muted-foreground text-xs">No tool activity for the latest turn.</p>
           )}
 
           {sources.length > 0 && (
@@ -201,11 +177,7 @@ export function ActivityPanel({
                     key={d}
                     className="bg-muted/50 text-muted-foreground flex items-center gap-1.5 rounded-full border border-black/10 px-2 py-0.5 text-[11px] dark:border-white/10"
                   >
-                    <img
-                      src={favicon(d)}
-                      alt=""
-                      className="size-3 rounded-sm"
-                    />
+                    <img src={favicon(d)} alt="" className="size-3 rounded-sm" />
                     {d}
                   </span>
                 ))}
@@ -247,9 +219,7 @@ export function ActivityPanel({
                       {s.title ?? s.label}
                     </span>
                     {s.snippet && (
-                      <span className="text-muted-foreground/65 line-clamp-2">
-                        {s.snippet}
-                      </span>
+                      <span className="text-muted-foreground/65 line-clamp-2">{s.snippet}</span>
                     )}
                   </a>
                 ))}

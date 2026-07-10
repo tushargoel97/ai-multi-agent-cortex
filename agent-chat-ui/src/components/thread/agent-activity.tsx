@@ -24,8 +24,7 @@ import { getContentString } from "./utils";
 /** The router node emits a marker AIMessage with additional_kwargs.routing. */
 export function getRoutingIntent(message: Message | undefined): string | null {
   if (!message || message.type !== "ai") return null;
-  const kwargs = (message as { additional_kwargs?: Record<string, unknown> })
-    .additional_kwargs;
+  const kwargs = (message as { additional_kwargs?: Record<string, unknown> }).additional_kwargs;
   const routing = kwargs?.routing as { intent?: string } | undefined;
   return routing?.intent ?? null;
 }
@@ -33,8 +32,7 @@ export function getRoutingIntent(message: Message | undefined): string | null {
 /** The model auto-mode resolved for this turn, when the router recorded it. */
 export function getRoutingModel(message: Message | undefined): string | null {
   if (!message || message.type !== "ai") return null;
-  const kwargs = (message as { additional_kwargs?: Record<string, unknown> })
-    .additional_kwargs;
+  const kwargs = (message as { additional_kwargs?: Record<string, unknown> }).additional_kwargs;
   const routing = kwargs?.routing as { model?: string } | undefined;
   return routing?.model ?? null;
 }
@@ -56,10 +54,7 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   booking: { label: "Booking Assistant", icon: Ticket },
 };
 
-export const TOOL_ACTIVITY: Record<
-  string,
-  { label: string; icon: LucideIcon }
-> = {
+export const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
   web_search: { label: "Searching the web", icon: Globe },
   wikipedia_search: { label: "Searching Wikipedia", icon: BookOpen },
   search_knowledge_base: {
@@ -80,13 +75,7 @@ export function agentForIntent(intent: string | null) {
 }
 
 /** Small transcript chip shown where the router classified the request. */
-export function RoutingChip({
-  intent,
-  model,
-}: {
-  intent: string;
-  model?: string | null;
-}) {
+export function RoutingChip({ intent, model }: { intent: string; model?: string | null }) {
   const agent = agentForIntent(intent);
   const Icon = agent.icon;
   return (
@@ -128,8 +117,7 @@ export function cachedTokens(usage: TokenUsage | null): number {
 
 /** Real usage reported by the provider, persisted on AI messages. */
 export function getUsage(message: Message | undefined): TokenUsage | null {
-  const usage = (message as { usage_metadata?: TokenUsage } | undefined)
-    ?.usage_metadata;
+  const usage = (message as { usage_metadata?: TokenUsage } | undefined)?.usage_metadata;
   return usage && (usage.input_tokens || usage.output_tokens) ? usage : null;
 }
 
