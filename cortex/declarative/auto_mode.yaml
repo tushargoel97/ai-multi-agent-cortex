@@ -15,6 +15,7 @@ profiles:
     knowledge_query: [claude-sonnet-5, claude-opus-4-8, gemini-3-pro-preview, gpt-5.5-pro]
     reasoning_task: [claude-opus-4-8, gpt-5.5-pro, gemini-3-pro-preview, claude-sonnet-5]
     coding_task: [claude-sonnet-5, gpt-5.5-pro, claude-opus-4-8, gemini-3-pro-preview, claude-fable-5]
+    engineer: [claude-fable-5, claude-opus-4-8, gpt-5.6-sol, claude-sonnet-5]
     # Haiku leads: shopping/booking is mostly deterministic link-building
     # (find_bookings / product_prices), Instant mode needs the speed.
     shopping: [claude-haiku-4-5-20251001, gemini-3.5-flash, claude-sonnet-5, gpt-5.5-pro]
@@ -29,6 +30,7 @@ profiles:
     knowledge_query: [claude-opus-4-8, gpt-5.5-pro, gemini-3-pro-preview, claude-sonnet-5]
     reasoning_task: [gpt-5.5-pro, claude-opus-4-8, gemini-3-pro-preview]
     coding_task: [claude-opus-4-8, gpt-5.5-pro, claude-fable-5, gemini-3-pro-preview, claude-sonnet-5]
+    engineer: [claude-fable-5, claude-opus-4-8, gpt-5.6-sol, claude-sonnet-5]
     shopping: [claude-opus-4-8, claude-sonnet-5, gemini-3-pro-preview, gpt-5.5-pro]
     booking: [claude-opus-4-8, claude-sonnet-5, gemini-3-pro-preview, gpt-5.5-pro]
     prompt_caching: [claude-opus-4-8, claude-sonnet-5]
@@ -41,6 +43,7 @@ profiles:
     knowledge_query: [claude-haiku-4-5-20251001, gemini-3.5-flash, claude-sonnet-5]
     reasoning_task: [claude-sonnet-5, gemini-3.5-flash, claude-haiku-4-5-20251001]
     coding_task: [claude-sonnet-5, claude-fable-5, gemini-3-pro-preview, gpt-5.5-pro, claude-opus-4-8]
+    engineer: [claude-fable-5, gpt-5.6-sol, claude-sonnet-5]
     shopping: [claude-haiku-4-5-20251001, gemini-3.5-flash, claude-sonnet-5]
     booking: [claude-haiku-4-5-20251001, gemini-3.5-flash, claude-sonnet-5]
     prompt_caching: [claude-sonnet-5]

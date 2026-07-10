@@ -7,6 +7,7 @@ class Agents(StrEnum):
     RESEARCHER = "researcher"
     REASONER = "reasoner"
     CODER = "coder"
+    DEBUGGER = "debugger"
     PROMPT_CACHER = "prompt_cacher"
     SPECIALIST = "specialist"
     SYNTHESIZER = "synthesizer"

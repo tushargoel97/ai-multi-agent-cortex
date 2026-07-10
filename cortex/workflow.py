@@ -87,6 +87,7 @@ _INTENT_TO_NODE: dict[Intent, str] = {
 _NODE_TO_INTENT: dict[str, str] = {
     node: intent.value for intent, node in _INTENT_TO_NODE.items()
 }
+_NODE_TO_INTENT[Agents.DEBUGGER.value] = Intent.CODING_TASK.value
 
 
 def _assistant_name() -> str:
@@ -308,7 +309,7 @@ def route_from_start(
     configurable = (config or {}).get("configurable") or {}
     if configurable.get("local_base_url"):
         return "router"  # "Use local LLM" toggle: user points at their own endpoint
-    if str(configurable.get("mode") or "").lower() in ("thinking", "research"):
+    if str(configurable.get("mode") or "").lower() in ("thinking", "research", "engineer"):
         return "router"  # an explicit mode overrides the specialist bypass
     from cortex.db.services.auto_mode import is_auto
 
@@ -350,12 +351,14 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """
     configurable = (config or {}).get("configurable") or {}
     mode = str(configurable.get("mode") or "").lower()
-    if mode in ("thinking", "research"):
+    if mode in ("thinking", "research", "engineer"):
         # The mode slider overrides the classifier: Thinking -> reasoner,
-        # Research -> researcher (deep web+KB with clarifying questions).
-        forced = (
-            Intent.REASONING_TASK if mode == "thinking" else Intent.KNOWLEDGE_QUERY
-        )
+        # Research -> researcher, Engineer -> coder (top coding tier + debugger).
+        forced = {
+            "thinking": Intent.REASONING_TASK,
+            "research": Intent.KNOWLEDGE_QUERY,
+            "engineer": Intent.CODING_TASK,
+        }[mode]
         routing: dict[str, Any] = {
             "intent": forced.value,
             "reasoning": f"{mode.capitalize()} mode",
@@ -365,7 +368,8 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             from cortex.db.services.auto_mode import resolve_auto_model
 
             r = resolve_auto_model(
-                forced.value, profile="quality" if mode == "thinking" else None
+                "engineer" if mode == "engineer" else forced.value,
+                profile="quality" if mode == "thinking" else None,
             )
             if r is not None:
                 routing["model"] = r.model_id
@@ -727,6 +731,15 @@ _UNRESTRICTED_DIRECTIVE = (
     "would cause real-world harm."
 )
 
+_ENGINEER_DIRECTIVE = (
+    "ENGINEER MODE: act as a rigorous senior engineer. Produce complete, "
+    "production-quality code with edge cases handled. For any non-trivial "
+    "solution, or whenever the user reports failing/buggy code, delegate "
+    "verification to the `debugger` subagent tool: send it the code plus the "
+    "expected vs actual behavior, then fold its findings into the final "
+    "answer before replying. State briefly what the debugger checked."
+)
+
 _INSTANT_DIRECTIVE = (
     "SPEED: the user is in Instant mode and expects the answer within "
     "seconds. If tools are needed at all, make AT MOST ONE tool call, for web "
@@ -781,8 +794,11 @@ def _build_agent(
         context_line = f"{context_line}\n\n{_UNRESTRICTED_DIRECTIVE}"
     # Instant (default) mode trades depth for latency; Thinking/Research get
     # their budget from their own flows.
-    if str(cfg.get("mode") or "general").lower() == "general":
+    mode = str(cfg.get("mode") or "general").lower()
+    if mode == "general":
         context_line = f"{context_line}\n\n{_INSTANT_DIRECTIVE}"
+    elif mode == "engineer" and agent_id is Agents.CODER:
+        context_line = f"{context_line}\n\n{_ENGINEER_DIRECTIVE}"
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
 
@@ -1016,7 +1032,13 @@ async def reasoner(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
 
 async def coder(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     """Coding specialist, writes, explains, reviews, refactors, and debugs code."""
-    return await _run_agent(Agents.CODER, state, config, Intent.CODING_TASK.value)
+    cfg = (config or {}).get("configurable") or {}
+    intent = (
+        "engineer"
+        if str(cfg.get("mode") or "").lower() == "engineer"
+        else Intent.CODING_TASK.value
+    )
+    return await _run_agent(Agents.CODER, state, config, intent)
 
 
 async def shopping(state: ChatState, config: RunnableConfig) -> dict[str, Any]:

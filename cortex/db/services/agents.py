@@ -25,6 +25,7 @@ _BUILTIN_DESCRIPTIONS = {
     "researcher": "Factual questions, grounded with web + knowledge base.",
     "reasoner": "Math, logic, and step-by-step problem solving.",
     "coder": "Writes, explains, reviews, and debugs code.",
+    "debugger": "Root-cause analysis subagent for failing code (Engineer mode).",
     "prompt_cacher": "LLM prompt-caching expertise.",
     "specialist": "Self-trained hardware-spec specialist.",
     "synthesizer": "Formats factual answers into clean tables / structure.",
@@ -77,8 +78,33 @@ def publish_agents() -> None:
                     if not row.description:
                         row.description = _BUILTIN_DESCRIPTIONS.get(name, "")
         _publish_agent_defaults()
+        _seed_builtin_grants()
     except Exception:  # noqa: BLE001, agent mirror is best-effort
         logger.exception("publish_agents failed")
+
+
+_GRANTS_SEEDED_KEY = "builtin_subagent_grants_v1"
+
+
+def _seed_builtin_grants() -> None:
+    """One-time default delegation grants (coder -> debugger for Engineer
+    mode). Flag-guarded so an admin removing a grant stays removed."""
+    from cortex.db.services.app_settings import get_setting, set_setting
+
+    if get_setting(_GRANTS_SEEDED_KEY, ""):
+        return
+    with get_session() as s:
+        exists = (
+            s.query(AgentSubagent)
+            .filter(
+                AgentSubagent.agent_name == "coder",
+                AgentSubagent.subagent_name == "debugger",
+            )
+            .first()
+        )
+        if exists is None:
+            s.add(AgentSubagent(agent_name="coder", subagent_name="debugger"))
+    set_setting(_GRANTS_SEEDED_KEY, "done")
 
 
 def _publish_agent_defaults() -> None:
