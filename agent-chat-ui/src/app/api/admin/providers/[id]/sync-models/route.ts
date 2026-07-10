@@ -61,7 +61,8 @@ async function listGoogleModels(p: ProviderRow): Promise<SyncedModel[]> {
     headers: { "x-goog-api-key": key },
   });
   if (!r.ok) {
-    console.error(`Google list models failed: ${r.status}`, await r.text());
+    const body = (await r.text()).replace(/\s+/g, " ").slice(0, 300);
+    console.error(`Google list models failed: ${r.status} ${body}`);
     throw new Error(`Google list models failed: ${r.status}`);
   }
   const data = (await r.json()) as {
