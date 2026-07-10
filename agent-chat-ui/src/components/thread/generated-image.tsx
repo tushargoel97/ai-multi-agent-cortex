@@ -14,6 +14,10 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const [zoomed, setZoomed] = useState(false);
+  // ChatGPT-style top-down develop, only for images that actually took time
+  // to arrive; cache hits (thread switches, scrollback) render instantly.
+  const [revealing, setRevealing] = useState(false);
+  const mountedAt = useRef(Date.now());
   const imgRef = useRef<HTMLImageElement>(null);
 
   // An image that finished loading (e.g. from cache) before React attached
@@ -23,6 +27,11 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
       setLoaded(true);
     }
   }, [src]);
+
+  const onLoad = () => {
+    setLoaded(true);
+    if (Date.now() - mountedAt.current > 150) setRevealing(true);
+  };
 
   // Close the zoom overlay on Escape.
   useEffect(() => {
@@ -39,8 +48,9 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   async function download() {
     if (!src) return;
     const name =
-      (alt?.trim() ? alt.trim().replace(/\s+/g, "-").toLowerCase() : "generated-image") +
-      ".png";
+      (alt?.trim()
+        ? alt.trim().replace(/\s+/g, "-").toLowerCase()
+        : "generated-image") + ".png";
     try {
       const res = await fetch(src);
       const blob = await res.blob();
@@ -59,27 +69,26 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
 
   return (
     <>
-      <div className="group relative my-3 w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-muted/30 shadow-sm">
+      <div className="group border-border bg-muted/30 relative my-3 w-full max-w-sm overflow-hidden rounded-2xl border shadow-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
           src={src}
           alt={alt || "Generated image"}
-          onLoad={() => setLoaded(true)}
+          onLoad={onLoad}
           onError={() => setErrored(true)}
           onClick={() => loaded && !errored && setZoomed(true)}
+          onAnimationEnd={() => setRevealing(false)}
           className={cn(
             "block h-auto w-full",
             loaded && !errored && "cursor-zoom-in",
             !loaded && !errored && "opacity-0",
+            revealing && "imggen-reveal relative z-[1]",
           )}
           style={!loaded && !errored ? { minHeight: "14rem" } : undefined}
         />
-        {!loaded && !errored && (
-          <div className="imggen-fill pointer-events-none">
-            <div className="imggen-frame__aurora" />
-            <div className="imggen-frame__shimmer" />
-          </div>
+        {(!loaded || revealing) && !errored && (
+          <div className="imggen-fill pointer-events-none"></div>
         )}
         {errored && (
           <div className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm">

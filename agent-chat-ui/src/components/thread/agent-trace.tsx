@@ -126,10 +126,8 @@ function ImageGenLoader() {
   return (
     <div className="mr-auto w-full max-w-md">
       <div className="imggen-frame">
-        <div className="imggen-frame__aurora" />
-        <div className="imggen-frame__shimmer" />
         <div className="imggen-frame__label">
-          <Sparkles className="size-3.5 animate-pulse text-indigo-200" />
+          <Sparkles className="size-3.5 animate-pulse text-sky-500/80 dark:text-sky-300/80" />
           Generating your image…
         </div>
       </div>
@@ -170,7 +168,12 @@ export function AgentTrace({
     const routed = messages.find((m) => getRoutingIntent(m));
     const intent = routed ? getRoutingIntent(routed) : null;
     if (!intent) return null;
-    return <RoutingChip intent={intent} model={getRoutingModel(routed)} />;
+    return (
+      <RoutingChip
+        intent={intent}
+        model={getRoutingModel(routed)}
+      />
+    );
   }
 
   const expanded = live || open;
@@ -183,8 +186,10 @@ export function AgentTrace({
         onClick={() => !live && setOpen((o) => !o)}
         aria-expanded={expanded}
         className={cn(
-          "flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground/80 transition-colors",
-          live ? "cursor-default" : "hover:bg-muted/60 hover:text-muted-foreground",
+          "text-muted-foreground/80 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors",
+          live
+            ? "cursor-default"
+            : "hover:bg-muted/60 hover:text-muted-foreground",
         )}
       >
         {live ? (
@@ -202,20 +207,23 @@ export function AgentTrace({
         )}
         {live && (
           <span className="ml-0.5 flex items-center gap-0.5">
-            <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full bg-foreground/40" />
-            <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full bg-foreground/40" />
-            <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full bg-foreground/40" />
+            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full" />
+            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full" />
+            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full" />
           </span>
         )}
       </button>
 
       {expanded && (
-        <ol className="mt-1.5 ml-2 flex flex-col gap-1.5 border-l border-border py-0.5 pl-4 text-xs">
+        <ol className="border-border mt-1.5 ml-2 flex flex-col gap-1.5 border-l py-0.5 pl-4 text-xs">
           {steps.map((step, i) => {
             const Icon = step.icon;
             const isLast = i === steps.length - 1;
             return (
-              <li key={step.key} className="flex items-start gap-2">
+              <li
+                key={step.key}
+                className="flex items-start gap-2"
+              >
                 <Icon
                   className={cn(
                     "mt-0.5 size-3.5 shrink-0",
@@ -235,7 +243,7 @@ export function AgentTrace({
                     {step.label}
                   </span>
                   {step.detail && (
-                    <span className="truncate text-muted-foreground/55">
+                    <span className="text-muted-foreground/55 truncate">
                       {step.detail}
                     </span>
                   )}

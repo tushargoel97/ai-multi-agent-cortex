@@ -113,7 +113,11 @@ export function selectionToConfigurable(
       mode: sel.mode,
     };
   }
-  return { model_id: sel.model_id, unrestricted: sel.unrestricted, mode: sel.mode };
+  return {
+    model_id: sel.model_id,
+    unrestricted: sel.unrestricted,
+    mode: sel.mode,
+  };
 }
 
 /** Browser locale + timezone, sent with each run so agents default to the
@@ -157,11 +161,20 @@ function formatModelName(raw: string): string {
 
 type Mode = ModelSelection["mode"];
 
+/** Pin the composer's hover zoom while a toolbar menu is open: the portaled
+ *  menu is positioned from the zoomed rect, so shrinking would misalign it. */
+function pinComposerZoom(el: HTMLElement | null, open: boolean) {
+  const composer = el?.closest("[data-prompt-composer]");
+  if (!composer) return;
+  if (open) composer.setAttribute("data-menu-open", "");
+  else composer.removeAttribute("data-menu-open");
+}
+
 const MODE_META: Record<
   Mode,
   { label: string; hint: string; icon: LucideIcon }
 > = {
-  general: { label: "General", hint: "Fast, direct answers.", icon: Zap },
+  general: { label: "Instant", hint: "Fastest, direct answers.", icon: Zap },
   thinking: {
     label: "Thinking",
     hint: "Reasoner + extended thinking.",
@@ -190,7 +203,7 @@ function ModelRow({
   onTogglePin: () => void;
 }) {
   return (
-    <div className="group flex w-full items-center gap-0.5 rounded-md pr-1 transition-colors hover:bg-accent/60">
+    <div className="group hover:bg-accent/60 flex w-full items-center gap-0.5 rounded-md pr-1 transition-colors">
       <button
         type="button"
         onClick={onSelect}
@@ -199,7 +212,7 @@ function ModelRow({
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm">{label}</span>
           {hint && (
-            <span className="truncate text-[11px] text-muted-foreground">
+            <span className="text-muted-foreground truncate text-[11px]">
               {hint}
             </span>
           )}
@@ -213,15 +226,17 @@ function ModelRow({
           onTogglePin();
         }}
         className={cn(
-          "shrink-0 rounded p-1 opacity-0 transition-colors group-hover:opacity-100 hover:bg-muted focus:opacity-100",
-          pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
+          "hover:bg-muted shrink-0 rounded p-1 opacity-0 transition-colors group-hover:opacity-100 focus:opacity-100",
+          pinned
+            ? "text-primary"
+            : "text-muted-foreground hover:text-foreground",
         )}
       >
         <Pin className={cn("size-3.5", pinned && "fill-current")} />
       </button>
       <Check
         className={cn(
-          "size-3.5 shrink-0 text-primary",
+          "text-primary size-3.5 shrink-0",
           selected ? "opacity-100" : "opacity-0",
         )}
       />
@@ -251,17 +266,17 @@ function MenuRow({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/60",
+        "hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
         active && "bg-accent/60",
       )}
     >
       <span className="min-w-0 flex-1">{children}</span>
       {chevron ? (
-        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+        <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
       ) : (
         <Check
           className={cn(
-            "size-3.5 shrink-0 text-primary",
+            "text-primary size-3.5 shrink-0",
             checked ? "opacity-100" : "opacity-0",
           )}
         />
@@ -329,6 +344,9 @@ function PromptToolbarMenu({
       clearHoverTimer();
       setSub(null);
     }
+    pinComposerZoom(rootRef.current, open);
+    return () => pinComposerZoom(rootRef.current, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Top-align the submenu to its row, nudged up only enough to fit the band.
@@ -369,8 +387,7 @@ function PromptToolbarMenu({
     };
   }, [open]);
 
-  const panel =
-    "glass rounded-xl border p-1 text-popover-foreground shadow-xl";
+  const panel = "glass rounded-xl border p-1 text-popover-foreground shadow-xl";
   const sectionLabel =
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const MW = 256; // menu / submenu width (w-64)
@@ -475,19 +492,22 @@ function PromptToolbarMenu({
       : undefined;
 
   return (
-    <div ref={rootRef} className="relative inline-flex">
+    <div
+      ref={rootRef}
+      className="relative inline-flex"
+    >
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
-        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 text-xs font-medium transition-colors hover:bg-muted"
+        className="border-border bg-muted/50 hover:bg-muted inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors"
       >
         {useLocal && <Server className="size-3.5 shrink-0 text-emerald-500" />}
         <span className="truncate">{triggerLabel}</span>
         <ChevronDown
           className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            "text-muted-foreground size-3.5 shrink-0 transition-transform",
             open && "rotate-180",
           )}
         />
@@ -515,14 +535,17 @@ function PromptToolbarMenu({
             )}
           >
             {/* Auto */}
-            <div className="shrink-0" onMouseEnter={closeSubSoon}>
+            <div
+              className="shrink-0"
+              onMouseEnter={closeSubSoon}
+            >
               <MenuRow
                 checked={autoSelected}
                 onClick={() => choose(AUTO_MODEL_ID)}
               >
                 <span className="flex flex-col">
                   <span className="truncate">✨ Auto</span>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="text-muted-foreground truncate text-[11px]">
                     Best model per task
                   </span>
                 </span>
@@ -545,8 +568,11 @@ function PromptToolbarMenu({
             {/* Models grouped by provider */}
             {providers.length > 0 && (
               <div className="shrink-0">
-                <div className="my-1 h-px bg-border" />
-                <div className={sectionLabel} onMouseEnter={closeSubSoon}>
+                <div className="bg-border my-1 h-px" />
+                <div
+                  className={sectionLabel}
+                  onMouseEnter={closeSubSoon}
+                >
                   Providers
                 </div>
                 {providers.map((p) => (
@@ -574,7 +600,7 @@ function PromptToolbarMenu({
             )}
 
             <div className="shrink-0">
-              <div className="my-1 h-px bg-border" />
+              <div className="bg-border my-1 h-px" />
               <MenuRow
                 chevron
                 active={sub?.kind === "mode"}
@@ -615,7 +641,7 @@ function PromptToolbarMenu({
               (subProvider?.models ?? []).map((m) => modelRow(m))
             ) : (
               <>
-                <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="text-muted-foreground px-1 pb-1 text-[10px] font-semibold tracking-wide uppercase">
                   Options
                 </div>
                 {toggles.map((t) => (
@@ -638,7 +664,7 @@ function PromptToolbarMenu({
                         {t.name}
                       </span>
                       {t.description && (
-                        <span className="block text-[11px] text-muted-foreground">
+                        <span className="text-muted-foreground block text-[11px]">
                           {t.description}
                         </span>
                       )}
@@ -705,12 +731,18 @@ export function ModeSelector({
     const below = window.innerHeight - cr.bottom - gap;
     const left = Math.max(8, Math.min(pr.left, window.innerWidth - W - 8));
     if (below >= 260 || below >= above) {
-      setBox({ left, top: pr.bottom + gap });
+      setBox({ left, top: cr.bottom + gap });
     } else {
-      setBox({ left, bottom: window.innerHeight - pr.top + gap });
+      setBox({ left, bottom: window.innerHeight - cr.top + gap });
     }
     setOpen(true);
   };
+
+  useEffect(() => {
+    pinComposerZoom(rootRef.current, open);
+    return () => pinComposerZoom(rootRef.current, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -732,20 +764,23 @@ export function ModeSelector({
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn("relative inline-flex", className)}>
+    <div
+      ref={rootRef}
+      className={cn("relative inline-flex", className)}
+    >
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
         title="Response mode"
-        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 text-xs font-medium transition-colors hover:bg-muted"
+        className="border-border bg-muted/50 hover:bg-muted inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors"
       >
-        <CurrentIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <CurrentIcon className="text-muted-foreground size-3.5 shrink-0" />
         <span className="truncate">{current.label}</span>
         <ChevronDown
           className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            "text-muted-foreground size-3.5 shrink-0 transition-transform",
             open && "rotate-180",
           )}
         />
@@ -764,7 +799,7 @@ export function ModeSelector({
               bottom: box.bottom,
               width: W,
             }}
-            className="glass animate-in fade-in-0 zoom-in-95 z-[90] rounded-xl border p-1.5 text-popover-foreground shadow-xl"
+            className="glass animate-in fade-in-0 zoom-in-95 text-popover-foreground z-[90] rounded-xl border p-1.5 shadow-xl"
           >
             {(Object.keys(MODE_META) as Mode[]).map((k) => {
               const m = MODE_META[k];
@@ -777,18 +812,18 @@ export function ModeSelector({
                     onModeChange(k);
                     setOpen(false);
                   }}
-                  className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent/60"
+                  className="hover:bg-accent/60 flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors"
                 >
-                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium">{m.label}</span>
-                    <span className="block text-[11px] text-muted-foreground">
+                    <span className="text-muted-foreground block text-[11px]">
                       {m.hint}
                     </span>
                   </span>
                   <Check
                     className={cn(
-                      "mt-0.5 size-4 shrink-0 text-primary",
+                      "text-primary mt-0.5 size-4 shrink-0",
                       mode === k ? "opacity-100" : "opacity-0",
                     )}
                   />
@@ -942,7 +977,11 @@ export default function ModelSelector({
           selectedId={selectedId}
           isPinned={isPinned}
           onSelectModel={(value) =>
-            onChange({ ...selection, model_id: value || null, use_local: false })
+            onChange({
+              ...selection,
+              model_id: value || null,
+              use_local: false,
+            })
           }
           onTogglePin={togglePin}
           toggles={toggles}
@@ -952,7 +991,7 @@ export default function ModelSelector({
             type="button"
             onClick={() => onChange({ ...selection, unrestricted: false })}
             title="Unrestricted mode is on — click to turn it off"
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 text-[11px] transition-colors"
           >
             <ShieldOff className="size-3" />
             Unrestricted
@@ -960,19 +999,25 @@ export default function ModelSelector({
         )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Configure Local LLM</DialogTitle>
             <DialogDescription>
-              Connect to any OpenAI-compatible endpoint (LM Studio,
-              llama.cpp, vLLM, Ollama via <code>/v1</code>).
+              Connect to any OpenAI-compatible endpoint (LM Studio, llama.cpp,
+              vLLM, Ollama via <code>/v1</code>).
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="lc-url" className="text-xs">
+              <Label
+                htmlFor="lc-url"
+                className="text-xs"
+              >
                 Base URL
               </Label>
               <Input
@@ -983,7 +1028,7 @@ export default function ModelSelector({
                 }
                 placeholder="http://host.docker.internal:1234/v1"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-muted-foreground text-[11px]">
                 When the chat runs in Docker, use{" "}
                 <code>host.docker.internal</code> instead of{" "}
                 <code>localhost</code>.
@@ -991,7 +1036,10 @@ export default function ModelSelector({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="lc-model" className="text-xs">
+              <Label
+                htmlFor="lc-model"
+                className="text-xs"
+              >
                 Model name
               </Label>
               <Input
@@ -1005,7 +1053,10 @@ export default function ModelSelector({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="lc-key" className="text-xs">
+              <Label
+                htmlFor="lc-key"
+                className="text-xs"
+              >
                 API key (optional)
               </Label>
               <Input

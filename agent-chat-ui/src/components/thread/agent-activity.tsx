@@ -56,10 +56,16 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   booking: { label: "Booking Assistant", icon: Ticket },
 };
 
-export const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
+export const TOOL_ACTIVITY: Record<
+  string,
+  { label: string; icon: LucideIcon }
+> = {
   web_search: { label: "Searching the web", icon: Globe },
   wikipedia_search: { label: "Searching Wikipedia", icon: BookOpen },
-  search_knowledge_base: { label: "Searching the knowledge base", icon: Database },
+  search_knowledge_base: {
+    label: "Searching the knowledge base",
+    icon: Database,
+  },
   fetch_url: { label: "Reading a web page", icon: Link2 },
   crypto_price: { label: "Fetching live prices", icon: Coins },
   get_current_time: { label: "Checking the clock", icon: Clock },
@@ -84,7 +90,7 @@ export function RoutingChip({
   const agent = agentForIntent(intent);
   const Icon = agent.icon;
   return (
-    <div className="mr-auto flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+    <div className="border-border bg-muted/40 text-muted-foreground mr-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium">
       <Zap className="size-3 text-amber-500" />
       <span>
         routed to <span className="text-foreground">{agent.label}</span>
@@ -92,7 +98,7 @@ export function RoutingChip({
       <Icon className="size-3" />
       {model ? (
         <span
-          className="flex items-center gap-1 border-l border-border pl-1.5 text-muted-foreground/80"
+          className="border-border text-muted-foreground/80 flex items-center gap-1 border-l pl-1.5"
           title={`Auto-selected model: ${model}`}
         >
           <Sparkles className="size-3 text-amber-500" />
@@ -227,7 +233,12 @@ function deriveActivity(messages: Message[]): Activity | null {
     const toolCalls = (last as { tool_calls?: { name?: string }[] }).tool_calls;
     if (toolCalls && toolCalls.length > 0) {
       const name = toolCalls[toolCalls.length - 1]?.name ?? "";
-      return TOOL_ACTIVITY[name] ?? { label: `Running ${name || "a tool"}`, icon: Bot };
+      return (
+        TOOL_ACTIVITY[name] ?? {
+          label: `Running ${name || "a tool"}`,
+          icon: Bot,
+        }
+      );
     }
     // Streaming visible text, no status needed.
     if (getContentString(last.content).length > 0) return null;
@@ -247,17 +258,15 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   if (!activity) return null;
   const Icon = activity.icon;
 
-  // Image generation gets a dedicated framed loader (a 3D dotted grid flowing
-  // in blue/purple) instead of the compact status row, the same box shape the
-  // finished image will fill.
+  // Image generation gets a dedicated frosted-glass loader (drifting blue
+  // blobs, a light sweep and a develop-line) instead of the compact status
+  // row, the same box shape the finished image will fill.
   if (activity.intent === "image_generation") {
     return (
       <div className="mr-auto w-full max-w-md">
         <div className="imggen-frame">
-          <div className="imggen-frame__aurora" />
-          <div className="imggen-frame__shimmer" />
           <div className="imggen-frame__label">
-            <Sparkles className="size-3.5 animate-pulse text-indigo-200" />
+            <Sparkles className="size-3.5 animate-pulse text-sky-500/80 dark:text-sky-300/80" />
             Generating your image…
           </div>
         </div>
@@ -276,15 +285,15 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
   const total = threadUsage(messages);
 
   return (
-    <div className="mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-muted/40 px-3.5 py-2">
-      <Icon className="size-4 animate-pulse text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">{activity.label}</span>
+    <div className="border-border bg-muted/40 mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border px-3.5 py-2">
+      <Icon className="text-muted-foreground size-4 animate-pulse" />
+      <span className="text-muted-foreground text-sm">{activity.label}</span>
       <span className="flex items-center gap-1">
-        <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full bg-foreground/50" />
-        <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full bg-foreground/50" />
-        <span className="h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full bg-foreground/50" />
+        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full" />
+        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full" />
+        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full" />
       </span>
-      <span className="ml-1 border-l border-border pl-2.5 text-[11px] tabular-nums text-muted-foreground/80">
+      <span className="border-border text-muted-foreground/80 ml-1 border-l pl-2.5 text-[11px] tabular-nums">
         query ≈{formatTokens(queryTokens)} tk
         {total.input + total.output > 0 && (
           <>

@@ -228,81 +228,86 @@
   border-color: var(--border) !important;
 }
 
-/* ── Generating-image loader: drifting aurora + diagonal shimmer sweep ── */
-.imggen-frame {
+/* Image-generation placeholder: ChatGPT-style dot matrix, a stationary
+   grid of faint dots on a quiet card, with a soft brightness cloud slowly
+   drifting through it. */
+.imggen-frame,
+.imggen-fill {
   position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+}
+.imggen-frame {
   width: 100%;
   max-width: 24rem;
   aspect-ratio: 1 / 1;
-  border-radius: 1rem;
-  overflow: hidden;
+  border-radius: 1.25rem;
   isolation: isolate;
-  border: 1px solid rgba(129, 140, 248, 0.35);
-  background: #0b0a14;
+  border: 1px solid rgb(0 0 0 / 0.08);
 }
-/* Soft, slowly drifting colour blobs (indigo → violet → fuchsia → cyan). */
-.imggen-frame__aurora {
-  position: absolute;
-  inset: -35%;
-  background:
-    radial-gradient(38% 46% at 25% 30%, rgba(99, 102, 241, 0.65), transparent 60%),
-    radial-gradient(32% 42% at 78% 32%, rgba(217, 70, 239, 0.5), transparent 60%),
-    radial-gradient(42% 46% at 62% 76%, rgba(56, 189, 248, 0.45), transparent 62%),
-    radial-gradient(36% 42% at 30% 82%, rgba(139, 92, 246, 0.5), transparent 60%);
-  filter: blur(16px) saturate(135%);
-  animation: imggen-aurora 7s ease-in-out infinite alternate;
-  will-change: transform;
+.dark .imggen-frame {
+  border-color: rgb(255 255 255 / 0.08);
 }
-/* Diagonal light sweep across the frame, the universal "loading" cue. */
-.imggen-frame__shimmer {
+.imggen-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent 28%,
-    rgba(255, 255, 255, 0.12) 46%,
-    rgba(255, 255, 255, 0.28) 50%,
-    rgba(255, 255, 255, 0.12) 54%,
-    transparent 72%
-  );
-  background-size: 220% 100%;
-  mix-blend-mode: screen;
-  animation: imggen-shimmer 1.8s linear infinite;
-  will-change: background-position;
 }
-/* Inner ring + faint top sheen for depth. */
-.imggen-frame::after {
+/* ::before = faint base grid; ::after = the same grid brighter, masked by a
+   large soft spot that wanders, so dots appear to breathe as it passes. */
+.imggen-frame::before,
+.imggen-frame::after,
+.imggen-fill::before,
+.imggen-fill::after {
   content: "";
   position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  background: radial-gradient(
-    120% 80% at 50% -10%,
-    rgba(255, 255, 255, 0.08),
-    transparent 55%
+  inset: 6%;
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--foreground) 55%, transparent) 1px,
+    transparent 1.4px
   );
+  background-size: 16px 16px;
+  pointer-events: none;
 }
-@keyframes imggen-aurora {
+.imggen-frame::before,
+.imggen-fill::before {
+  opacity: 0.10;
+}
+.imggen-frame::after,
+.imggen-fill::after {
+  opacity: 0.45;
+  -webkit-mask-image: radial-gradient(
+    40% 40% at 50% 50%,
+    #000 0%,
+    rgb(0 0 0 / 0.5) 45%,
+    transparent 72%
+  );
+  mask-image: radial-gradient(
+    40% 40% at 50% 50%,
+    #000 0%,
+    rgb(0 0 0 / 0.5) 45%,
+    transparent 72%
+  );
+  -webkit-mask-size: 250% 250%;
+  mask-size: 250% 250%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: imggen-drift 8s ease-in-out infinite alternate;
+}
+@keyframes imggen-drift {
   0% {
-    transform: translate3d(-4%, -3%, 0) rotate(0deg) scale(1.05);
+    -webkit-mask-position: 10% 15%;
+    mask-position: 10% 15%;
   }
-  50% {
-    transform: translate3d(4%, 3%, 0) rotate(8deg) scale(1.18);
+  40% {
+    -webkit-mask-position: 80% 35%;
+    mask-position: 80% 35%;
   }
   100% {
-    transform: translate3d(-2%, 4%, 0) rotate(-6deg) scale(1.1);
+    -webkit-mask-position: 35% 85%;
+    mask-position: 35% 85%;
   }
 }
-@keyframes imggen-shimmer {
-  from {
-    background-position: 150% 0;
-  }
-  to {
-    background-position: -150% 0;
-  }
-}
+/* Frosted caption pill. */
 .imggen-frame__label {
   position: absolute;
   inset-inline: 0;
@@ -310,23 +315,86 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.4rem;
-  color: #e0e7ff;
-  font-size: 0.8rem;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 9999px;
+  font-size: 0.75rem;
   font-weight: 500;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.75);
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--popover) 70%, transparent);
+  backdrop-filter: blur(12px);
 }
-/* Same look, unframed, used while the produced image's bytes load. */
-.imggen-fill {
+.dark .imggen-frame__label {
+  border-color: rgb(255 255 255 / 0.1);
+}
+/* Top-down develop of the finished image over the placeholder. */
+.imggen-reveal {
+  animation: imggen-reveal 0.9s cubic-bezier(0.33, 0, 0.2, 1) both;
+}
+@keyframes imggen-reveal {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    filter: blur(16px);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
+  }
+}
+
+/* Animated light->dark blue ring shown while the agent is working
+   (radius pairs with the composer's rounded-3xl). */
+@property --edge-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.edge-glow {
+  position: relative;
+}
+.edge-glow::after {
+  content: "";
   position: absolute;
-  inset: 0;
-  overflow: hidden;
-  background: #0b0a14;
+  inset: -1.5px;
+  border-radius: calc(1.5rem + 1.5px);
+  padding: 1.5px;
+  /* Mostly transparent ring; one soft light→dark blue streak with a comet
+     tail sweeps around the border. */
+  background: conic-gradient(
+    from var(--edge-angle),
+    transparent 0deg,
+    transparent 268deg,
+    rgb(29 78 216 / 0.55) 300deg,
+    rgb(56 189 248 / 0.95) 330deg,
+    rgb(125 211 252 / 0.9) 344deg,
+    transparent 352deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgb(56 189 248 / 0.45));
+  animation: edge-rotate 3.2s linear infinite;
 }
+@keyframes edge-rotate {
+  to {
+    --edge-angle: 360deg;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .imggen-frame__aurora,
-  .imggen-frame__shimmer {
+  .imggen-frame::after,
+  .imggen-fill::after,
+  .imggen-reveal,
+  .edge-glow::after {
     animation: none;
   }
 }

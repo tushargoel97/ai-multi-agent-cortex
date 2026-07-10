@@ -15,6 +15,9 @@ import {
 } from "./agent-activity";
 import { AgentTrace } from "./agent-trace";
 import { ThreadSearch } from "./thread-search";
+import { SourcesProvider } from "./sources";
+import { TypingPlaceholder, useSuggestions } from "./typing-placeholder";
+import { AttachMenu } from "./attach-menu";
 import { ActivityPanel } from "./activity-panel";
 import { getContentString } from "./utils";
 import { HumanMessage } from "./messages/human";
@@ -35,20 +38,15 @@ import {
   Square,
   SquarePen,
   XIcon,
-  Plus,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { useChatHistoryOpen } from "@/hooks/use-chat-history-open";
-import {
-  useSidebarWidth,
-  useSidebarResizing,
-} from "@/hooks/use-sidebar-width";
+import { useSidebarWidth, useSidebarResizing } from "@/hooks/use-sidebar-width";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { ChatHeaderTitle } from "./chat-header-title";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { Label } from "../ui/label";
 import { GitHubSVG } from "../icons/github";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -230,7 +228,7 @@ export function Thread() {
   const {
     contentBlocks,
     setContentBlocks,
-    handleFileUpload,
+    addFiles,
     dropRef,
     removeBlock,
     resetBlocks: _resetBlocks,
@@ -243,6 +241,7 @@ export function Thread() {
   const messages = stream.messages;
   const { selection, setSelection, buildConfigurable } = useModelSelection();
   const isLoading = stream.isLoading;
+  const suggestions = useSuggestions(messages, isLoading);
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -282,9 +281,10 @@ export function Thread() {
     }
   }, [stream.error]);
 
-  const [pending, setPending] = useState<
-    { text: string; blocks: typeof contentBlocks } | null
-  >(null);
+  const [pending, setPending] = useState<{
+    text: string;
+    blocks: typeof contentBlocks;
+  } | null>(null);
   const lastSubmitRef = useRef<{ text: string; at: number } | null>(null);
 
   const submitMessage = (text: string, blocks: typeof contentBlocks) => {
@@ -428,6 +428,13 @@ export function Thread() {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatStarted]);
 
+  // Per-message "Sources" buttons open the activity drawer from anywhere.
+  useEffect(() => {
+    const onOpen = () => setActivityOpen(true);
+    window.addEventListener("cortex:open-activity", onOpen);
+    return () => window.removeEventListener("cortex:open-activity", onOpen);
+  }, []);
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {chatStarted && (
@@ -472,7 +479,11 @@ export function Thread() {
           )}
           layout={isLargeScreen}
           animate={{
-            marginLeft: chatHistoryOpen ? (isLargeScreen ? sidebarWidth : 0) : 0,
+            marginLeft: chatHistoryOpen
+              ? isLargeScreen
+                ? sidebarWidth
+                : 0
+              : 0,
             width: chatHistoryOpen
               ? isLargeScreen
                 ? `calc(100% - ${sidebarWidth}px)`
@@ -494,8 +505,10 @@ export function Thread() {
                   <button
                     type="button"
                     onClick={() => setChatHistoryOpen((p) => !p)}
-                    title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
-                    className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title={
+                      chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"
+                    }
+                    className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full border transition-colors"
                   >
                     {chatHistoryOpen ? (
                       <ChevronLeft className="size-4" />
@@ -518,8 +531,10 @@ export function Thread() {
                     <button
                       type="button"
                       onClick={() => setChatHistoryOpen((p) => !p)}
-                      title={chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"}
-                      className="inline-flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      title={
+                        chatHistoryOpen ? "Collapse sidebar" : "Expand sidebar"
+                      }
+                      className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-full border transition-colors"
                     >
                       {chatHistoryOpen ? (
                         <ChevronLeft className="size-4" />
@@ -592,24 +607,24 @@ export function Thread() {
             </div>
           )}
 
-          <StickToBottom className="relative flex-1 overflow-hidden">
-            {chatStarted && (
-              <ThreadSearch
-                scopeRef={messagesScopeRef}
-                messages={messages}
-                open={threadSearchOpen}
-                onClose={() => setThreadSearchOpen(false)}
-              />
-            )}
-            <StickyToBottomContent
-              className={cn(
-                "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent",
-                !chatStarted && "mt-[25vh] flex flex-col items-stretch",
-                chatStarted && "grid grid-rows-[1fr_auto]",
+          <SourcesProvider messages={messages}>
+            <StickToBottom className="relative flex-1 overflow-hidden">
+              {chatStarted && (
+                <ThreadSearch
+                  scopeRef={messagesScopeRef}
+                  messages={messages}
+                  open={threadSearchOpen}
+                  onClose={() => setThreadSearchOpen(false)}
+                />
               )}
-              contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
-              content={
-                (() => {
+              <StickyToBottomContent
+                className={cn(
+                  "[&::-webkit-scrollbar-thumb]:bg-border absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent",
+                  !chatStarted && "mt-[25vh] flex flex-col items-stretch",
+                  chatStarted && "grid grid-rows-[1fr_auto]",
+                )}
+                contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
+                content={(() => {
                   const visible = messages.filter(
                     (m) =>
                       !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX) &&
@@ -618,7 +633,10 @@ export function Thread() {
                   const items = groupTurns(visible);
                   const lastVisible = visible[visible.length - 1];
                   return (
-                    <div ref={messagesScopeRef} style={{ display: "contents" }}>
+                    <div
+                      ref={messagesScopeRef}
+                      style={{ display: "contents" }}
+                    >
                       {items.map((item, index) =>
                         item.kind === "trace" ? (
                           <AgentTrace
@@ -659,132 +677,139 @@ export function Thread() {
                       )}
                     </div>
                   );
-                })()
-              }
-              footer={
-                <div className="sticky bottom-0 flex flex-col items-center gap-8">
-                  {!chatStarted && <Greeting />}
+                })()}
+                footer={
+                  <div className="sticky bottom-0 flex flex-col items-center gap-8">
+                    {!chatStarted && <Greeting />}
 
-                  <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
+                    <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
 
-                  <div
-                    ref={dropRef}
-                    data-prompt-composer
-                    className={cn(
-                      "glass-surface relative z-10 mx-auto mb-8 w-full max-w-[46rem] rounded-3xl shadow-lg transition-all",
-                      dragOver
-                        ? "border-primary border-2 border-dotted"
-                        : "border border-black/10 dark:border-white/10",
-                    )}
-                  >
-                    <form
-                      onSubmit={handleSubmit}
-                      className="mx-auto grid max-w-[46rem] grid-rows-[1fr_auto] gap-2"
-                    >
-                      {pending && (
-                        <div className="mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
-                          <Clock className="size-3.5 shrink-0 animate-pulse" />
-                          <span className="min-w-0 flex-1 truncate">
-                            Queued:{" "}
-                            {pending.text.trim() ||
-                              `${pending.blocks.length} attachment(s)`}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setPending(null)}
-                            className="shrink-0 hover:text-foreground"
-                            title="Cancel queued message"
-                          >
-                            <XIcon className="size-3.5" />
-                          </button>
-                        </div>
+                    <div
+                      ref={dropRef}
+                      data-prompt-composer
+                      className={cn(
+                        // Zooms 10% while hovered, focused (typing) or with a
+                        // toolbar menu open, then eases back when left alone.
+                        "glass-surface relative z-10 mx-auto mb-8 w-full max-w-[46rem] origin-bottom rounded-3xl shadow-lg transition-all duration-300 ease-out",
+                        "focus-within:scale-110 focus-within:shadow-xl hover:scale-110 data-[menu-open]:scale-110",
+                        isLoading && "edge-glow",
+                        dragOver
+                          ? "border-primary border-2 border-dotted"
+                          : "border border-black/10 dark:border-white/10",
                       )}
-                      <ContentBlocksPreview
-                        blocks={contentBlocks}
-                        onRemove={removeBlock}
-                      />
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onPaste={handlePaste}
-                        onKeyDown={(e) => {
-                          if (
-                            e.key === "Enter" &&
-                            !e.shiftKey &&
-                            !e.metaKey &&
-                            !e.nativeEvent.isComposing
-                          ) {
-                            e.preventDefault();
-                            const el = e.target as HTMLElement | undefined;
-                            const form = el?.closest("form");
-                            form?.requestSubmit();
-                          }
-                        }}
-                        placeholder="Type your message..."
-                        className="field-sizing-content max-h-[280px] min-h-[52px] resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
-                      />
-
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-2.5 pb-2.5 pt-1">
-                        <Label
-                          htmlFor="file-input"
-                          title="Attach a PDF or image"
-                          className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          <Plus className="size-5" />
-                        </Label>
-                        <input
-                          id="file-input"
-                          type="file"
-                          onChange={handleFileUpload}
-                          multiple
-                          accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                          className="hidden"
-                        />
-                        <ModelSelector
-                          selection={selection}
-                          onChange={setSelection}
-                          hideToolCalls={hideToolCalls ?? false}
-                          onHideToolCallsChange={(v) => setHideToolCalls(v)}
-                        />
-                        <ModeSelector
-                          className="ml-auto"
-                          mode={selection.mode}
-                          onModeChange={(m) =>
-                            setSelection({ ...selection, mode: m })
-                          }
-                        />
-                        {stream.isLoading ? (
-                          <Button
-                            key="stop"
-                            type="button"
-                            size="icon"
-                            title="Stop generating"
-                            onClick={handleCancel}
-                            className="size-9 rounded-full"
-                          >
-                            <Square className="size-3.5 fill-current" />
-                          </Button>
-                        ) : (
-                          <Button
-                            type="submit"
-                            size="icon"
-                            title="Send"
-                            className="size-9 rounded-full shadow-sm transition-all"
-                            disabled={
-                              isLoading ||
-                              (!input.trim() && contentBlocks.length === 0)
-                            }
-                          >
-                            <ArrowUp className="size-5" />
-                          </Button>
+                    >
+                      <form
+                        onSubmit={handleSubmit}
+                        className="mx-auto grid grid-rows-[1fr_auto] gap-2"
+                      >
+                        {pending && (
+                          <div className="border-border bg-muted/50 text-muted-foreground mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-dashed px-3 py-1.5 text-xs">
+                            <Clock className="size-3.5 shrink-0 animate-pulse" />
+                            <span className="min-w-0 flex-1 truncate">
+                              Queued:{" "}
+                              {pending.text.trim() ||
+                                `${pending.blocks.length} attachment(s)`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPending(null)}
+                              className="hover:text-foreground shrink-0"
+                              title="Cancel queued message"
+                            >
+                              <XIcon className="size-3.5" />
+                            </button>
+                          </div>
                         )}
-                      </div>
-                    </form>
+                        <ContentBlocksPreview
+                          blocks={contentBlocks}
+                          onRemove={removeBlock}
+                        />
+                        <div className="relative">
+                          <textarea
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onPaste={handlePaste}
+                            onKeyDown={(e) => {
+                              if (
+                                e.key === "Enter" &&
+                                !e.shiftKey &&
+                                !e.metaKey &&
+                                !e.nativeEvent.isComposing
+                              ) {
+                                e.preventDefault();
+                                const el = e.target as HTMLElement | undefined;
+                                const form = el?.closest("form");
+                                form?.requestSubmit();
+                              }
+                            }}
+                            placeholder={
+                              suggestions.length > 0
+                                ? ""
+                                : "Type your message..."
+                            }
+                            className={cn(
+                              "field-sizing-content max-h-[280px] min-h-[52px] w-full resize-none border-none bg-transparent p-4 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none",
+                              // Hide the native caret while a suggestion is
+                              // typing in the empty box; it reappears with
+                              // the first character the user types.
+                              !input &&
+                                suggestions.length > 0 &&
+                                "caret-transparent",
+                            )}
+                          />
+                          {!input && !pending && contentBlocks.length === 0 && (
+                            <TypingPlaceholder suggestions={suggestions} />
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-2.5 pt-1 pb-2.5">
+                          <AttachMenu onFiles={addFiles} />
+                          <ModelSelector
+                            selection={selection}
+                            onChange={setSelection}
+                            hideToolCalls={hideToolCalls ?? false}
+                            onHideToolCallsChange={(v) => setHideToolCalls(v)}
+                          />
+                          <ModeSelector
+                            className="ml-auto"
+                            mode={selection.mode}
+                            onModeChange={(m) =>
+                              setSelection({ ...selection, mode: m })
+                            }
+                          />
+                          {stream.isLoading ? (
+                            <Button
+                              key="stop"
+                              type="button"
+                              size="icon"
+                              title="Stop generating"
+                              onClick={handleCancel}
+                              className="size-9 rounded-full"
+                            >
+                              <Square className="size-3.5 fill-current" />
+                            </Button>
+                          ) : (
+                            <Button
+                              type="submit"
+                              size="icon"
+                              title="Send"
+                              className="size-9 rounded-full shadow-sm transition-all"
+                              disabled={
+                                isLoading ||
+                                (!input.trim() && contentBlocks.length === 0)
+                              }
+                            >
+                              <ArrowUp className="size-5" />
+                            </Button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
                   </div>
-                </div>
-              }
-            />
-          </StickToBottom>
+                }
+              />
+            </StickToBottom>
+          </SourcesProvider>
         </motion.div>
         <div className="relative flex flex-col border-l">
           <div className="absolute inset-0 flex min-w-[30vw] flex-col">

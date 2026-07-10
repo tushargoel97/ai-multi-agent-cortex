@@ -15,6 +15,7 @@ import os
 import re
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 
 from pydantic import BaseModel, Field
@@ -453,19 +454,27 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
             }
         )
 
-    enriched: list[dict[str, str]] = []
-    for r in results:
-        item = {
+    enriched: list[dict[str, str]] = [
+        {
             "title": r.get("title", ""),
             "url": r.get("url", ""),
             "snippet": r.get("snippet", ""),
         }
-        if fetch_pages and item["url"]:
+        for r in results
+    ]
+    if fetch_pages:
+        # Fetch result pages concurrently: serially this was up to
+        # len(results) x the per-page timeout on slow sites.
+        def _grab(item: dict[str, str]) -> None:
             try:
                 item["content"] = _fetch_text(item["url"])
             except Exception as exc:  # noqa: BLE001
                 item["content"] = f"[fetch failed: {exc}]"
-        enriched.append(item)
+
+        targets = [i for i in enriched if i["url"]]
+        if targets:
+            with ThreadPoolExecutor(max_workers=min(5, len(targets))) as pool:
+                list(pool.map(_grab, targets))
 
     return json.dumps(
         {"source": source, "query": query, "results": enriched},

@@ -22,6 +22,7 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
+import { MessageSources } from "../sources";
 
 function CustomComponent({
   message,
@@ -176,7 +177,12 @@ export function AssistantMessage({
         (result as { response_metadata?: { model_name?: string } } | undefined)
           ?.response_metadata?.model_name ?? null;
     }
-    return <RoutingChip intent={routingIntent} model={chipModel} />;
+    return (
+      <RoutingChip
+        intent={routingIntent}
+        model={chipModel}
+      />
+    );
   }
 
   return (
@@ -199,6 +205,12 @@ export function AssistantMessage({
               </div>
             )}
 
+            {message &&
+              contentString.length > 0 &&
+              (!isLoading || !isLastMessage) && (
+                <MessageSources message={message} />
+              )}
+
             {(() => {
               const usage = getUsage(message);
               if (!usage) return null;
@@ -206,7 +218,7 @@ export function AssistantMessage({
                 message as { response_metadata?: { model_name?: string } }
               ).response_metadata?.model_name;
               return (
-                <div className="flex items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/70">
+                <div className="text-muted-foreground/70 flex items-center gap-1.5 text-[11px] tabular-nums">
                   {model && <span>{model}</span>}
                   {model && <span>·</span>}
                   <span>
@@ -274,4 +286,3 @@ export function AssistantMessage({
     </div>
   );
 }
-

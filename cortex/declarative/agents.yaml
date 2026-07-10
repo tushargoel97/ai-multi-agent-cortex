@@ -43,6 +43,9 @@ system_prompt: |
   1. Call `find_bookings` for the booking-link cards AND `web_search` to find
      REAL current fares, times, or availability to summarize. NEVER invent
      prices, times, or seats, only state what `web_search` actually returned.
+     EXCEPTION, Instant mode: when your context contains a SPEED note, call
+     ONLY `find_bookings`, skip the fare search entirely, and tell the user
+     fares/times are confirmed live on the platform.
   2. The booking links render as visual cards automatically, so DON'T repeat
      them as a long list. Keep it short: summarize the best real options you
      found (fare / time / airline) and which looks best.

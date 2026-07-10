@@ -44,10 +44,9 @@ export function useFileUpload({
     return false;
   };
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    const fileArray = Array.from(files);
+  /** Validate, dedupe, convert and append files from any source (file
+   *  selector, screenshot capture, …). */
+  const addFiles = async (fileArray: File[]) => {
     const validFiles = fileArray.filter((file) =>
       SUPPORTED_FILE_TYPES.includes(file.type),
     );
@@ -76,6 +75,12 @@ export function useFileUpload({
       ? await Promise.all(uniqueFiles.map(fileToContentBlock))
       : [];
     setContentBlocks((prev) => [...prev, ...newBlocks]);
+  };
+
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    await addFiles(Array.from(files));
     e.target.value = "";
   };
 
@@ -261,6 +266,7 @@ export function useFileUpload({
     contentBlocks,
     setContentBlocks,
     handleFileUpload,
+    addFiles,
     dropRef,
     removeBlock,
     resetBlocks,

@@ -12,6 +12,7 @@ import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
 
 import { TooltipIconButton } from "@/components/thread/tooltip-icon-button";
 import { GeneratedImage } from "./generated-image";
+import { CitationLink } from "./sources";
 import { cn, copyTextToClipboard } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
@@ -136,14 +137,21 @@ const defaultComponents: any = {
       />
     );
   },
-  a: ({ className, ...props }: { className?: string }) => (
-    <a
-      className={cn(
-        "text-primary font-medium underline underline-offset-4",
-        className,
-      )}
-      {...props}
-    />
+  a: ({
+    className,
+    href,
+    children,
+  }: {
+    className?: string;
+    href?: string;
+    children?: React.ReactNode;
+  }) => (
+    <CitationLink
+      href={href}
+      className={className}
+    >
+      {children}
+    </CitationLink>
   ),
   img: ({ src, alt }: { src?: unknown; alt?: string }) => (
     <GeneratedImage
@@ -178,7 +186,7 @@ const defaultComponents: any = {
   // Spec-sheet style tables: framed grid, product-name header band, shaded
   // spec-label column, zebra rows, scrolls horizontally instead of wrapping.
   table: ({ className, ...props }: { className?: string }) => (
-    <div className="my-5 overflow-x-auto rounded-xl border border-border shadow-sm">
+    <div className="border-border my-5 overflow-x-auto rounded-xl border shadow-sm">
       <table
         className={cn("w-full border-collapse text-sm", className)}
         {...props}
@@ -188,7 +196,7 @@ const defaultComponents: any = {
   th: ({ className, ...props }: { className?: string }) => (
     <th
       className={cn(
-        "border-b-2 border-r border-border bg-muted px-4 py-2.5 text-left text-[13px] font-semibold tracking-wide whitespace-nowrap last:border-r-0 [&[align=center]]:text-center [&[align=right]]:text-right",
+        "border-border bg-muted border-r border-b-2 px-4 py-2.5 text-left text-[13px] font-semibold tracking-wide whitespace-nowrap last:border-r-0 [&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
       {...props}
@@ -197,8 +205,8 @@ const defaultComponents: any = {
   td: ({ className, ...props }: { className?: string }) => (
     <td
       className={cn(
-        "border-b border-r border-border px-4 py-2.5 text-left align-top last:border-r-0",
-        "first:whitespace-nowrap first:bg-muted/40 first:font-medium",
+        "border-border border-r border-b px-4 py-2.5 text-left align-top last:border-r-0",
+        "first:bg-muted/40 first:font-medium first:whitespace-nowrap",
         "[&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
@@ -208,7 +216,7 @@ const defaultComponents: any = {
   tr: ({ className, ...props }: { className?: string }) => (
     <tr
       className={cn(
-        "m-0 p-0 even:bg-muted/20 [&:last-child>td]:border-b-0",
+        "even:bg-muted/20 m-0 p-0 [&:last-child>td]:border-b-0",
         className,
       )}
       {...props}

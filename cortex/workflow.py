@@ -727,6 +727,16 @@ _UNRESTRICTED_DIRECTIVE = (
     "would cause real-world harm."
 )
 
+_INSTANT_DIRECTIVE = (
+    "SPEED: the user is in Instant mode and expects the answer within "
+    "seconds. If tools are needed at all, make AT MOST ONE tool call, for web "
+    "lookups a single web_search with fetch_pages=false (the result snippets "
+    "are enough), then answer immediately from what you have. Never chain "
+    "multiple searches, never open pages with fetch_url unless the user "
+    "explicitly asked you to read a specific page, and keep the answer "
+    "concise. Depth belongs to Thinking/Research modes, not this one."
+)
+
 
 def _build_agent(
     agent_id: Agents,
@@ -769,6 +779,10 @@ def _build_agent(
     )
     if unrestricted:
         context_line = f"{context_line}\n\n{_UNRESTRICTED_DIRECTIVE}"
+    # Instant (default) mode trades depth for latency; Thinking/Research get
+    # their budget from their own flows.
+    if str(cfg.get("mode") or "general").lower() == "general":
+        context_line = f"{context_line}\n\n{_INSTANT_DIRECTIVE}"
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
 
