@@ -84,6 +84,26 @@ interface TrainerStatus {
   algorithm?: string;
   estimated_seconds?: number;
   elapsed_seconds?: number;
+  run_id?: string;
+  best_iter?: number | null;
+  best_val_loss?: number | null;
+  early_stopped?: boolean;
+  selected_checkpoint?: string;
+  model_id?: string;
+  evaluation?: EvaluationResult;
+}
+
+interface EvaluationResult {
+  passed: boolean;
+  pass_rate: number;
+  cases: { question: string; expected: string; actual: string; score: number; passed: boolean }[];
+}
+
+interface TrainerRun extends TrainerStatus {
+  started_at: number;
+  base_model?: string;
+  batch_size?: number;
+  learning_rate?: number;
 }
 
 interface TrainerBackend {
@@ -158,7 +178,6 @@ const SOURCE_ICONS = {
   image: FileImage,
 } as const;
 
-// Per-URL outcome badge colors for the intelligent scrape agent.
 const OUTCOME_STYLES: Record<string, string> = {
   extracted: "bg-emerald-500/15 text-emerald-600",
   index: "bg-sky-500/15 text-sky-600",
@@ -190,6 +209,7 @@ const BUSY_PHASES = [
   "researching",
   "scraping",
   "importing",
+  "evaluating",
 ];
 
 function fmtDuration(seconds?: number | null): string {
@@ -292,6 +312,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const [finetuned, setFinetuned] = useState<
     { id: string; model_id: string; display_name: string }[]
   >([]);
+  const [runs, setRuns] = useState<TrainerRun[]>([]);
+  const [lifecycle, setLifecycle] = useState<{ active: string | null; previous: string[] }>({
+    active: null,
+    previous: [],
+  });
   const [preview, setPreview] = useState<DatasetPreview | null>(null);
   const [previewSplit, setPreviewSplit] = useState("train");
   const [showPreview, setShowPreview] = useState(false);
@@ -328,7 +353,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         data.backends.some((backend) => backend.id === current) ? current : data.default_backend,
       );
     } catch {
-      // Trainer reachability is handled by the regular progress poll.
+      return;
     }
   }, [headers]);
 
@@ -337,7 +362,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       const r = await fetch("/api/admin/trainer/sources", { headers: headers() });
       if (r.ok) setSources((await r.json()).sources ?? []);
     } catch {
-      /* trainer down, handled by refresh() */
+      return;
     }
   }, [headers]);
 
@@ -346,7 +371,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       const r = await fetch("/api/admin/gaps", { headers: headers() });
       if (r.ok) setGaps((await r.json()).gaps ?? []);
     } catch {
-      /* db down, non-fatal */
+      return;
     }
   }, [headers]);
 
@@ -362,7 +387,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
           list.flatMap((d) => d.subdomains.map((s) => `${d.name}/${s.name}`)),
         );
         setSelectedSubs((prev) => prev.filter((k) => allKeys.has(k)));
-        // First load: default to every built-in hardware subdomain.
         if (!domainsInit.current) {
           const hw = list.find((d) => d.name === "hardware");
           if (hw) {
@@ -372,7 +396,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         }
       }
     } catch {
-      /* trainer down, handled by refresh() */
+      return;
     }
   }, [headers]);
 
@@ -427,7 +451,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     };
   }, [backendId, baseModel, batchSize, headers, iters]);
 
-  // Capture a fresh import proposal once (the 2s poll must not clobber edits).
   useEffect(() => {
     if (
       status.phase === "import_proposed" &&
@@ -476,9 +499,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     [headers],
   );
 
-  // Dynamic spec import: every URL / uploaded document in the sources list
-  // is dispatched by the trainer (AMD DB parser, Intel-chart parser, generic
-  // LLM distillation; TechPowerUp only if it doesn't 403).
   const runImport = async () => {
     setBusy("import");
     setError(null);
@@ -490,10 +510,8 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       setProposal(null);
       setProposalDismissed(false);
       if (importTarget === "hardware:crawl") {
-        // Deep hardware crawl, writes directly to hardware (no review step).
         await post("scrape", { sources: items, max_products: 30 });
       } else {
-        // Domain-aware: propose a domain/subdomain + schema for review.
         await post("import/propose", { sources: items, target: importTarget });
       }
       await refresh();
@@ -533,7 +551,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       await post("dataset/generate", {
         subdomains: selectedSubs,
       });
-      // Deterministic facts → examples expansion; returns counts instantly.
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -549,7 +566,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       const form = new FormData();
       form.append("file", file);
       const t = getAdminToken();
-      // No Content-Type header, the browser sets the multipart boundary.
       const r = await fetch("/api/admin/trainer/sources/upload", {
         method: "POST",
         headers: { "X-Admin-Token": t || "" },
@@ -618,7 +634,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       await post("gaps/research", {
         gaps: fresh.map((g) => ({ id: g.id, question: g.question })),
       });
-      // Poll until the research job settles, then persist statuses.
       for (;;) {
         await new Promise((r) => setTimeout(r, 2500));
         const s: TrainerStatus & {
@@ -660,17 +675,21 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     await refreshGaps();
   };
 
-  const startTraining = async () => {
+  const startTraining = async (resume = false) => {
     setBusy("train");
     setError(null);
     setRegistered(false);
     try {
-      await post("train", {
+      const result = await post("train", {
         iters,
         batch_size: batchSize,
         base_model: baseModel,
         backend_id: backendId,
+        resume,
       });
+      if (result.run_id) {
+        setModelName(`${modelName.replace(/-[0-9a-f]{8}$/, "")}-${result.run_id.slice(0, 8)}`);
+      }
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -679,28 +698,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     }
   };
 
-  // Quick top-up: warm-start from the current adapters (resume=true) and train
-  // fewer iters, teaches newly-added facts without a full retrain. The base
-  // is taken from the adapters' base_model.txt on the trainer side.
-  const startTopUp = async () => {
-    setBusy("train");
-    setError(null);
-    setRegistered(false);
-    try {
-      await post("train", {
-        iters,
-        batch_size: batchSize,
-        base_model: baseModel,
-        backend_id: backendId,
-        resume: true,
-      });
-      await refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
+  const startTopUp = () => startTraining(true);
 
   const stopTraining = async () => {
     setError(null);
@@ -715,10 +713,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setBusy("convert");
     setError(null);
     setRegistered(false);
-    const name = modelName.startsWith("finetuned-") ? modelName : `finetuned-${modelName}`;
+    const requestedName = modelName.startsWith("finetuned-") ? modelName : `finetuned-${modelName}`;
+    const name = finetuned.some((model) => model.model_id === requestedName)
+      ? `${requestedName}-${runs[0]?.run_id?.slice(0, 8) ?? Date.now()}`
+      : requestedName;
+    setModelName(name);
     try {
       await post("convert", { output_name: name });
-      // Wait for fuse + GGUF conversion to finish (can take a few minutes).
       let filename = "";
       for (;;) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -733,7 +734,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         if (s.phase === "error") throw new Error(s.error ?? "conversion failed");
       }
 
-      // Import + load the GGUF in the ai service.
       const imp = await fetch("/api/admin/local/import-local", {
         method: "POST",
         headers: headers(),
@@ -748,15 +748,12 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         throw new Error(data?.detail ?? data?.error ?? `import ${imp.status}`);
       }
 
-      // Register in the model registry so it appears in the chat dropdown.
-      // The `finetuned-` model_id prefix is how the cortex specialist agent
-      // discovers this model, do not strip it.
       const provs = await fetch("/api/admin/providers", {
         headers: headers(),
       }).then((x) => x.json());
       const local = provs.find((p: { kind: string }) => p.kind === "local");
       if (!local) throw new Error("No local provider registered");
-      await fetch("/api/admin/models", {
+      const registeredModel = await fetch("/api/admin/models", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -766,8 +763,10 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
           is_default: false,
         }),
       });
+      if (!registeredModel.ok) throw new Error(`register ${registeredModel.status}`);
 
       setRegistered(true);
+      await Promise.all([refreshRuns(), refreshFinetuned()]);
       onChanged?.();
     } catch (e) {
       setError((e as Error).message);
@@ -822,13 +821,77 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         );
       }
     } catch {
-      /* registry unavailable, ignore */
+      return;
+    }
+  }, [headers]);
+
+  const refreshRuns = useCallback(async () => {
+    try {
+      const [runResponse, lifecycleResponse] = await Promise.all([
+        fetch("/api/admin/trainer/runs", { headers: headers() }),
+        fetch("/api/admin/models/lifecycle", { headers: headers() }),
+      ]);
+      if (runResponse.ok) setRuns((await runResponse.json()).runs ?? []);
+      if (lifecycleResponse.ok) setLifecycle(await lifecycleResponse.json());
+    } catch {
+      return;
     }
   }, [headers]);
 
   useEffect(() => {
     void refreshFinetuned();
-  }, [refreshFinetuned, registered]);
+    void refreshRuns();
+  }, [refreshFinetuned, refreshRuns, registered]);
+
+  const runForModel = (modelId: string) =>
+    runs.find(
+      (run) => run.model_id === modelId || run.gguf_filename?.replace(/\.gguf$/, "") === modelId,
+    );
+
+  const evaluateModel = async (modelId: string) => {
+    const run = runForModel(modelId);
+    if (!run?.run_id) return;
+    setBusy(`eval-${modelId}`);
+    setError(null);
+    try {
+      await post(`runs/${run.run_id}/evaluate`, { model_id: modelId, cases: 12 });
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const current = await fetch("/api/admin/trainer/progress", {
+          headers: headers(),
+        }).then((response) => response.json());
+        setStatus(current);
+        if (current.phase === "evaluated") break;
+        if (current.phase === "evaluation_error") {
+          throw new Error(current.error ?? "evaluation failed");
+        }
+      }
+      await refreshRuns();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updateLifecycle = async (body: object) => {
+    setBusy("lifecycle");
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/models/lifecycle", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? `lifecycle ${response.status}`);
+      setLifecycle(data);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const deleteFinetuned = async (m: { id: string; model_id: string; display_name: string }) => {
     if (
@@ -849,12 +912,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         const d = await r.json().catch(() => ({}));
         throw new Error(d?.detail ?? d?.error ?? `delete ${r.status}`);
       }
-      // Best-effort GGUF removal from the ai service.
       await fetch(`/api/admin/local/models/${encodeURIComponent(m.model_id)}`, {
         method: "DELETE",
         headers: headers(),
       }).catch(() => {});
-      await refreshFinetuned();
+      await Promise.all([refreshFinetuned(), refreshRuns()]);
       onChanged?.();
     } catch (e) {
       setError((e as Error).message);
@@ -1426,7 +1488,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
               </Button>
               <Button
                 size="sm"
-                onClick={startTraining}
+                onClick={() => startTraining()}
                 disabled={jobRunning || !hasDataset || !backendAvailable}
               >
                 {busy === "train" ? (
@@ -1646,6 +1708,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
                 Train loss: {status.train_loss != null ? status.train_loss.toFixed(3) : "-"}
               </span>
               <span>Val loss: {status.val_loss != null ? status.val_loss.toFixed(3) : "-"}</span>
+              {status.best_val_loss != null && (
+                <span>
+                  Best val: {status.best_val_loss.toFixed(3)} at {status.best_iter}
+                </span>
+              )}
               {phase === "trained" && (
                 <span className="text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="mr-1 inline size-4" />
@@ -1657,7 +1724,8 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
               <p className="text-muted-foreground text-xs">
                 LoRA adapters saved (<code>adapters.safetensors</code>), not a servable model yet.
                 Run <strong>Convert &amp; Register</strong> below to fuse them into a GGUF the chat
-                can load.
+                can load.{" "}
+                {status.early_stopped ? "Training stopped after validation plateaued." : ""}
               </p>
             )}
             {status.history && <LossSparkline history={status.history} />}
@@ -1724,14 +1792,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
           <div className="mt-3 space-y-1 text-sm">
             <p className="text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="mr-1 inline size-4" />
-              Registered! <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> was written to
-              the shared <code>models/</code> folder and imported into the local model service.
+              Registered as a draft. <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> is
+              available for evaluation.
             </p>
             <p className="text-muted-foreground">
               The GGUF lives in the <code>./models</code> host mount, so it persists across{" "}
-              <code>ai</code> restarts and image rebuilds. It now appears in the chat model
-              dropdown, and hardware-spec questions route to it automatically (with a web-search
-              fallback for hardware it wasn&apos;t trained on).
+              <code>ai</code> restarts and image rebuilds. Automatic specialist routing changes only
+              after evaluation passes and you promote the draft.
             </p>
           </div>
         )}
@@ -1739,29 +1806,85 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
       {/* 4, Fine-tuned models */}
       <section className="rounded-lg border p-4">
-        <div className="flex items-center gap-2">
-          <Database className="text-muted-foreground size-4" />
-          <h2 className="font-medium">4 · Fine-tuned models</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Database className="text-muted-foreground size-4" />
+            <h2 className="font-medium">4 · Fine-tuned models</h2>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!lifecycle.previous.length || busy !== null}
+            onClick={() => updateLifecycle({ action: "rollback" })}
+          >
+            Roll back
+          </Button>
         </div>
         {finetuned.length > 0 ? (
           <ul className="mt-3 space-y-1">
-            {finetuned.map((m) => (
-              <li
-                key={m.id}
-                className="bg-background/60 flex items-center justify-between gap-2 rounded border px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="text-foreground truncate">{m.display_name}</div>
-                  <code className="text-muted-foreground text-xs">{m.model_id}</code>
-                </div>
-                <DeleteButton
-                  onClick={() => deleteFinetuned(m)}
-                  disabled={jobRunning}
-                  busy={busy === `del-${m.id}`}
-                  title="Delete from the registry and remove the .gguf file"
-                />
-              </li>
-            ))}
+            {finetuned.map((m) => {
+              const run = runForModel(m.model_id);
+              const evaluation = run?.evaluation;
+              const active = lifecycle.active === m.model_id;
+              return (
+                <li
+                  key={m.id}
+                  className="bg-background/60 flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="text-foreground flex items-center gap-2 truncate">
+                      {m.display_name}
+                      <span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase">
+                        {active
+                          ? "active"
+                          : evaluation?.passed
+                            ? `passed ${Math.round(evaluation.pass_rate * 100)}%`
+                            : evaluation
+                              ? `failed ${Math.round(evaluation.pass_rate * 100)}%`
+                              : "draft"}
+                      </span>
+                    </div>
+                    <code className="text-muted-foreground text-xs">{m.model_id}</code>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!active && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!run || jobRunning}
+                        onClick={() => evaluateModel(m.model_id)}
+                      >
+                        {busy === `eval-${m.model_id}` ? (
+                          <Loader2 className="mr-1 size-4 animate-spin" />
+                        ) : null}
+                        Evaluate
+                      </Button>
+                    )}
+                    {!active && evaluation?.passed && (
+                      <Button
+                        size="sm"
+                        disabled={jobRunning}
+                        onClick={() =>
+                          updateLifecycle({
+                            action: "promote",
+                            model_id: m.model_id,
+                            run_id: run?.run_id,
+                          })
+                        }
+                      >
+                        Promote
+                      </Button>
+                    )}
+                    <DeleteButton
+                      onClick={() => deleteFinetuned(m)}
+                      disabled={jobRunning}
+                      busy={busy === `del-${m.id}`}
+                      title="Delete from the registry and remove the .gguf file"
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-muted-foreground/70 mt-3 text-sm">
@@ -1782,6 +1905,24 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
             base). Do this before switching base models.
           </span>
         </div>
+        {runs.length > 0 && (
+          <div className="mt-4 border-t pt-3">
+            <h3 className="text-sm font-medium">Recent runs</h3>
+            <ul className="text-muted-foreground mt-2 space-y-1 text-xs">
+              {runs.slice(0, 5).map((run) => (
+                <li key={run.run_id} className="flex flex-wrap gap-x-3">
+                  <span>{new Date(run.started_at * 1000).toLocaleString()}</span>
+                  <span>{run.backend_id ?? "unknown backend"}</span>
+                  <span>{run.phase}</span>
+                  {run.best_val_loss != null && (
+                    <span>best val {run.best_val_loss.toFixed(3)}</span>
+                  )}
+                  {run.elapsed_seconds != null && <span>{fmtDuration(run.elapsed_seconds)}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
     </div>
   );

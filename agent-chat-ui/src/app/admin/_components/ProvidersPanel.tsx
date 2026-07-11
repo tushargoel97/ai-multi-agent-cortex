@@ -353,7 +353,7 @@ function SetKey({ onSave, isSet }: { onSave: (key: string) => void; isSet: boole
         onClick={() => setEditing(true)}
         className="text-muted-foreground text-xs hover:underline"
       >
-        {isSet ? "✓ Set, click to update" : "Not set, click to add"}
+        {isSet ? "Set, click to update" : "Not set, click to add"}
       </button>
     );
   }

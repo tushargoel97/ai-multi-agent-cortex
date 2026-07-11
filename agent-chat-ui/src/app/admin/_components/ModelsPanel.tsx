@@ -179,7 +179,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
       <div className="bg-muted/30 rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold">✨ Auto mode profile</h3>
+            <h3 className="text-sm font-semibold">Auto mode profile</h3>
             <p className="text-muted-foreground text-xs">
               When chat users pick “Auto”, the router intent selects the model from this profile
               (only enabled models are eligible).

@@ -123,8 +123,8 @@ function ImageGenLoader() {
     <div className="mr-auto w-full max-w-md">
       <div className="imggen-frame">
         <div className="imggen-frame__label">
-          <Sparkles className="size-3.5 animate-pulse text-sky-500/80 dark:text-sky-300/80" />
-          Generating your image…
+          <Sparkles className="size-3.5 text-sky-500/80 dark:text-sky-300/80" />
+          <span className="shimmer-text">Generating your image…</span>
         </div>
       </div>
     </div>
@@ -173,19 +173,14 @@ export function AgentTrace({ messages, live }: { messages: Message[]; live: bool
         )}
       >
         {live ? (
-          <Sparkles className="size-3.5 animate-pulse text-amber-500" />
+          <Sparkles className="size-3.5 text-amber-500" />
         ) : (
           <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
         )}
-        <span className="font-medium">{live ? "Working through it" : "Thought process"}</span>
+        <span className={cn("font-medium", live && "shimmer-text")}>
+          {live ? "Working through it" : "Thought process"}
+        </span>
         {summary && <span className="text-muted-foreground/60">· {summary}</span>}
-        {live && (
-          <span className="ml-0.5 flex items-center gap-0.5">
-            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full" />
-            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full" />
-            <span className="bg-foreground/40 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full" />
-          </span>
-        )}
       </button>
 
       {expanded && (
@@ -198,11 +193,19 @@ export function AgentTrace({ messages, live }: { messages: Message[]; live: bool
                 <Icon
                   className={cn(
                     "mt-0.5 size-3.5 shrink-0",
-                    live && isLast ? "animate-pulse text-amber-500" : "text-muted-foreground/60",
+                    live && isLast ? "text-amber-500" : "text-muted-foreground/60",
                   )}
                 />
                 <div className="flex min-w-0 flex-col">
-                  <span className={step.muted ? "text-muted-foreground/70" : "text-foreground/80"}>
+                  <span
+                    className={cn(
+                      live && isLast
+                        ? "shimmer-text"
+                        : step.muted
+                          ? "text-muted-foreground/70"
+                          : "text-foreground/80",
+                    )}
+                  >
                     {step.label}
                   </span>
                   {step.detail && (

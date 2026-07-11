@@ -349,7 +349,7 @@ def save_learned_entry(entry: dict) -> bool:
 # new packs are created and rows appended to the pack's learned facts (hardware
 # rows merge into its learned layer: the same place spec import writes).
 
-_IMPORT_MAX_TEXT = 16000
+_IMPORT_MAX_TEXT = 48000
 
 _AUTO_IMPORT_PROMPT = """You are organizing scraped content into a training taxonomy.
 Existing domains → subdomains:
@@ -374,8 +374,8 @@ SOURCE TEXT:
 
 _EXTRACT_IMPORT_PROMPT = """Extract every distinct entity from the SOURCE TEXT as
 STRICT JSON: {{"entities": [{{"name": "str", "aliases": ["str"], ...}}]}}. Use
-ONLY these fields: {fields}. Copy values from the text; omit unknowns. Skip
-entities with fewer than 2 known fields. At most 40 entities. No commentary.
+ONLY these fields: {fields}. Check every field against the source, copy grounded
+values, and omit unknowns. At most 40 entities. No commentary.
 
 SOURCE TEXT:
 {text}"""
@@ -384,6 +384,7 @@ SOURCE TEXT:
 def _import_gather_text(items: list, on_log) -> str:
     from . import sources
 
+    per_source = max(6000, _IMPORT_MAX_TEXT // max(1, len(items)))
     parts: list[str] = []
     for item in items:
         try:
@@ -393,7 +394,7 @@ def _import_gather_text(items: list, on_log) -> str:
                 text = sources.extract_source(item, on_log=on_log)
                 label = item.get("name") or item.get("url") or item.get("id", "source")
             if text and len(text.strip()) > 40:
-                parts.append(f"[{label}]\n{text.strip()}")
+                parts.append(f"[{label}]\n{text.strip()[:per_source]}")
                 on_log(f"read {label}")
             else:
                 on_log(f"skip {label}: no usable text")
@@ -442,6 +443,76 @@ def _clean_import_entities(raw, fields: list[dict]) -> list[dict]:
     return out
 
 
+def _extract_import_entities(text: str, fields: list[dict]) -> list[dict]:
+    keys = ", ".join(f["key"] for f in fields) or "name"
+    data = _first_json(
+        _chat(_EXTRACT_IMPORT_PROMPT.format(fields=keys, text=text[:_IMPORT_MAX_TEXT]))
+    ) or {}
+    return _clean_import_entities(data.get("entities"), fields)
+
+
+_HARDWARE_SPEC_FIELDS = (
+    "release_year",
+    "launch_price_usd",
+    "cpu",
+    "gpu",
+    "compute_tflops",
+    "memory",
+    "memory_bandwidth",
+    "storage",
+    "display",
+    "power_watts",
+    "key_features",
+)
+_HARDWARE_CORE_FIELDS = (
+    "launch_price_usd",
+    "cpu",
+    "gpu",
+    "compute_tflops",
+    "memory",
+    "storage",
+)
+
+
+def _hardware_spec_count(entry: dict) -> int:
+    return sum(entry.get(key) not in (None, "", []) for key in _HARDWARE_SPEC_FIELDS)
+
+
+def _hardware_complete(entry: dict) -> bool:
+    return _hardware_spec_count(entry) >= 4 and sum(
+        entry.get(key) not in (None, "", []) for key in _HARDWARE_CORE_FIELDS
+    ) >= 2
+
+
+def _enrich_hardware_entities(entities: list[dict], log) -> list[dict]:
+    complete: list[dict] = []
+    for entry in entities:
+        if not _hardware_complete(entry):
+            log(f"enriching sparse hardware row: {entry['name']}")
+            try:
+                researched = research_product(entry["name"], on_log=log)
+            except Exception as exc:  # noqa: BLE001
+                log(f"enrichment failed: {type(exc).__name__}: {exc}")
+                researched = None
+            if researched:
+                aliases = {
+                    str(alias)
+                    for row in (researched, entry)
+                    for alias in row.get("aliases", [])
+                }
+                entry = {
+                    **{k: v for k, v in researched.items() if v not in (None, "", [])},
+                    **entry,
+                }
+                if aliases:
+                    entry["aliases"] = sorted(aliases)
+        if _hardware_complete(entry):
+            complete.append(entry)
+        else:
+            log(f"skipping incomplete hardware row: {entry['name']}")
+    return complete
+
+
 def propose(items: list, target: str, on_log=None) -> dict:
     """Return a reviewable import proposal (domain/subdomain/render/fields/
     entities). ``target`` is 'auto' (LLM detects) or 'domain/subdomain'."""
@@ -455,13 +526,23 @@ def propose(items: list, target: str, on_log=None) -> dict:
     if not target or target == "auto":
         log("classifying + extracting (LLM)…")
         data = _first_json(
-            _chat(_AUTO_IMPORT_PROMPT.format(existing=_existing_taxonomy(), text=text[:_IMPORT_MAX_TEXT]))
+            _chat(
+                _AUTO_IMPORT_PROMPT.format(
+                    existing=_existing_taxonomy(), text=text[:_IMPORT_MAX_TEXT]
+                )
+            )
         ) or {}
         domain = domains._slug(data.get("domain") or "misc")
         subdomain = domains._slug(data.get("subdomain") or "items")
         render = "spec_table" if data.get("render") == "spec_table" else "prose"
         fields = domains._normalize_fields(data.get("fields"))
         entities = _clean_import_entities(data.get("entities"), fields)
+        if _subdomain_exists(domain, subdomain):
+            cfg = domains.get_subdomain(domain, subdomain)
+            fields = cfg.get("fields") or fields
+            render = cfg.get("render", render)
+            log("re-extracting with the existing schema")
+            entities = _extract_import_entities(text, fields)
     else:
         domain, _, subdomain = target.partition("/")
         domain, subdomain = domains._slug(domain), domains._slug(subdomain)
@@ -469,11 +550,10 @@ def propose(items: list, target: str, on_log=None) -> dict:
         fields = cfg.get("fields") or []
         render = cfg.get("render", "prose")
         log("extracting entities (LLM)…")
-        keys = ", ".join(f["key"] for f in fields) or "name"
-        data = _first_json(
-            _chat(_EXTRACT_IMPORT_PROMPT.format(fields=keys, text=text[:_IMPORT_MAX_TEXT]))
-        ) or {}
-        entities = _clean_import_entities(data.get("entities"), fields)
+        entities = _extract_import_entities(text, fields)
+
+    if domain == "hardware" and subdomain in set(domains._hw_groups()):
+        entities = _enrich_hardware_entities(entities, log)
 
     log(f"proposed {len(entities)} entities → {domain}/{subdomain}")
     return {
@@ -491,6 +571,12 @@ def _apply_hardware_import(group: str, entities: list[dict]) -> dict:
 
     if group not in domains._hw_groups():
         raise ValueError(f"'{group}' is not a hardware subdomain.")
+    incomplete = [e.get("name", "unnamed") for e in entities if not _hardware_complete(e)]
+    if incomplete:
+        raise ValueError(
+            "Import rejected because these hardware rows are incomplete: "
+            + ", ".join(map(str, incomplete))
+        )
     by_name: dict[str, dict] = {
         str(e.get("name", "")).lower(): e
         for e in domains.get_subdomain("hardware", group)["entities"]
@@ -498,7 +584,8 @@ def _apply_hardware_import(group: str, entities: list[dict]) -> dict:
     for e in entities:
         name = str(e.get("name", "")).strip()
         if name:
-            by_name[name.lower()] = e
+            key = name.lower()
+            by_name[key] = {**by_name.get(key, {}), **e}
     rows = domains.set_entities("hardware", group, list(by_name.values()))
     return {"domain": "hardware", "subdomain": group, "count": len(entities), "total": len(rows)}
 

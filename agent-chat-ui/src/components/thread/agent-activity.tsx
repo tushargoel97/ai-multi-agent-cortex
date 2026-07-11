@@ -274,20 +274,15 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
 
   return (
     <div className="border-border bg-muted/40 mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border px-3.5 py-2">
-      <Icon className="text-muted-foreground size-4 animate-pulse" />
-      <span className="text-muted-foreground text-sm">{activity.label}</span>
-      <span className="flex items-center gap-1">
-        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full" />
-        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.4s_infinite] rounded-full" />
-        <span className="bg-foreground/50 h-1 w-1 animate-[pulse_1.4s_ease-in-out_0.8s_infinite] rounded-full" />
-      </span>
+      <Icon className="text-muted-foreground size-4" />
+      <span className="shimmer-text text-sm">{activity.label}</span>
       <span className="border-border text-muted-foreground/80 ml-1 border-l pl-2.5 text-[11px] tabular-nums">
         query ≈{formatTokens(queryTokens)} tk
         {total.input + total.output > 0 && (
           <>
             {" · thread "}
             {formatTokens(total.input)} in / {formatTokens(total.output)} out
-            {total.cached > 0 && <> · ⚡{formatTokens(total.cached)} cached</>}
+            {total.cached > 0 && <> · {formatTokens(total.cached)} cached</>}
           </>
         )}
       </span>

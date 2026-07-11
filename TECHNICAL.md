@@ -589,7 +589,7 @@ node (the specialist's table is already rendered in `spec_review`).
 
 ### 9.1 Auto mode
 
-The chat UI's default selection is **✨ Auto**, which sends the sentinel
+The chat UI's default selection is **Auto**, which sends the sentinel
 `model_id: "auto"` to the graph. The router classifies the message and each node
 resolves the best model for its intent from
 [`cortex/declarative/auto_mode.yaml`](cortex/declarative/auto_mode.yaml)
@@ -630,7 +630,7 @@ different provider.
 
 ### 9.5 The registry & key handling
 
-- The model picker offers **✨ Auto**, any **specific registered model** (used
+- The model picker offers **Auto**, any **specific registered model** (used
   for the entire turn), or a **Local LLM** (your own OpenAI-compatible endpoint,
   base URL + optional key + model name, without touching the registry).
 - Provider `api_key`s are **trimmed** on read (`ResolvedModel.__post_init__` in
@@ -668,7 +668,7 @@ toggles:
 
 Anthropic gets a `cache_control` breakpoint on the **static** system prompt (the
 dynamic memory context comes after it, so it doesn't bust the cache). The UI
-shows a ⚡ cached indicator when `usage_metadata.input_token_details.cache_read >
+shows a cached indicator when `usage_metadata.input_token_details.cache_read >
 0`. The `prompt_cacher` agent exists to demonstrate the savings with a large
 stable system prompt.
 
@@ -787,17 +787,22 @@ and its identity + off-domain refusals are **domain-aware**.
    atomic replace) → **Register** into the ai service as
    `finetuned-gemma3-1b-hardware` (the `-hardware` suffix is a **cosmetic label**;
    the model is trained on whichever subdomains you selected; registry contract:
-   `finetuned-` prefix under the local provider; **newest wins**). **Quick
-   top-up** resumes the existing adapters (`--resume-adapter-file`) for a fast
-   incremental train.
+   `finetuned-` prefix under the local provider). Validation selects the best
+   checkpoint and can stop after a plateau. Converted models remain drafts
+   until a 12-case evaluation passes and an administrator promotes them;
+   rollback restores the prior promoted model. **Quick top-up** resumes the
+   existing adapters (`--resume-adapter-file`) for a fast incremental train.
 
 Trainer responsibilities are separated by ownership: `trainer/app/backends/`
 contains backend contracts, registry, host capability discovery, adapter
 metadata compatibility, and MLX-specific preparation/training/fusion commands;
 `trainer/app/exporters/gguf.py` owns backend-independent tokenizer sanitation
 and llama.cpp GGUF conversion; `trainer/app/pipeline.py` only orchestrates job
-state, subprocess execution, progress, logging, and cancellation. Dataset,
-source, domain, scrape, and research modules remain backend-independent.
+state, subprocess execution, progress, logging, and cancellation.
+`trainer/app/runs.py` atomically persists run records under ignored artifacts
+and feeds measured throughput back into estimates. `trainer/app/evaluator.py`
+scores deterministic validation cases before promotion. Dataset, source,
+domain, scrape, and research modules remain backend-independent.
 5. **Knowledge gaps card**: specialist refusals / mismatches / LLM-fact-check
    fails are logged; "Research gaps (web)" → learned facts → regen → retrain.
 
@@ -861,7 +866,7 @@ Implemented in
 - **Flush effect**, when `isLoading` clears and `pending` exists, submit the
   pending message (auto-send the queued turn).
 - **Queued chip**, a dashed-border chip shows the pending text/attachment count
-  with an ✕ to cancel it.
+  with an X to cancel it.
 - **`handleCancel`**, `stream.stop()` (detaches the local stream) **and** POSTs
   `…/threads/{id}/runs/cancel` (cancels the detached **server** run, §4.6), since
   `stop()` alone would leave the server run going.
@@ -916,7 +921,7 @@ is one consolidated pill (`PromptToolbarMenu`) that mirrors Claude's nesting:
 
 - The pill shows the active model + the mode when it isn't General (e.g.
   `Auto Thinking`), and a server glyph in local mode.
-- Opening it lists **✨ Auto**, then a **Pinned** section (hidden when nothing is
+- Opening it lists **Auto**, then a **Pinned** section (hidden when nothing is
   pinned), then **Providers** — each provider (Anthropic, Google, OpenAI, …,
   derived from the registry) is a submenu of its models. Every model row has a
   hover **pin** toggle; pinning moves a model out of its provider list into
@@ -934,8 +939,8 @@ is one consolidated pill (`PromptToolbarMenu`) that mirrors Claude's nesting:
 
 Human and assistant messages share a hover action bar
 ([`components/thread/messages/shared.tsx`](agent-chat-ui/src/components/thread/messages/shared.tsx)):
-**copy** (green ✓ tick on success), **edit** (human, re-submits as a new branch),
-**regenerate** (assistant), and **👍 / 👎** feedback (assistant, local
+**copy** (green confirmation on success), **edit** (human, re-submits as a new branch),
+**regenerate** (assistant), and positive/negative feedback (assistant, local
 acknowledgement toast). The **last** assistant reply keeps its bar visible once
 the turn finishes (not hover-gated). Copy goes through `copyTextToClipboard`
 ([`lib/utils.ts`](agent-chat-ui/src/lib/utils.ts)), which uses

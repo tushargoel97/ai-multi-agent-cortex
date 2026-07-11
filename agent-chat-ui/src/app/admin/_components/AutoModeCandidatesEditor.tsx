@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { getAdminToken } from "../token";
 import { toast } from "sonner";
 import {
@@ -99,7 +100,6 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
 
   useEffect(() => {
     if (open) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, refreshKey]);
 
   // Canonical intent set for the selected profile (defaults ∪ overrides).
@@ -332,27 +332,30 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
                     </ol>
 
                     <div className="mt-2 flex items-center gap-2">
-                      <input
-                        list={`models-${key}`}
+                      <Select
+                        fullWidth
                         value={drafts[key] || ""}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addCandidate(profile, intent);
-                          }
-                        }}
-                        placeholder="model id (or 'finetuned')"
-                        className="bg-background/60 h-8 flex-1 rounded-md border px-2 text-xs"
+                        onValueChange={(value) =>
+                          setDrafts((draft) => ({ ...draft, [key]: value }))
+                        }
+                        placeholder="Select a model"
+                        ariaLabel={`Add model to ${INTENT_LABELS[intent] || intent}`}
+                        className="h-8 text-xs"
+                        options={[
+                          {
+                            value: "finetuned",
+                            label: "finetuned",
+                            hint: "Newest fine-tuned model",
+                            disabled: list.includes("finetuned"),
+                          },
+                          ...models.map((model) => ({
+                            value: model.model_id,
+                            label: model.model_id,
+                            hint: model.display_name,
+                            disabled: list.includes(model.model_id),
+                          })),
+                        ]}
                       />
-                      <datalist id={`models-${key}`}>
-                        <option value="finetuned" />
-                        {models.map((m) => (
-                          <option key={m.model_id} value={m.model_id}>
-                            {m.display_name}
-                          </option>
-                        ))}
-                      </datalist>
                       <button
                         type="button"
                         onClick={() => addCandidate(profile, intent)}

@@ -20,6 +20,7 @@ class AdapterMetadata:
     backend_id: str
     source_model: str
     training_model: str
+    run_id: str = ""
 
     @classmethod
     def load(cls, adapters_dir: Path, fallback_model: str) -> "AdapterMetadata":
@@ -32,6 +33,7 @@ class AdapterMetadata:
                 adapters_dir / "source_model.txt", training_model
             ),
             training_model=training_model,
+            run_id=_read_marker(adapters_dir / "run_id.txt", ""),
         )
 
     def write(self, adapters_dir: Path) -> None:
@@ -39,6 +41,7 @@ class AdapterMetadata:
         (adapters_dir / "backend_id.txt").write_text(self.backend_id)
         (adapters_dir / "source_model.txt").write_text(self.source_model)
         (adapters_dir / "base_model.txt").write_text(self.training_model)
+        (adapters_dir / "run_id.txt").write_text(self.run_id)
 
 
 def adapter_backend_id(adapters_dir: Path) -> str:

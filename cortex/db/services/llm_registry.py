@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from cortex.db.engine import get_session
 from cortex.db.models import LLMModel, LLMProvider, ProviderKind
+from cortex.db.services.app_settings import get_setting
 
 
 @dataclass
@@ -247,21 +249,25 @@ def build_client_from_resolved(
             raise ValueError(f"Unsupported provider kind: {resolved.kind}")
 
 
-# Contract with the admin UI: fine-tuned models are registered under the
-# local provider with this model_id prefix (see FinetunePanel / trainer).
 FINE_TUNED_PREFIX = "finetuned-"
+FINE_TUNED_LIFECYCLE_KEY = "finetuned_model_lifecycle"
 
 
 def get_fine_tuned_resolved_model(session: Session) -> ResolvedModel | None:
-    """Return the newest enabled fine-tuned model on an enabled local provider."""
+    """Return the explicitly promoted fine-tuned model."""
+    try:
+        model_id = json.loads(get_setting(FINE_TUNED_LIFECYCLE_KEY, "{}"))["active"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+    if not isinstance(model_id, str) or not model_id:
+        return None
     stmt = (
         select(LLMModel, LLMProvider)
         .join(LLMProvider, LLMModel.provider_id == LLMProvider.id)
         .where(LLMProvider.kind == ProviderKind.LOCAL.value)
-        .where(LLMModel.model_id.like(f"{FINE_TUNED_PREFIX}%"))
+        .where(LLMModel.model_id == model_id)
         .where(LLMModel.enabled.is_(True))
         .where(LLMProvider.enabled.is_(True))
-        .order_by(LLMModel.created_at.desc())
         .limit(1)
     )
     row = session.execute(stmt).first()

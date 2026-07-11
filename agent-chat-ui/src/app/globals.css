@@ -325,6 +325,30 @@
 .dark .imggen-frame__label {
   border-color: rgb(255 255 255 / 0.1);
 }
+/* ChatGPT-style thinking nudge: a light band sweeps through dim status
+   text (pairs with .text-muted-foreground-ish base). */
+.shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted-foreground) 35%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 65%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 2s linear infinite;
+}
+@keyframes shimmer-text {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
 /* Top-down develop of the finished image over the placeholder. */
 .imggen-reveal {
   animation: imggen-reveal 0.9s cubic-bezier(0.33, 0, 0.2, 1) both;
@@ -391,6 +415,11 @@
   .imggen-reveal,
   .edge-glow::after {
     animation: none;
+  }
+  .shimmer-text {
+    animation: none;
+    background: none;
+    color: var(--muted-foreground);
   }
 }
 

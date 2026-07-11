@@ -612,7 +612,11 @@ def _buying_examples(products: list[dict]) -> list[dict]:
     # (noun, tag) -> recommended products
     recs: dict[tuple[str, str], list[dict]] = {}
     for product in products:
-        noun = GROUP_NOUNS.get(product["_group"], product.get("category", "device"))
+        noun = (
+            "mobile SoC"
+            if str(product.get("category", "")).casefold() == "soc"
+            else GROUP_NOUNS.get(product["_group"], product.get("category", "device"))
+        )
         for tag in product.get("best_for", []):
             recs.setdefault((noun, tag), []).append(product)
 

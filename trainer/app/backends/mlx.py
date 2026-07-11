@@ -44,7 +44,6 @@ class _MlxBase:
     def estimate_seconds(
         self, *, iters: int, batch_size: int, needs_prepare: bool
     ) -> int:
-        # Baseline is calibrated at batch=4. Larger batches take longer per step.
         batch_factor = max(batch_size, 1) / 4
         train_seconds = iters / max(self.iters_per_second / batch_factor, 0.05)
         return max(1, round(train_seconds + (240 if needs_prepare else 0)))
@@ -78,7 +77,7 @@ class _MlxBase:
             "--steps-per-eval",
             "50",
             "--save-every",
-            "100",
+            "50",
         ]
         if config.resume:
             argv += [

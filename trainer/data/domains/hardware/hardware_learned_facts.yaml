@@ -1114,4 +1114,44 @@ learned:
 - name: Qualcomm Snapdragon 8 Gen 1
   exists: true
   group: cpus
+  brand: Qualcomm
+  category: Flagship SoC
+  release_year: 2021
+  cpu: Octa core (3 GHz, Single Core, Cortex X2 + 2.5 GHz, Tri core, Cortex A710 +
+    1.8 GHz, Quad core, Cortex A510)
   gpu: Adreno 730, 818 MHz
+  memory: LPDDR5
+  memory_bandwidth: 51.2 Gb/s
+  storage: UFS 3.1
+  display: UHD
+  key_features:
+  - 4 nm process technology
+  - AnTuTu score of 993,826
+  - Geekbench Single Core score of 1,225
+  - Geekbench Multi Core score of 3,613
+  best_for:
+  - Flagship smartphones
+  aliases:
+  - Snapdragon 8 Gen1
+  - Snapdragon 8G1
+  - SM8450
+- name: Google Tensor G5
+  exists: true
+  group: cpus
+  brand: Google
+  category: Flagship SoC
+  release_year: 2025
+  cpu: Octa core (3.78 GHz, Single Core, Cortex X4 + 3.05 GHz, Penta Core, Cortex
+    A725 + 2.25 GHz, Dual core, Cortex A520)
+  gpu: PowerVR DXT-48-1536, 1.1 GHz
+  memory: LPDDR5X
+  memory_bandwidth: 68.2 Gb/s
+  storage: UFS 4.0
+  display: 3840x2400
+  key_features:
+  - 3 nm process technology
+  - AnTuTu score of 1,565,089
+  - Geekbench Single Core score of 2,344
+  - Geekbench Multi Core score of 6,503
+  best_for:
+  - Flagship smartphones

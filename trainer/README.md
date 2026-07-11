@@ -43,12 +43,14 @@ generate dataset → train (live loss) → convert & register.
    - `mlx-lora`, the existing 16-bit LoRA path.
    - `mlx-qlora-4bit`, a cached one-time 4-bit conversion followed by LoRA
      adapter training with lower unified-memory requirements.
-   Progress and measured duration are returned by `GET /admin/progress`.
+   Validation selects the best saved checkpoint and stops after five stale
+   evaluations by default. `GET /admin/runs` returns durable run history, which
+   calibrates later time estimates.
 4. `POST /admin/convert`, `mlx_lm fuse` (adapters → HF safetensors), then
    llama.cpp `convert_hf_to_gguf.py --outtype q8_0` → `<repo>/models/<name>.gguf`.
-5. The UI then imports it into the ai service (`POST /admin/import-local`) and
-   registers it in the model registry with the **`finetuned-` model_id prefix**, 
-   that prefix is how the cortex `specialist` agent discovers the model.
+5. The UI imports and registers the GGUF as a draft, then evaluates 12 stable
+   validation cases. Only a passing, explicitly promoted model is used for
+   automatic specialist routing; rollback restores the previous promotion.
 
 ## Code ownership
 
@@ -65,7 +67,9 @@ trainer/
       mlx.py           MLX LoRA, QLoRA preparation, training, and fusion commands
     exporters/
       gguf.py          tokenizer sanitation and generic llama.cpp GGUF conversion
+    evaluator.py       bounded deterministic model evaluation
     pipeline.py        single-job orchestration, progress, logs, and cancellation
+    runs.py            durable run state and estimate calibration
   helpers/
     setup.sh           llama.cpp converter setup implementation
     restart.sh         scoped host-trainer restart implementation
