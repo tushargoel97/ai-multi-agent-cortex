@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { getThreadLabel, isPinned, useThreadActions, ThreadActionsMenu } from "./thread-actions";
+import Link from "next/link";
+
+const SCROLLER_CLASS =
+  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-border";
 
 /** Concatenated text of every message in a thread (for cross-thread search). */
 function threadText(t: Thread): string {
@@ -192,20 +196,12 @@ function ThreadList({
 
   return (
     <>
-      <div className="[&::-webkit-scrollbar-thumb]:bg-border flex h-full w-full flex-col items-start justify-start gap-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
-        <div className="w-full px-2 pt-1 pb-1">
-          <button
-            type="button"
-            onClick={() => {
-              setThreadId(null);
-              onThreadClick?.("");
-            }}
-            className="text-foreground hover:bg-muted ml-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
-          >
-            <Plus className="size-4" />
-            New chat
-          </button>
-        </div>
+      <div
+        className={cn(
+          SCROLLER_CLASS,
+          "flex min-h-0 w-full flex-1 flex-col items-start justify-start gap-1 overflow-y-auto pb-4",
+        )}
+      >
         {q && shown.length === 0 ? (
           <p className="text-muted-foreground w-full px-4 py-6 text-center text-sm">
             No chats match “{query.trim()}”.
@@ -267,9 +263,46 @@ function ThreadList({
   );
 }
 
+function NewChat({ onClick }: { onClick?: () => void }) {
+  const [, setThreadId] = useQueryState("threadId");
+  return (
+    <div className="w-full shrink-0 px-2 pb-1">
+      <button
+        type="button"
+        onClick={() => {
+          setThreadId(null);
+          onClick?.();
+        }}
+        className="text-foreground hover:bg-muted ml-2 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors"
+      >
+        <Plus className="size-4" />
+        New chat
+      </button>
+    </div>
+  );
+}
+
+function HistoryFooter() {
+  return (
+    <div className="flex w-full shrink-0 justify-start pt-1 pr-4 pb-3 pl-7">
+      <Link
+        href="/admin"
+        className="text-muted-foreground/70 hover:text-foreground text-xs transition-colors"
+      >
+        Admin portal
+      </Link>
+    </div>
+  );
+}
+
 function ThreadHistoryLoading() {
   return (
-    <div className="[&::-webkit-scrollbar-thumb]:bg-border flex h-full w-full flex-col items-start justify-start gap-2 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+    <div
+      className={cn(
+        SCROLLER_CLASS,
+        "flex min-h-0 w-full flex-1 flex-col items-start justify-start gap-2 overflow-y-auto",
+      )}
+    >
       {Array.from({ length: 30 }).map((_, i) => (
         <Skeleton key={`skeleton-${i}`} className="h-10 w-[280px]" />
       ))}
@@ -340,7 +373,7 @@ export default function ThreadHistory() {
 
   return (
     <>
-      <div className="shadow-inner-right border-border relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 border-r-[1px] lg:flex">
+      <div className="shadow-inner-right border-border relative hidden h-screen w-full shrink-0 flex-col items-start justify-start gap-2 overflow-hidden border-r-[1px] lg:flex">
         <div
           className={cn(
             "flex w-full items-center justify-between gap-2 pt-2 pr-3 pl-7",
@@ -370,7 +403,9 @@ export default function ThreadHistory() {
           </div>
         </div>
 
+        <NewChat />
         {threadsLoading ? <ThreadHistoryLoading /> : <ThreadList threads={threads} query={query} />}
+        <HistoryFooter />
 
         <div className="pointer-events-none absolute inset-x-2 top-2 z-30 flex justify-end">
           <div
@@ -419,7 +454,7 @@ export default function ThreadHistory() {
             setChatHistoryOpen(open);
           }}
         >
-          <SheetContent side="left" className="flex flex-col lg:hidden">
+          <SheetContent side="left" className="flex min-h-0 flex-col overflow-hidden lg:hidden">
             <SheetHeader>
               <SheetTitle>History</SheetTitle>
             </SheetHeader>
@@ -432,11 +467,17 @@ export default function ThreadHistory() {
                 className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
             </div>
-            <ThreadList
-              threads={threads}
-              query={query}
-              onThreadClick={() => setChatHistoryOpen((o) => !o)}
-            />
+            <NewChat onClick={() => setChatHistoryOpen(false)} />
+            {threadsLoading ? (
+              <ThreadHistoryLoading />
+            ) : (
+              <ThreadList
+                threads={threads}
+                query={query}
+                onThreadClick={() => setChatHistoryOpen(false)}
+              />
+            )}
+            <HistoryFooter />
           </SheetContent>
         </Sheet>
       </div>
