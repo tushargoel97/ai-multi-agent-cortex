@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-
-// Mirrors cortex/db/models/app_setting.py, created here too so the panel
-// works before the graph ever writes a setting.
-const ENSURE_TABLE = `
-  CREATE TABLE IF NOT EXISTS app_settings (
-    key varchar(100) PRIMARY KEY,
-    value text NOT NULL
-  )`;
+import { getAppSettings, setAppSetting } from "@/lib/app-settings";
 
 // Keys owned by cortex/db/services/auto_mode.py.
 const DEFAULTS_KEY = "auto_mode_defaults";
@@ -50,13 +43,7 @@ export async function GET(req: Request) {
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
 
-  await query(ENSURE_TABLE);
-  const { rows } = await query<{ key: string; value: string }>(
-    `SELECT key, value FROM app_settings WHERE key = ANY($1)`,
-    [[DEFAULTS_KEY, OVERRIDES_KEY, PROFILE_KEY]],
-  );
-  const settings: Record<string, string> = {};
-  for (const row of rows) settings[row.key] = row.value;
+  const settings = await getAppSettings([DEFAULTS_KEY, OVERRIDES_KEY, PROFILE_KEY]);
 
   // Enabled registry models feed the candidate picker (plus the special
   // "finetuned" keyword and image-model ids the admin can type in free-form).
@@ -104,11 +91,6 @@ export async function PUT(req: Request) {
     if (Object.keys(keptIntents).length > 0) cleaned[profile] = keptIntents;
   }
 
-  await query(ENSURE_TABLE);
-  await query(
-    `INSERT INTO app_settings (key, value) VALUES ($1, $2)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    [OVERRIDES_KEY, JSON.stringify(cleaned)],
-  );
+  await setAppSetting(OVERRIDES_KEY, JSON.stringify(cleaned));
   return NextResponse.json({ ok: true });
 }

@@ -195,7 +195,7 @@ export function AssistantMessage({
                   </span>
                   {cachedTokens(usage) > 0 && (
                     <span title="Prompt-cache hits, these input tokens were served from cache">
-                      · ⚡{formatTokens(cachedTokens(usage))} cached
+                      · {formatTokens(cachedTokens(usage))} cached
                     </span>
                   )}
                 </div>

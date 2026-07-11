@@ -3,7 +3,7 @@
 Agent Chat UI is a Next.js application which enables chatting with any LangGraph server with a `messages` key through a chat interface.
 
 > [!NOTE]
-> 🎥 Watch the video setup guide [here](https://youtu.be/lInrwVnZ83o).
+> Watch the video setup guide [here](https://youtu.be/lInrwVnZ83o).
 
 ## Setup
 
@@ -164,19 +164,12 @@ After which you can render additional content using the `Artifact` component fro
 import { useArtifact } from "../utils/use-artifact";
 import { LoaderIcon } from "lucide-react";
 
-export function Writer(props: {
-  title?: string;
-  content?: string;
-  description?: string;
-}) {
+export function Writer(props: { title?: string; content?: string; description?: string }) {
   const [Artifact, { open, setOpen }] = useArtifact();
 
   return (
     <>
-      <div
-        onClick={() => setOpen(!open)}
-        className="cursor-pointer rounded-lg border p-4"
-      >
+      <div onClick={() => setOpen(!open)} className="cursor-pointer rounded-lg border p-4">
         <p className="font-medium">{props.title}</p>
         <p className="text-sm text-gray-500">{props.description}</p>
       </div>

@@ -44,7 +44,7 @@ Tool-less `synthesize` node appended after the factual agents:
   (covers tools + system prefix). Dynamic context (memories, summaries) goes after the
   breakpoint so the static prefix stays cache-hot.
 - OpenAI / Gemini: automatic provider-side caching; no request changes.
-- UI: token badge and live thread counter show `⚡N cached` from
+- UI: token badge and live thread counter show `N cached` from
   `usage_metadata.input_token_details.cache_read`.
 
 ## 4. Image generation agent

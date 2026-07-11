@@ -37,15 +37,15 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "TRAINER_"}
 
     port: int = 8200
-    # Ungated HF-layout mirror of google/gemma-3-1b-it (the google/ repo is
-    # license-gated; this one needs no HF token).
+    host_id: str = "local-mac"
+    host_label: str = "Local Mac (MLX)"
+    default_backend: str = "mlx-lora"
     base_model: str = "unsloth/gemma-3-1b-it"
-
-    # Q&A generation from admin-provided sources (OpenAI-compatible endpoint).
-    # Defaults to the local llama.cpp service; point at OpenAI for quality.
     qa_base_url: str = "http://localhost:8100/v1"
     qa_api_key: str = "not-needed"
     qa_model: str = ""  # empty = first model listed by the endpoint
+    eval_base_url: str = "http://localhost:8100/v1"
+    eval_api_key: str = "not-needed"
 
     models_dir: Path = REPO_ROOT / "models"          # shared with the ai service (bind mount)
     data_dir: Path = REPO_ROOT / "trainer" / "data"
@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     @property
     def fused_dir(self) -> Path:
         return self.artifacts_dir / "fused"
+
+    @property
+    def runs_dir(self) -> Path:
+        return self.artifacts_dir / "runs"
 
     @property
     def convert_script(self) -> Path:

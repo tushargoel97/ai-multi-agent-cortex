@@ -4,14 +4,24 @@ RUN corepack enable && corepack prepare pnpm@10.5.1 --activate
 
 WORKDIR /app
 
-# Copy package.json only: the macOS lockfile has wrong native bindings
-# for Linux; let pnpm resolve the correct platform-specific deps.
-COPY agent-chat-ui/package.json ./
-RUN pnpm install
+# Install exactly the dependency graph committed for pnpm. Platform-specific
+# optional packages are resolved for Linux during the container build.
+COPY agent-chat-ui/package.json agent-chat-ui/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the UI source
 COPY agent-chat-ui/ .
 
+# Public client settings are compiled into the Next.js bundle. These defaults
+# keep the browser on the same-origin API proxy; deployments may override them
+# with Docker build args.
+ARG NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_ASSISTANT_ID=cortex
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_ASSISTANT_ID=${NEXT_PUBLIC_ASSISTANT_ID}
+
+RUN pnpm build
+
 EXPOSE 3000
 
-CMD ["pnpm", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["pnpm", "start", "--hostname", "0.0.0.0", "--port", "3000"]

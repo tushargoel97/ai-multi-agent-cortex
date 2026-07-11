@@ -8,6 +8,7 @@
 import asyncio
 import json
 import logging
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -22,6 +23,23 @@ from app.services import model_manager as mm
 
 logging.basicConfig(level=logging.INFO if not settings.debug else logging.DEBUG)
 logger = logging.getLogger(__name__)
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _start_background_task(coro, *, label: str) -> None:
+    """Keep a strong task reference and surface background failures in logs."""
+    task = asyncio.create_task(coro, name=label)
+    _background_tasks.add(task)
+
+    def _finished(done: asyncio.Task) -> None:
+        _background_tasks.discard(done)
+        if done.cancelled():
+            return
+        error = done.exception()
+        if error is not None:
+            logger.error("Background task %s failed: %s", label, error)
+
+    task.add_done_callback(_finished)
 
 
 @asynccontextmanager
@@ -87,8 +105,18 @@ async def admin_progress():
 async def admin_download(body: DownloadRequest):
     try:
         # Run download in a background task so we return immediately
-        asyncio.create_task(
-            mm.download_model(body.name, repo_id=body.repo_id, filename=body.filename)
+        mm.validate_download_request(
+            body.name,
+            repo_id=body.repo_id,
+            filename=body.filename,
+        )
+        _start_background_task(
+            mm.download_model(
+                body.name,
+                repo_id=body.repo_id,
+                filename=body.filename,
+            ),
+            label=f"download-model:{body.name}",
         )
         return {"name": body.name, "status": "started"}
     except ValueError as e:
@@ -119,16 +147,17 @@ async def admin_import_local(body: ImportRequest):
     """Register a GGUF already present in the models dir (e.g. host-trained),
     then load it so it's immediately servable."""
     try:
-        info = mm.import_local_model(
+        info = await mm.import_and_load_model(
             body.name,
             body.filename,
             description=body.description,
             context_length=body.context_length,
         )
-        await mm.load_model(body.name)
         return {"status": "imported", "model": info}
     except FileNotFoundError as e:
         raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception:
         logger.exception("Import failed")
         raise HTTPException(500, "Failed to import model")
@@ -186,19 +215,12 @@ def _msg_to_str(content) -> str:
 @app.post("/v1/chat/completions")
 async def openai_chat_completions(body: ChatRequest):
     requested = body.model
-    loaded = mm.loaded_model()
-
-    # Auto-load if a different downloaded model was requested
-    if requested and requested != loaded:
-        if not mm.is_downloaded(requested):
-            raise HTTPException(
-                404,
-                f"Model '{requested}' not downloaded. Download it via /admin/download first.",
-            )
-        await mm.load_model(requested)
-
-    llm = mm.get_llm()
-    if llm is None:
+    if requested and not mm.is_downloaded(requested):
+        raise HTTPException(
+            404,
+            f"Model '{requested}' not downloaded. Download it via /admin/download first.",
+        )
+    if requested is None and mm.get_llm() is None:
         raise HTTPException(
             503,
             "No model loaded. Load one via POST /admin/load { name: '...' }.",
@@ -213,46 +235,80 @@ async def openai_chat_completions(body: ChatRequest):
     if body.top_p is not None:
         kwargs["top_p"] = body.top_p
 
-    model_name = requested or loaded or "local"
-
     if not body.stream:
-        result = await asyncio.to_thread(lambda: llm.create_chat_completion(**kwargs))
+        try:
+            async with mm.model_session(requested) as (llm, model_name):
+                if llm is None:
+                    raise HTTPException(503, "No model is currently loaded.")
+                result = await asyncio.to_thread(
+                    lambda: llm.create_chat_completion(**kwargs)
+                )
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e))
         # Normalize to OpenAI shape (llama-cpp already mostly matches)
         result.setdefault("id", f"chatcmpl-{uuid.uuid4().hex}")
         result.setdefault("object", "chat.completion")
         result.setdefault("created", int(time.time()))
-        result["model"] = model_name
+        result["model"] = model_name or "local"
         return result
 
     async def event_stream():
-        kwargs_stream = {**kwargs, "stream": True}
-        cid = f"chatcmpl-{uuid.uuid4().hex}"
+        try:
+            async with mm.model_session(requested) as (llm, model_name):
+                if llm is None:
+                    error = {"error": {"message": "No model is currently loaded."}}
+                    yield f"data: {json.dumps(error)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
 
-        def _iter():
-            return llm.create_chat_completion(**kwargs_stream)
+                kwargs_stream = {**kwargs, "stream": True}
+                cid = f"chatcmpl-{uuid.uuid4().hex}"
+                loop = asyncio.get_running_loop()
+                queue: asyncio.Queue = asyncio.Queue()
+                sentinel = object()
+                stop = threading.Event()
 
-        # llama-cpp streaming is synchronous; wrap in a thread
-        loop = asyncio.get_running_loop()
-        queue: asyncio.Queue = asyncio.Queue()
-        sentinel = object()
+                def _producer():
+                    iterator = None
+                    try:
+                        iterator = llm.create_chat_completion(**kwargs_stream)
+                        for chunk in iterator:
+                            if stop.is_set():
+                                break
+                            chunk.setdefault("id", cid)
+                            chunk.setdefault("object", "chat.completion.chunk")
+                            chunk.setdefault("created", int(time.time()))
+                            chunk["model"] = model_name or "local"
+                            loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                    except Exception as error:
+                        loop.call_soon_threadsafe(queue.put_nowait, error)
+                    finally:
+                        if iterator is not None and hasattr(iterator, "close"):
+                            iterator.close()
+                        loop.call_soon_threadsafe(queue.put_nowait, sentinel)
 
-        def _producer():
-            try:
-                for chunk in _iter():
-                    chunk.setdefault("id", cid)
-                    chunk.setdefault("object", "chat.completion.chunk")
-                    chunk.setdefault("created", int(time.time()))
-                    chunk["model"] = model_name
-                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
-            finally:
-                loop.call_soon_threadsafe(queue.put_nowait, sentinel)
-
-        loop.run_in_executor(None, _producer)
-        while True:
-            item = await queue.get()
-            if item is sentinel:
-                yield "data: [DONE]\n\n"
-                break
-            yield f"data: {json.dumps(item)}\n\n"
+                producer = asyncio.create_task(
+                    asyncio.to_thread(_producer),
+                    name=f"local-inference:{model_name or 'local'}",
+                )
+                try:
+                    while True:
+                        item = await queue.get()
+                        if item is sentinel:
+                            yield "data: [DONE]\n\n"
+                            break
+                        if isinstance(item, Exception):
+                            logger.error("Streaming inference failed: %s", item)
+                            error = {"error": {"message": "Local inference failed."}}
+                            yield f"data: {json.dumps(error)}\n\n"
+                            continue
+                        yield f"data: {json.dumps(item)}\n\n"
+                finally:
+                    stop.set()
+                    await asyncio.shield(producer)
+        except FileNotFoundError as error:
+            payload = {"error": {"message": str(error)}}
+            yield f"data: {json.dumps(payload)}\n\n"
+            yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

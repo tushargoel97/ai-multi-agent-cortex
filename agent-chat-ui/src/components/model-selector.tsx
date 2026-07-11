@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Globe,
+  GripVertical,
   Pin,
   Server,
   ShieldOff,
@@ -289,6 +290,7 @@ function PromptToolbarMenu({
   isPinned,
   onSelectModel,
   onTogglePin,
+  onReorderPinned,
   toggles,
 }: {
   triggerLabel: string;
@@ -300,6 +302,7 @@ function PromptToolbarMenu({
   isPinned: (id: string) => boolean;
   onSelectModel: (id: string) => void;
   onTogglePin: (id: string) => void;
+  onReorderPinned: (source: string, target: string, after: boolean) => void;
   toggles: ToggleDef[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -320,6 +323,7 @@ function PromptToolbarMenu({
     | null
   >(null);
   const [subTop, setSubTop] = useState<number | null>(null);
+  const [draggedPinned, setDraggedPinned] = useState<string | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearHoverTimer = () => {
@@ -519,7 +523,7 @@ function PromptToolbarMenu({
             <div className="shrink-0" onMouseEnter={closeSubSoon}>
               <MenuRow checked={autoSelected} onClick={() => choose(AUTO_MODEL_ID)}>
                 <span className="flex flex-col">
-                  <span className="truncate">✨ Auto</span>
+                  <span className="truncate">Auto</span>
                   <span className="text-muted-foreground truncate text-[11px]">
                     Best model per task
                   </span>
@@ -527,12 +531,44 @@ function PromptToolbarMenu({
               </MenuRow>
             </div>
 
-            {/* Pinned: scrolls in place once tall enough to fill the menu. */}
             {pinnedModels.length > 0 && (
               <div className="flex min-h-0 flex-col" onMouseEnter={closeSubSoon}>
                 <div className={cn(sectionLabel, "shrink-0")}>Pinned</div>
                 <div className="min-h-0 overflow-y-auto">
-                  {pinnedModels.map((m) => modelRow(m, m.provider_name))}
+                  {pinnedModels.map((m) => (
+                    <div
+                      key={m.id}
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggedPinned(m.id);
+                        event.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (draggedPinned && draggedPinned !== m.id) {
+                          const box = event.currentTarget.getBoundingClientRect();
+                          onReorderPinned(
+                            draggedPinned,
+                            m.id,
+                            event.clientY > box.top + box.height / 2,
+                          );
+                        }
+                        setDraggedPinned(null);
+                      }}
+                      onDragEnd={() => setDraggedPinned(null)}
+                      className={cn(
+                        "flex cursor-grab items-center active:cursor-grabbing",
+                        draggedPinned === m.id && "opacity-40",
+                      )}
+                    >
+                      <GripVertical className="text-muted-foreground size-3.5 shrink-0" />
+                      <div className="min-w-0 flex-1">{modelRow(m, m.provider_name)}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -853,7 +889,6 @@ export default function ModelSelector({
   const selectedId = selection.use_local ? null : (selection.model_id ?? AUTO_MODEL_ID);
   const isPinned = (id: string) => pinnedIds.includes(id);
 
-  // Pinned models (in pin order) show after Auto; the rest group by provider.
   const pinnedModels = loaded
     ? pinnedIds.map((id) => models.find((m) => m.id === id)).filter((m): m is AvailableModel => !!m)
     : [];
@@ -874,6 +909,12 @@ export default function ModelSelector({
       ...selection,
       pinned_models: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
     });
+  };
+
+  const reorderPinned = (source: string, target: string, after: boolean) => {
+    const next = pinnedIds.filter((id) => id !== source);
+    next.splice(next.indexOf(target) + Number(after), 0, source);
+    onChange({ ...selection, pinned_models: next });
   };
 
   const toggles: ToggleDef[] = [
@@ -923,6 +964,7 @@ export default function ModelSelector({
             })
           }
           onTogglePin={togglePin}
+          onReorderPinned={reorderPinned}
           toggles={toggles}
         />
         {selection.unrestricted && (

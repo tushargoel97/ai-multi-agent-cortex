@@ -99,6 +99,10 @@ whitelisted_tools:
   - web_search
   - fetch_url
 
+user_prompt:
+  - |
+    {{ user_message }}
+
 ---
 
 # Coder: coding & software-engineering specialist.

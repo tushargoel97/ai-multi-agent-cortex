@@ -273,9 +273,9 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
         </div>
       </form>
 
-      <div className="bg-background/60 rounded-lg border">
+      <div className="bg-background/60 hover-scrollbar max-h-[36rem] overflow-auto overscroll-contain rounded-lg border [contain:paint]">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left">
+          <thead className="bg-muted sticky top-0 z-10 text-left">
             <tr>
               <th className="p-3">Name</th>
               <th className="p-3">Kind</th>
@@ -353,7 +353,7 @@ function SetKey({ onSave, isSet }: { onSave: (key: string) => void; isSet: boole
         onClick={() => setEditing(true)}
         className="text-muted-foreground text-xs hover:underline"
       >
-        {isSet ? "✓ Set, click to update" : "Not set, click to add"}
+        {isSet ? "Set, click to update" : "Not set, click to add"}
       </button>
     );
   }

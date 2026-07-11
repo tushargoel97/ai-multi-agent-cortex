@@ -274,7 +274,7 @@ export default function AgentsPanel() {
           />
           <div>
             <p className="text-muted-foreground mb-1 text-xs font-medium">Tools</p>
-            <ul className="max-h-56 space-y-0.5 overflow-y-auto rounded-md border p-2">
+            <ul className="hover-scrollbar max-h-56 space-y-0.5 overflow-y-auto rounded-md border p-2">
               {tools.map((t) => (
                 <li
                   key={t}
@@ -319,7 +319,7 @@ export default function AgentsPanel() {
       )}
 
       {/* Agent list */}
-      <ul className="space-y-2">
+      <ul className="hover-scrollbar max-h-[36rem] space-y-2 overflow-y-auto overscroll-contain pr-1 [contain:paint]">
         {agents.map((a) => {
           const e = edits[a.name] ?? {
             name: a.name,
@@ -440,7 +440,7 @@ export default function AgentsPanel() {
                       )}
                     </button>
                     {openCard === `${a.name}:tools` && (
-                      <ul className="max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
+                      <ul className="hover-scrollbar max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
                         {tools.map((t) => (
                           <li
                             key={t}
@@ -485,7 +485,7 @@ export default function AgentsPanel() {
                       )}
                     </button>
                     {openCard === `${a.name}:subs` && (
-                      <ul className="max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
+                      <ul className="hover-scrollbar max-h-64 space-y-0.5 overflow-y-auto border-t p-2">
                         {agents
                           .filter((x) => x.name !== a.name && x.enabled)
                           .map((x) => (

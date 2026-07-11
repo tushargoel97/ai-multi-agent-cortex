@@ -251,7 +251,7 @@ export default function ToolsPanel() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold">Tools & MCP</h2>
@@ -271,12 +271,11 @@ export default function ToolsPanel() {
         </div>
       )}
 
-      {/* Tools list */}
       <section className="space-y-2">
         <h3 className="flex items-center gap-2 text-sm font-medium">
           <Wrench className="size-4" /> Available tools ({tools.length})
         </h3>
-        <ul className="divide-y rounded-md border">
+        <ul className="hover-scrollbar max-h-[36rem] divide-y overflow-y-auto overscroll-contain rounded-md border [contain:paint]">
           {tools.map((t) => (
             <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
@@ -319,192 +318,198 @@ export default function ToolsPanel() {
         </ul>
       </section>
 
-      {/* Removed tools */}
-      {suppressed.length > 0 && (
-        <section className="space-y-2">
-          <h3 className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
-            <Trash2 className="size-4" /> Removed tools ({suppressed.length})
-          </h3>
-          <ul className="flex flex-wrap gap-2">
-            {suppressed.map((name) => (
-              <li
-                key={name}
-                className="bg-muted/40 flex items-center gap-1 rounded border px-2 py-1"
-              >
-                <span className="text-muted-foreground font-mono text-xs">{name}</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === `restore-${name}`}
-                  onClick={() => void restoreTool(name)}
-                >
-                  Restore
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Add LangChain tool */}
-      <section className="space-y-2 rounded-md border border-dashed p-3">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
-          <Plus className="size-4" /> Add a prebuilt LangChain tool
-        </h3>
-        <div className="flex flex-wrap items-end gap-2">
-          <Select
-            className="h-9 min-w-[220px]"
-            placeholder="Select a tool…"
-            value={catalogId}
-            onValueChange={(v) => {
-              setCatalogId(v);
-              setCatalogCfg({});
-            }}
-            options={catalog.map((c) => ({
-              value: c.id,
-              label: c.label,
-              disabled: !c.available,
-              hint: c.available ? undefined : "not installed",
-            }))}
-          />
-          {selectedCatalog?.config_fields.map((field) => (
-            <Input
-              key={field}
-              className="h-9 w-48"
-              placeholder={field}
-              value={catalogCfg[field] ?? ""}
-              onChange={(e) => setCatalogCfg((p) => ({ ...p, [field]: e.target.value }))}
-            />
-          ))}
-          <Button
-            size="sm"
-            disabled={!catalogId || busy === "add-catalog"}
-            onClick={() => void addCatalogTool()}
-          >
-            {busy === "add-catalog" ? (
-              <Loader2 className="mr-1 size-4 animate-spin" />
-            ) : (
-              <Plus className="mr-1 size-4" />
-            )}
-            Add
-          </Button>
-        </div>
-        {selectedCatalog && (
-          <p className="text-muted-foreground text-[11px]">{selectedCatalog.description}</p>
-        )}
-      </section>
-
-      {/* MCP servers */}
-      <section className="space-y-2">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
-          <Plug className="size-4" /> MCP servers ({mcpServers.length})
-        </h3>
-        <ul className="divide-y rounded-md border">
-          {mcpServers.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium">{s.name}</span>
-                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
-                    {s.transport}
-                  </span>
-                </div>
-                <p className="text-muted-foreground truncate font-mono text-[11px]">
-                  {s.url || s.command || ""}
-                </p>
-                {s.last_error && (
-                  <p className="text-destructive truncate text-[11px]">{s.last_error}</p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                  <Switch
-                    checked={s.enabled}
-                    disabled={busy === s.id}
-                    onCheckedChange={() => void toggleMcp(s)}
-                  />
-                  Enabled
-                </div>
-                <DeleteButton
-                  disabled={busy === s.id}
-                  onClick={() => void deleteMcp(s)}
-                  title="Remove MCP server"
-                />
-              </div>
-            </li>
-          ))}
-          {mcpServers.length === 0 && (
-            <li className="text-muted-foreground px-3 py-4 text-sm">No MCP servers registered.</li>
+      <details className="bg-background/40 shrink-0 rounded-md border">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+          Tool &amp; MCP setup
+        </summary>
+        <div className="space-y-6 border-t p-3">
+          {suppressed.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                <Trash2 className="size-4" /> Removed tools ({suppressed.length})
+              </h3>
+              <ul className="flex flex-wrap gap-2">
+                {suppressed.map((name) => (
+                  <li
+                    key={name}
+                    className="bg-muted/40 flex items-center gap-1 rounded border px-2 py-1"
+                  >
+                    <span className="text-muted-foreground font-mono text-xs">{name}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy === `restore-${name}`}
+                      onClick={() => void restoreTool(name)}
+                    >
+                      Restore
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-        </ul>
 
-        <div className="space-y-2 rounded-md border border-dashed p-3">
-          <p className="text-sm font-medium">Register an MCP server</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              className="h-9 w-40"
-              placeholder="name"
-              value={mcpName}
-              onChange={(e) => setMcpName(e.target.value)}
-            />
-            <Select
-              className="h-9 min-w-[160px]"
-              value={mcpTransport}
-              onValueChange={setMcpTransport}
-              options={[
-                { value: "streamable_http", label: "streamable_http" },
-                { value: "sse", label: "sse" },
-                { value: "stdio", label: "stdio" },
-              ]}
-            />
-            {mcpTransport === "stdio" ? (
-              <>
+          <section className="space-y-2 rounded-md border border-dashed p-3">
+            <h3 className="flex items-center gap-2 text-sm font-medium">
+              <Plus className="size-4" /> Add a prebuilt LangChain tool
+            </h3>
+            <div className="flex flex-wrap items-end gap-2">
+              <Select
+                className="h-9 min-w-[220px]"
+                placeholder="Select a tool…"
+                value={catalogId}
+                onValueChange={(v) => {
+                  setCatalogId(v);
+                  setCatalogCfg({});
+                }}
+                options={catalog.map((c) => ({
+                  value: c.id,
+                  label: c.label,
+                  disabled: !c.available,
+                  hint: c.available ? undefined : "not installed",
+                }))}
+              />
+              {selectedCatalog?.config_fields.map((field) => (
+                <Input
+                  key={field}
+                  className="h-9 w-48"
+                  placeholder={field}
+                  value={catalogCfg[field] ?? ""}
+                  onChange={(e) => setCatalogCfg((p) => ({ ...p, [field]: e.target.value }))}
+                />
+              ))}
+              <Button
+                size="sm"
+                disabled={!catalogId || busy === "add-catalog"}
+                onClick={() => void addCatalogTool()}
+              >
+                {busy === "add-catalog" ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-1 size-4" />
+                )}
+                Add
+              </Button>
+            </div>
+            {selectedCatalog && (
+              <p className="text-muted-foreground text-[11px]">{selectedCatalog.description}</p>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-sm font-medium">
+              <Plug className="size-4" /> MCP servers ({mcpServers.length})
+            </h3>
+            <ul className="divide-y rounded-md border">
+              {mcpServers.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{s.name}</span>
+                      <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
+                        {s.transport}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground truncate font-mono text-[11px]">
+                      {s.url || s.command || ""}
+                    </p>
+                    {s.last_error && (
+                      <p className="text-destructive truncate text-[11px]">{s.last_error}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                      <Switch
+                        checked={s.enabled}
+                        disabled={busy === s.id}
+                        onCheckedChange={() => void toggleMcp(s)}
+                      />
+                      Enabled
+                    </div>
+                    <DeleteButton
+                      disabled={busy === s.id}
+                      onClick={() => void deleteMcp(s)}
+                      title="Remove MCP server"
+                    />
+                  </div>
+                </li>
+              ))}
+              {mcpServers.length === 0 && (
+                <li className="text-muted-foreground px-3 py-4 text-sm">
+                  No MCP servers registered.
+                </li>
+              )}
+            </ul>
+
+            <div className="space-y-2 rounded-md border border-dashed p-3">
+              <p className="text-sm font-medium">Register an MCP server</p>
+              <div className="flex flex-wrap items-center gap-2">
                 <Input
                   className="h-9 w-40"
-                  placeholder="command"
-                  value={mcpCommand}
-                  onChange={(e) => setMcpCommand(e.target.value)}
+                  placeholder="name"
+                  value={mcpName}
+                  onChange={(e) => setMcpName(e.target.value)}
                 />
+                <Select
+                  className="h-9 min-w-[160px]"
+                  value={mcpTransport}
+                  onValueChange={setMcpTransport}
+                  options={[
+                    { value: "streamable_http", label: "streamable_http" },
+                    { value: "sse", label: "sse" },
+                    { value: "stdio", label: "stdio" },
+                  ]}
+                />
+                {mcpTransport === "stdio" ? (
+                  <>
+                    <Input
+                      className="h-9 w-40"
+                      placeholder="command"
+                      value={mcpCommand}
+                      onChange={(e) => setMcpCommand(e.target.value)}
+                    />
+                    <Input
+                      className="h-9 w-48"
+                      placeholder="args (space-separated)"
+                      value={mcpArgs}
+                      onChange={(e) => setMcpArgs(e.target.value)}
+                    />
+                  </>
+                ) : (
+                  <Input
+                    className="h-9 w-72"
+                    placeholder="https://server/mcp"
+                    value={mcpUrl}
+                    onChange={(e) => setMcpUrl(e.target.value)}
+                  />
+                )}
                 <Input
-                  className="h-9 w-48"
-                  placeholder="args (space-separated)"
-                  value={mcpArgs}
-                  onChange={(e) => setMcpArgs(e.target.value)}
+                  className="h-9 w-56"
+                  placeholder="headers/env JSON (optional)"
+                  value={mcpHeaders}
+                  onChange={(e) => setMcpHeaders(e.target.value)}
                 />
-              </>
-            ) : (
-              <Input
-                className="h-9 w-72"
-                placeholder="https://server/mcp"
-                value={mcpUrl}
-                onChange={(e) => setMcpUrl(e.target.value)}
-              />
-            )}
-            <Input
-              className="h-9 w-56"
-              placeholder="headers/env JSON (optional)"
-              value={mcpHeaders}
-              onChange={(e) => setMcpHeaders(e.target.value)}
-            />
-            <Button
-              size="sm"
-              disabled={!mcpName.trim() || busy === "add-mcp"}
-              onClick={() => void addMcp()}
-            >
-              {busy === "add-mcp" ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <Plus className="mr-1 size-4" />
-              )}
-              Add
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-[11px]">
-            Discovered MCP tools appear in the list above after the next langgraph restart, then can
-            be granted to agents in the Agents tab.
-          </p>
+                <Button
+                  size="sm"
+                  disabled={!mcpName.trim() || busy === "add-mcp"}
+                  onClick={() => void addMcp()}
+                >
+                  {busy === "add-mcp" ? (
+                    <Loader2 className="mr-1 size-4 animate-spin" />
+                  ) : (
+                    <Plus className="mr-1 size-4" />
+                  )}
+                  Add
+                </Button>
+              </div>
+              <p className="text-muted-foreground text-[11px]">
+                Discovered MCP tools appear in the list above after the next langgraph restart, then
+                can be granted to agents in the Agents tab.
+              </p>
+            </div>
+          </section>
         </div>
-      </section>
+      </details>
     </div>
   );
 }

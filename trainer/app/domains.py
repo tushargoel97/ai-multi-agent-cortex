@@ -216,7 +216,8 @@ def add_learned_entities(domain: str, sub: str, entities: list[dict]) -> list[di
         row = {k: v for k, v in e.items() if v not in (None, "", [])}
         row["name"] = name
         row["exists"] = True
-        by_name[name.lower()] = row
+        key = name.lower()
+        by_name[key] = {**by_name.get(key, {}), **row}
     rows = list(by_name.values())
     _write_yaml(path, {"learned": rows})
     return rows

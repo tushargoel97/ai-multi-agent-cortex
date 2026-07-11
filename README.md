@@ -35,7 +35,7 @@ CLI for day-to-day use.
 - **Self-trained local specialist**, a fine-tuned Gemma 3 1B answers from its own
   weights for any domain you train; on a gap it self-critiques and hands off to
   live web-RAG so the answer is still correct and sourced.
-- **✨ Auto mode**, picks the best model per intent from your registry, with
+- **Auto mode**, picks the best model per intent from your registry, with
   automatic **quota/outage fallback** and graceful, no-crash error replies.
 - **Durable by default**, threads, checkpoints, and long-term memory persist in
   Postgres via a **custom self-hosted LangGraph server**, no LangSmith licence,
@@ -93,7 +93,8 @@ CLI for day-to-day use.
 ┌─────────┐  ┌────────────┐     ┌────────────┐      ┌───────────┐
 │pgvector │  │ ai service │     │  trainer   │      │  Langfuse │
 │  :5432  │  │   :8100    │     │   :8200    │      │   :4000   │
-│registry │  │ llama.cpp  │     │  MLX LoRA  │      │  traces   │
+│registry │  │ llama.cpp  │     │ MLX LoRA/  │      │  traces   │
+│         │  │            │     │   QLoRA    │      │           │
 │  + KB   │  │ GGUF serve │     │  (on host) │      │           │
 └─────────┘  └────────────┘     └────────────┘      └───────────┘
 ```
@@ -105,7 +106,7 @@ CLI for day-to-day use.
 | `ui`        | 3000 | Chat UI + `/admin` console                              |
 | `ai`        | 8100 | llama.cpp GGUF server for local / fine-tuned models     |
 | `mcp`       | 8811 | FastMCP server re-exposing the stateless tools          |
-| `trainer` † | 8200 | Host-side MLX LoRA fine-tuning (not Docker)             |
+| `trainer` † | 8200 | Host-side MLX LoRA/QLoRA fine-tuning (not Docker)       |
 | `langfuse`  | 4000 | Tracing UI (profile `observability`)                    |
 
 † The trainer is the only non-containerized component (MLX needs Apple Silicon).
@@ -153,7 +154,7 @@ Prefer a starter registry + knowledge base? See
 
 **4. Open the chat UI**
 
-Visit <http://localhost:3000> and start a conversation. With **✨ Auto** selected,
+Visit <http://localhost:3000> and start a conversation. With **Auto** selected,
 the router dispatches each turn to the right specialist and picks the best model
 for the job.
 

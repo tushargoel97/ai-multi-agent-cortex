@@ -19,7 +19,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { getApiKey } from "@/lib/api-key";
 import { useThreads } from "./Thread";
 import { toast } from "sonner";
-import { createClient } from "./client";
+import { createClient, resolveApiUrl } from "./client";
 
 export type StateType = { messages: Message[]; ui?: UIMessage[] };
 
@@ -145,8 +145,9 @@ const StreamSession = ({
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
+  const resolvedApiUrl = resolveApiUrl(apiUrl);
   const streamValue = useTypedStream({
-    apiUrl,
+    apiUrl: resolvedApiUrl,
     apiKey: apiKey ?? undefined,
     assistantId,
     ...(authScheme && {
@@ -173,7 +174,7 @@ const StreamSession = ({
       // Wait for some seconds before fetching so we're able to get the new thread that was created.
       sleep().then(() => getThreads().then(setThreads).catch(console.error));
       // Auto-title newly-created threads from their first user message.
-      autoTitleThread(id, apiUrl, apiKey, authScheme, () => {
+      autoTitleThread(id, resolvedApiUrl, apiKey, authScheme, () => {
         // Refresh sidebar so the new title shows up immediately.
         getThreads().then(setThreads).catch(console.error);
       }).catch((e) => console.warn("[stream] auto-title failed:", e));
@@ -244,13 +245,13 @@ const StreamSession = ({
   });
 
   useEffect(() => {
-    checkGraphStatus(apiUrl, apiKey, authScheme).then((ok) => {
+    checkGraphStatus(resolvedApiUrl, apiKey, authScheme).then((ok) => {
       if (!ok) {
         toast.error("Failed to connect to LangGraph server", {
           description: () => (
             <p>
-              Please ensure your graph is running at <code>{apiUrl}</code> and your API key is
-              correctly set (if connecting to a deployed graph).
+              Please ensure your graph is running at <code>{resolvedApiUrl}</code> and your API key
+              is correctly set (if connecting to a deployed graph).
             </p>
           ),
           duration: 10000,
@@ -259,7 +260,7 @@ const StreamSession = ({
         });
       }
     });
-  }, [apiKey, apiUrl, authScheme]);
+  }, [apiKey, authScheme, resolvedApiUrl]);
 
   return <StreamContext.Provider value={streamValue}>{children}</StreamContext.Provider>;
 };

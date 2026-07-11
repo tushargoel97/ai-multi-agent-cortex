@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/admin-auth";
-
-// Host-side MLX trainer (runs outside Docker, see trainer/README.md).
-const TRAINER_URL = process.env.TRAINER_URL ?? "http://host.docker.internal:8200";
+import { trainerUrl } from "@/lib/trainer";
 
 async function proxy(req: NextRequest, path: string) {
-  const url = `${TRAINER_URL}${path}${req.nextUrl.search}`;
-  // Pass the original content type through (multipart uploads carry their
-  // boundary in it); default to JSON for body-less/plain requests.
+  const url = `${trainerUrl}${path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type") ?? "application/json";
   const init: RequestInit = {
     method: req.method,
@@ -27,7 +23,7 @@ async function proxy(req: NextRequest, path: string) {
     return NextResponse.json(
       {
         error:
-          `Trainer unreachable at ${TRAINER_URL}: ${(e as Error).message}. ` +
+          `Trainer unreachable at ${trainerUrl}: ${(e as Error).message}. ` +
           "Start it on the host: cd trainer && uv run uvicorn app.main:app --host 0.0.0.0 --port 8200",
       },
       { status: 502 },

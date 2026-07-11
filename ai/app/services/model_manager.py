@@ -6,6 +6,8 @@ import logging
 import os
 import re
 import shutil
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 import httpx
 
@@ -16,6 +18,8 @@ logger = logging.getLogger(__name__)
 _llm = None
 _loaded_model_name: str | None = None
 _download_progress: dict[str, dict] = {}
+_model_lock = asyncio.Lock()
+_download_locks: dict[str, asyncio.Lock] = {}
 
 MODELS_DIR = settings.models_dir
 
@@ -106,18 +110,29 @@ def _remove_custom_entry(name: str) -> None:
 _load_custom_catalog()
 
 
+def _path_in_models_dir(filename: str) -> str:
+    """Resolve a catalog filename without allowing it to escape MODELS_DIR."""
+    root = os.path.realpath(MODELS_DIR)
+    path = os.path.realpath(os.path.join(root, filename))
+    if os.path.commonpath((root, path)) != root:
+        raise ValueError(
+            "Model filename must resolve inside the configured models directory."
+        )
+    return path
+
+
 def import_local_model(
     name: str,
     filename: str,
     description: str | None = None,
     context_length: int = 4096,
 ) -> dict:
-    """Register a GGUF that is already on disk in MODELS_DIR (e.g. fine-tuned)."""
+    """Register a GGUF already on disk. Call through import_and_load_model."""
     global _llm, _loaded_model_name
-    path = os.path.join(MODELS_DIR, filename)
+    path = _path_in_models_dir(filename)
     if not os.path.exists(path):
         raise FileNotFoundError(f"No file {filename!r} in {MODELS_DIR}")
-    # The file may be a retrained replacement of an already-loaded model, 
+    # The file may be a retrained replacement of an already-loaded model,
     # drop the in-memory instance so the next load reads the new weights.
     if _loaded_model_name == name:
         _llm = None
@@ -140,7 +155,11 @@ def _model_path(name: str) -> str | None:
     info = MODEL_CATALOG.get(name)
     if not info:
         return None
-    p = os.path.join(MODELS_DIR, info["filename"])
+    try:
+        p = _path_in_models_dir(info["filename"])
+    except ValueError:
+        logger.error("Ignoring unsafe model path for catalog entry %s", name)
+        return None
     return p if os.path.exists(p) else None
 
 
@@ -242,104 +261,127 @@ def download_progress() -> dict[str, dict]:
     return dict(_download_progress)
 
 
+def validate_download_request(
+    name: str,
+    *,
+    repo_id: str | None = None,
+    filename: str | None = None,
+) -> None:
+    """Validate before a background download task is accepted by the API."""
+    if name not in MODEL_CATALOG and (not repo_id or not filename):
+        raise ValueError(
+            f"Unknown model {name!r}. Provide repo_id and filename for non-catalog models."
+        )
+    if filename:
+        _path_in_models_dir(filename)
+
+
 async def download_model(
     name: str,
     *,
     repo_id: str | None = None,
     filename: str | None = None,
 ) -> dict:
-    if name not in MODEL_CATALOG:
-        if not repo_id or not filename:
-            raise ValueError(
-                f"Unknown model {name!r}. Provide repo_id and filename for non-catalog models."
+    validate_download_request(name, repo_id=repo_id, filename=filename)
+    download_lock = _download_locks.setdefault(name, asyncio.Lock())
+    async with download_lock:
+        if name not in MODEL_CATALOG:
+            MODEL_CATALOG[name] = {
+                "repo_id": repo_id,
+                "filename": filename,
+                "description": f"Community model from {repo_id}",
+                "size_mb": 0,
+                "context_length": 4096,
+                "parameters": "",
+                "tags": ["community"],
+            }
+            _persist_custom_entry(name, MODEL_CATALOG[name])
+        info = MODEL_CATALOG[name]
+
+        if is_downloaded(name):
+            return {"name": name, "status": "already_downloaded"}
+
+        os.makedirs(MODELS_DIR, exist_ok=True)
+        _download_progress[name] = {
+            "progress": 0,
+            "downloaded_mb": 0,
+            "total_mb": info["size_mb"],
+            "status": "starting",
+        }
+
+        def _update(current: int, total: int) -> None:
+            total_mb = round(total / (1024 * 1024), 1) if total else info["size_mb"]
+            _download_progress[name] = {
+                "progress": round(current / total * 100, 1) if total else 0,
+                "downloaded_mb": round(current / (1024 * 1024), 1),
+                "total_mb": total_mb,
+                "status": "downloading",
+            }
+
+        def _do_download():
+            from huggingface_hub import hf_hub_download
+            from tqdm import tqdm
+
+            class _Tqdm(tqdm):
+                def update(self, n=1):
+                    super().update(n)
+                    if self.total:
+                        _update(self.n, self.total)
+
+            fname = info["filename"]
+            shard = _SHARD_RE.search(fname)
+            if shard:
+                # Multi-part GGUF: fetch every shard into the same directory so
+                # llama.cpp can load the set from the first shard.
+                total_parts = int(shard.group(2))
+                prefix = fname[: shard.start()]
+                first_path = None
+                for i in range(1, total_parts + 1):
+                    part = f"{prefix}-{i:05d}-of-{total_parts:05d}.gguf"
+                    path = hf_hub_download(
+                        repo_id=info["repo_id"],
+                        filename=part,
+                        local_dir=MODELS_DIR,
+                        tqdm_class=_Tqdm,
+                    )
+                    if i == 1:
+                        first_path = path
+                return first_path
+            return hf_hub_download(
+                repo_id=info["repo_id"],
+                filename=fname,
+                local_dir=MODELS_DIR,
+                tqdm_class=_Tqdm,
             )
-        MODEL_CATALOG[name] = {
-            "repo_id": repo_id,
-            "filename": filename,
-            "description": f"Community model from {repo_id}",
-            "size_mb": 0,
-            "context_length": 4096,
-            "parameters": "",
-            "tags": ["community"],
-        }
-        _persist_custom_entry(name, MODEL_CATALOG[name])
-    info = MODEL_CATALOG[name]
 
-    if is_downloaded(name):
-        return {"name": name, "status": "already_downloaded"}
+        try:
+            path = await asyncio.to_thread(_do_download)
+            _download_progress[name] = {
+                **_download_progress.get(name, {}),
+                "progress": 100,
+                "status": "complete",
+            }
+            return {"name": name, "status": "downloaded", "path": path}
+        except Exception:
+            _download_progress[name]["status"] = "error"
+            raise
+        finally:
 
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    _download_progress[name] = {
-        "progress": 0,
-        "downloaded_mb": 0,
-        "total_mb": info["size_mb"],
-        "status": "starting",
-    }
+            async def _cleanup():
+                await asyncio.sleep(10)
+                _download_progress.pop(name, None)
 
-    def _update(current: int, total: int) -> None:
-        total_mb = round(total / (1024 * 1024), 1) if total else info["size_mb"]
-        _download_progress[name] = {
-            "progress": round(current / total * 100, 1) if total else 0,
-            "downloaded_mb": round(current / (1024 * 1024), 1),
-            "total_mb": total_mb,
-            "status": "downloading",
-        }
-
-    def _do_download():
-        from huggingface_hub import hf_hub_download
-        from tqdm import tqdm
-
-        class _Tqdm(tqdm):
-            def update(self, n=1):
-                super().update(n)
-                if self.total:
-                    _update(self.n, self.total)
-
-        fname = info["filename"]
-        shard = _SHARD_RE.search(fname)
-        if shard:
-            # Multi-part GGUF: fetch every shard into the same directory so
-            # llama.cpp can load the set from the first shard.
-            total_parts = int(shard.group(2))
-            prefix = fname[: shard.start()]
-            first_path = None
-            for i in range(1, total_parts + 1):
-                part = f"{prefix}-{i:05d}-of-{total_parts:05d}.gguf"
-                path = hf_hub_download(
-                    repo_id=info["repo_id"],
-                    filename=part,
-                    local_dir=MODELS_DIR,
-                    tqdm_class=_Tqdm,
-                )
-                if i == 1:
-                    first_path = path
-            return first_path
-        return hf_hub_download(
-            repo_id=info["repo_id"],
-            filename=fname,
-            local_dir=MODELS_DIR,
-            tqdm_class=_Tqdm,
-        )
-
-    try:
-        path = await asyncio.to_thread(_do_download)
-        _download_progress[name] = {
-            **_download_progress.get(name, {}),
-            "progress": 100,
-            "status": "complete",
-        }
-        return {"name": name, "status": "downloaded", "path": path}
-    except Exception:
-        _download_progress[name]["status"] = "error"
-        raise
-    finally:
-        async def _cleanup():
-            await asyncio.sleep(10)
-            _download_progress.pop(name, None)
-        asyncio.create_task(_cleanup())
+            asyncio.create_task(_cleanup())
 
 
 async def delete_model(name: str) -> bool:
+    async with _model_lock:
+        download_lock = _download_locks.setdefault(name, asyncio.Lock())
+        async with download_lock:
+            return _delete_model_unlocked(name)
+
+
+def _delete_model_unlocked(name: str) -> bool:
     global _llm, _loaded_model_name
     if name == _loaded_model_name:
         _llm = None
@@ -390,9 +432,47 @@ def _load_sync(name: str):
 
 
 async def load_model(name: str) -> None:
+    async with _model_lock:
+        await _load_model_unlocked(name)
+
+
+async def _load_model_unlocked(name: str) -> None:
     if not is_downloaded(name):
         await download_model(name)
     await asyncio.to_thread(_load_sync, name)
+
+
+async def import_and_load_model(
+    name: str,
+    filename: str,
+    description: str | None = None,
+    context_length: int = 4096,
+) -> dict:
+    """Atomically replace a catalog entry and make it the active model."""
+    async with _model_lock:
+        download_lock = _download_locks.setdefault(name, asyncio.Lock())
+        async with download_lock:
+            info = import_local_model(
+                name,
+                filename,
+                description=description,
+                context_length=context_length,
+            )
+            await asyncio.to_thread(_load_sync, name)
+            return info
+
+
+@asynccontextmanager
+async def model_session(
+    requested_model: str | None = None,
+) -> AsyncIterator[tuple[object | None, str | None]]:
+    """Serialize llama.cpp inference with model swaps and destructive admin work."""
+    async with _model_lock:
+        if requested_model and requested_model != _loaded_model_name:
+            if not is_downloaded(requested_model):
+                raise FileNotFoundError(f"Model {requested_model!r} not downloaded.")
+            await asyncio.to_thread(_load_sync, requested_model)
+        yield _llm, requested_model or _loaded_model_name
 
 
 def get_llm():

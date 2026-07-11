@@ -685,14 +685,12 @@ def _subagent_tool(
         except Exception:  # noqa: BLE001, a subagent must never crash the parent
             _persist_logger.exception("Subagent %r failed", subagent_name)
             return f"The '{subagent_name}' subagent could not complete the task."
-        msgs = result.get("messages", [])
-        final = msgs[-1] if msgs else None
-        if (
-            isinstance(final, AIMessage)
-            and isinstance(final.content, str)
-            and final.content.strip()
-        ):
-            return final.content
+        # Thinking models answer in content-block lists, not plain strings.
+        for m in reversed(result.get("messages", [])):
+            if isinstance(m, AIMessage):
+                text = _text_content(m).strip()
+                if text:
+                    return text
         return f"The '{subagent_name}' subagent returned no output."
 
     safe = re.sub(r"[^a-z0-9_]+", "_", subagent_name.lower()).strip("_") or "subagent"
@@ -733,11 +731,13 @@ _UNRESTRICTED_DIRECTIVE = (
 
 _ENGINEER_DIRECTIVE = (
     "ENGINEER MODE: act as a rigorous senior engineer. Produce complete, "
-    "production-quality code with edge cases handled. For any non-trivial "
-    "solution, or whenever the user reports failing/buggy code, delegate "
-    "verification to the `debugger` subagent tool: send it the code plus the "
-    "expected vs actual behavior, then fold its findings into the final "
-    "answer before replying. State briefly what the debugger checked."
+    "production-quality code with edge cases handled. MANDATORY verification "
+    "step, never skipped and never dependent on the user asking: before "
+    "finalizing ANY reply that contains code (new code, a fix, or a review "
+    "verdict), call the ask_debugger tool with the exact code you intend to "
+    "ship plus its expected vs actual (or intended) behavior. If it finds a "
+    "defect, fix the code and verify again. Fold the findings into your "
+    "answer and note in one line what the debugger verified."
 )
 
 _INSTANT_DIRECTIVE = (
@@ -1337,7 +1337,7 @@ async def synthesize(state: ChatState, config: RunnableConfig) -> dict[str, Any]
         notes = _code_syntax_notes(final.content)
         if not notes:
             return {}
-        note = "\n\n> ⚠️ **Syntax check:** " + "; ".join(notes[:3])
+        note = "\n\n> **Syntax check:** " + "; ".join(notes[:3])
         return {
             "messages": [
                 AIMessage(

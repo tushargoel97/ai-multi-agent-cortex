@@ -244,7 +244,8 @@ export function ThreadSearch({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                e.shiftKey ? prev() : next();
+                if (e.shiftKey) prev();
+                else next();
               }
               if (e.key === "Escape") onClose();
             }}
@@ -328,7 +329,6 @@ export function ThreadSearch({
                         rel="noopener noreferrer"
                         className="group hover:bg-muted flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=32`}
                           alt=""
