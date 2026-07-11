@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
         .slice(0, 12)
         .map((c: string) => c.replace(/\s+/g, " ").slice(0, 220));
     }
-  } catch {}
+  } catch {
+    // A malformed request has no usable conversation context.
+  }
   if (context.length === 0) return NextResponse.json({ suggestions: [] });
 
   const key = context.join("|");

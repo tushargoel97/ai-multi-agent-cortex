@@ -80,6 +80,43 @@ interface TrainerStatus {
   }[];
   import_target?: string;
   import_proposal?: ImportProposal | null;
+  backend_id?: string;
+  algorithm?: string;
+  estimated_seconds?: number;
+  elapsed_seconds?: number;
+}
+
+interface TrainerBackend {
+  id: string;
+  platform: string;
+  algorithm: string;
+  label: string;
+  quality_tier: string;
+  min_memory_gb: number;
+  resume_supported: boolean;
+  description: string;
+  available: boolean;
+  reason: string;
+  estimated_seconds: number;
+}
+
+interface BaseModelOption {
+  id: string;
+  label: string;
+  output: string;
+}
+
+interface TrainerCapabilities {
+  host_id: string;
+  label: string;
+  os: string;
+  arch: string;
+  gpu: { name: string; unified_memory: boolean };
+  ram_gb: number | null;
+  free_disk_gb: number;
+  default_backend: string;
+  backends: TrainerBackend[];
+  base_models: BaseModelOption[];
 }
 
 interface DatasetSplit {
@@ -131,7 +168,7 @@ const OUTCOME_STYLES: Record<string, string> = {
   empty: "bg-muted text-muted-foreground",
 };
 
-const BASE_MODELS = [
+const BASE_MODELS: BaseModelOption[] = [
   {
     id: "unsloth/gemma-3-1b-it",
     label: "Gemma 3 1B, recommended (~2 GB, fast train + serve, no HF login)",
@@ -145,7 +182,25 @@ const BASE_MODELS = [
 ];
 
 const DEFAULT_MODEL_NAME = BASE_MODELS[0].output;
-const BUSY_PHASES = ["training", "fusing", "converting", "researching", "scraping", "importing"];
+const BUSY_PHASES = [
+  "preparing",
+  "training",
+  "fusing",
+  "converting",
+  "researching",
+  "scraping",
+  "importing",
+];
+
+function fmtDuration(seconds?: number | null): string {
+  if (!seconds || seconds < 1) return "-";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `~${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `~${hours}h${rest ? ` ${rest}m` : ""}`;
+}
 
 function fmtParams(n?: number | null): string | null {
   if (!n || n <= 0) return null;
@@ -197,6 +252,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     Record<string, DatasetSplit> & {
       sources_count?: number;
       adapters_exist?: boolean;
+      adapters_backend_id?: string;
     }
   >({});
   const [sources, setSources] = useState<SourceEntry[]>([]);
@@ -211,6 +267,9 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const [proposalDismissed, setProposalDismissed] = useState(false);
   const [applying, setApplying] = useState(false);
   const [baseModel, setBaseModel] = useState(BASE_MODELS[0].id);
+  const [capabilities, setCapabilities] = useState<TrainerCapabilities | null>(null);
+  const [backendId, setBackendId] = useState("mlx-lora");
+  const [estimatedSeconds, setEstimatedSeconds] = useState<number | null>(null);
   const [iters, setIters] = useState(600);
   const [batchSize, setBatchSize] = useState(4);
   const [modelName, setModelName] = useState(DEFAULT_MODEL_NAME);
@@ -256,6 +315,20 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       if (d.ok) setDataset(await d.json());
     } catch {
       setTrainerUp(false);
+    }
+  }, [headers]);
+
+  const refreshCapabilities = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/trainer/capabilities", { headers: headers() });
+      if (!r.ok) return;
+      const data = (await r.json()) as TrainerCapabilities;
+      setCapabilities(data);
+      setBackendId((current) =>
+        data.backends.some((backend) => backend.id === current) ? current : data.default_backend,
+      );
+    } catch {
+      // Trainer reachability is handled by the regular progress poll.
     }
   }, [headers]);
 
@@ -323,9 +396,36 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     refreshSources();
     refreshGaps();
     refreshDomains();
+    refreshCapabilities();
     const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
-  }, [refresh, refreshSources, refreshGaps, refreshDomains]);
+  }, [refresh, refreshSources, refreshGaps, refreshDomains, refreshCapabilities]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const r = await fetch("/api/admin/trainer/estimate", {
+          method: "POST",
+          headers: headers(),
+          signal: controller.signal,
+          body: JSON.stringify({
+            backend_id: backendId,
+            base_model: baseModel,
+            iters,
+            batch_size: batchSize,
+          }),
+        });
+        if (r.ok) setEstimatedSeconds((await r.json()).estimated_seconds ?? null);
+      } catch {
+        if (!controller.signal.aborted) setEstimatedSeconds(null);
+      }
+    }, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [backendId, baseModel, batchSize, headers, iters]);
 
   // Capture a fresh import proposal once (the 2s poll must not clobber edits).
   useEffect(() => {
@@ -565,7 +665,12 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setError(null);
     setRegistered(false);
     try {
-      await post("train", { iters, batch_size: batchSize, base_model: baseModel });
+      await post("train", {
+        iters,
+        batch_size: batchSize,
+        base_model: baseModel,
+        backend_id: backendId,
+      });
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -586,6 +691,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         iters,
         batch_size: batchSize,
         base_model: baseModel,
+        backend_id: backendId,
         resume: true,
       });
       await refresh();
@@ -787,7 +893,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   };
 
   const phase = status.phase ?? "idle";
-  const training = phase === "training";
+  const training = phase === "training" || phase === "preparing";
   const converting = phase === "fusing" || phase === "converting";
   const jobRunning = BUSY_PHASES.includes(phase) || busy !== null;
   const trainPct =
@@ -799,6 +905,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const trainCount = dataset.train?.count ?? 0;
   const hasDataset = (dataset.train?.exists && dataset.valid?.exists) ?? false;
   const hasAdapters = !!dataset.adapters_exist;
+  const hasCompatibleAdapters =
+    hasAdapters && (dataset.adapters_backend_id ?? "mlx-lora") === backendId;
+  const baseModels = capabilities?.base_models?.length ? capabilities.base_models : BASE_MODELS;
+  const selectedBackend = capabilities?.backends.find((backend) => backend.id === backendId);
+  const backendAvailable = selectedBackend?.available ?? true;
 
   if (trainerUp === false) {
     return (
@@ -1285,7 +1396,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FlaskConical className="text-muted-foreground size-4" />
-            <h2 className="font-medium">2 · Train (MLX LoRA)</h2>
+            <h2 className="font-medium">2 · Train ({selectedBackend?.label ?? "MLX"})</h2>
           </div>
           {training ? (
             <Button size="sm" variant="destructive" onClick={stopTraining}>
@@ -1297,11 +1408,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
                 size="sm"
                 variant="outline"
                 onClick={startTopUp}
-                disabled={jobRunning || !hasDataset || !hasAdapters}
+                disabled={jobRunning || !hasDataset || !hasCompatibleAdapters || !backendAvailable}
                 title={
-                  hasAdapters
+                  hasCompatibleAdapters
                     ? "Warm-start from the current adapters and train fewer iters (≈400 recommended), teaches new facts without a full retrain"
-                    : "Run a full training once before a quick top-up"
+                    : hasAdapters
+                      ? `Existing adapters were trained with ${dataset.adapters_backend_id}; select that backend or run a full train.`
+                      : "Run a full training once before a quick top-up"
                 }
               >
                 {busy === "train" ? (
@@ -1311,7 +1424,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
                 )}
                 Quick top-up
               </Button>
-              <Button size="sm" onClick={startTraining} disabled={jobRunning || !hasDataset}>
+              <Button
+                size="sm"
+                onClick={startTraining}
+                disabled={jobRunning || !hasDataset || !backendAvailable}
+              >
                 {busy === "train" ? (
                   <Loader2 className="mr-1 size-4 animate-spin" />
                 ) : (
@@ -1322,6 +1439,57 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
             </div>
           )}
         </div>
+
+        {capabilities && (
+          <div className="mt-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">
+                Host: <span className="text-foreground font-medium">{capabilities.label}</span>
+                {capabilities.gpu.name ? ` · ${capabilities.gpu.name}` : ""}
+              </span>
+              <span className="text-muted-foreground">
+                {capabilities.ram_gb ? `${capabilities.ram_gb} GB RAM · ` : ""}
+                {capabilities.free_disk_gb} GB free
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {capabilities.backends.map((backend) => {
+                const selected = backend.id === backendId;
+                return (
+                  <button
+                    key={backend.id}
+                    type="button"
+                    disabled={!backend.available || training}
+                    onClick={() => setBackendId(backend.id)}
+                    title={backend.available ? backend.description : backend.reason}
+                    className={`rounded-lg border p-3 text-left transition ${
+                      selected
+                        ? "border-primary bg-primary/5 ring-primary/20 ring-2"
+                        : "bg-muted/20 hover:bg-muted/40"
+                    } disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{backend.label}</span>
+                      <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-medium">
+                        {backend.quality_tier}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground mt-1 text-xs">{backend.description}</p>
+                    <div className="text-muted-foreground mt-2 flex gap-3 text-[11px]">
+                      <span>
+                        {fmtDuration(selected ? estimatedSeconds : backend.estimated_seconds)}
+                      </span>
+                      <span>≥ {backend.min_memory_gb} GB unified memory</span>
+                    </div>
+                    {!backend.available && (
+                      <p className="mt-1 text-[11px] text-amber-600">{backend.reason}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-end gap-4">
           <div className="text-sm">
@@ -1336,14 +1504,14 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
                     return;
                   }
                   setBaseModel(v);
-                  const bm = BASE_MODELS.find((b) => b.id === v);
+                  const bm = baseModels.find((b) => b.id === v);
                   if (bm) setModelName(bm.output);
                 }}
                 className="bg-muted/50 hover:bg-muted h-9 rounded-full px-4"
                 menuClassName="max-w-[min(32rem,90vw)]"
                 options={[
-                  ...BASE_MODELS.map((b) => ({ value: b.id, label: b.label })),
-                  ...(!BASE_MODELS.some((b) => b.id === baseModel)
+                  ...baseModels.map((b) => ({ value: b.id, label: b.label })),
+                  ...(!baseModels.some((b) => b.id === baseModel)
                     ? [{ value: baseModel, label: `${baseModel} (custom)` }]
                     : []),
                   { value: "__search__", label: "Search Hugging Face…" },

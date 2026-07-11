@@ -67,7 +67,6 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
   return (
     <>
       <div className="group border-border bg-muted/30 relative my-3 w-full max-w-sm overflow-hidden rounded-2xl border shadow-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
           src={src}
@@ -116,7 +115,6 @@ export function GeneratedImage({ src, alt }: { src?: string; alt?: string }) {
             role="dialog"
             aria-modal="true"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={src}
               alt={alt || "Generated image"}

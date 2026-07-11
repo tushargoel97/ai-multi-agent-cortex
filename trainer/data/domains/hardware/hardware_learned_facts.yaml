@@ -10,35 +10,6 @@ learned:
   notes: AMD never released a desktop 'Ryzen 7 3700'. The closest parts are the Ryzen
     7 3700X (desktop, 2019, 8C/16T, $329) and the Ryzen 7 3700U/3700C laptop APUs.
     For a desktop comparison, use the Ryzen 7 3700X.
-- name: AMD Ryzen 7 3700X
-  brand: AMD
-  category: CPU
-  release_year: 2019
-  launch_price_usd: 325
-  cpu: 8 cores, 16 threads, 4.4 GHz single-core turbo
-  gpu: null
-  compute_tflops: null
-  memory: DDR4-3200
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - Strong Multicore Performance
-  - Efficient 7 nm Manufacturing
-  - Support for PCIe 4.0
-  - Generous 32 MB L3 Cache
-  best_for:
-  - Gaming
-  - Multitasking
-  - Content Creation
-  aliases:
-  - Ryzen 7 3700X
-  - Ryzen 3700X
-  - AMD Ryzen 3700X
-  - 3700X
-  exists: true
-  notes: ''
 - name: PlayStation 5 Slim
   brand: Sony
   category: Gaming Console
@@ -65,814 +36,6 @@ learned:
   exists: true
   notes: The PS5 Slim is a refreshed version of the original PS5, featuring a smaller
     form factor and increased storage.
-- name: AMD Ryzen AI 9 HX PRO 475
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 12 cores, 24 threads, @ 2 GHz, boost 5.2 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 24 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '475'
-  - Ryzen AI 9 HX PRO 475
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 440GE
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - L3 cache 16 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 440GE
-  - Ryzen AI 5 PRO 440GE
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 9 PRO 465
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 10 cores, 20 threads, @ 2 GHz, boost 5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 24 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '465'
-  - Ryzen AI 9 PRO 465
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 435G
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - L3 cache 8 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 435G
-  - Ryzen AI 5 PRO 435G
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 7 PRO 450GE
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - L3 cache 16 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 450GE
-  - Ryzen AI 7 PRO 450GE
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 435GE
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - L3 cache 8 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 435GE
-  - Ryzen AI 5 PRO 435GE
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 7 PRO 450
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 16 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '450'
-  - Ryzen AI 7 PRO 450
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 7 PRO 450G
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - L3 cache 16 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 450G
-  - Ryzen AI 7 PRO 450G
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 440
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 16 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '440'
-  - Ryzen AI 5 PRO 440
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 440G
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - L3 cache 16 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 440G
-  - Ryzen AI 5 PRO 440G
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 9 HX PRO 470
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 12 cores, 24 threads, @ 2 GHz, boost 5.2 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 24 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '470'
-  - Ryzen AI 9 HX PRO 470
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen AI 5 PRO 435
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 (FP8) 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - L3 cache 8 MB
-  - Socket FP8
-  - TSMC 4nm FinFET
-  - PCIe® 4.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '435'
-  - Ryzen AI 5 PRO 435
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen 7 PRO 9755
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 8 cores, 16 threads, @ 3.8 GHz, boost 5.4 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 120
-  key_features:
-  - L3 cache 32 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 5.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '9755'
-  - Ryzen 7 PRO 9755
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen 9 PRO 9965
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 16 cores, 32 threads, @ 4.3 GHz, boost 5.5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 170
-  key_features:
-  - L3 cache 64 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 5.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - '9965'
-  - Ryzen 9 PRO 9965
-  exists: true
-  notes: Specs from AMD's official product database
-- name: AMD Ryzen 9 PRO 9965X3D
-  brand: AMD
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 16 cores, 32 threads, @ 4.3 GHz, boost 5.5 GHz
-  gpu: null
-  compute_tflops: null
-  memory: DDR5 2 channels
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 170
-  key_features:
-  - L3 cache 128 MB
-  - Socket AM5
-  - TSMC 4nm FinFET
-  - PCIe® 5.0
-  best_for:
-  - Gaming
-  - Content Creation
-  aliases:
-  - 9965X3D
-  - Ryzen 9 PRO 9965X3D
-  exists: true
-  notes: Specs from AMD's official product database
-- name: Intel Core Ultra 7 270K Plus
-  brand: Intel
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 24 cores (8P+16E), 24 threads, P-core base 3.70 GHz, up to 5.50 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up To DDR5 7200 MT/s, max 256 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 125
-  key_features:
-  - 36 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 270K Plus
-  - Core Ultra 7 270K Plus
-  - Ultra 7 270K Plus
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 250K Plus
-  brand: Intel
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 18 cores (6P+12E), 18 threads, P-core base 4.20 GHz, up to 5.30 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up To DDR5 7200 MT/s, max 256 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 125
-  key_features:
-  - 30 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 250K Plus
-  - Core Ultra 5 250K Plus
-  - Ultra 5 250K Plus
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 250KF Plus
-  brand: Intel
-  category: CPU
-  release_year: 2026
-  launch_price_usd: null
-  cpu: 18 cores (6P+12E), 18 threads, P-core base 4.20 GHz, up to 5.30 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up To DDR5 7200 MT/s, max 256 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 125
-  key_features:
-  - 30 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 250KF Plus
-  - Core Ultra 5 250KF Plus
-  - Ultra 5 250KF Plus
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 9 285
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 24 cores (8P+16E), 24 threads, P-core base 2.50 GHz, up to 5.60 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 36 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - '285'
-  - Core Ultra 9 285
-  - Ultra 9 285
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 9 285T
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 24 cores (8P+16E), 24 threads, P-core base 1.40 GHz, up to 5.40 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - 36 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 285T
-  - Core Ultra 9 285T
-  - Ultra 9 285T
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 7 265
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 20 cores (8P+12E), 20 threads, P-core base 2.40 GHz, up to 5.30 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 30 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - '265'
-  - Core Ultra 7 265
-  - Ultra 7 265
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 7 265F
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 20 cores (8P+12E), 20 threads, P-core base 2.40 GHz, up to 5.30 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 30 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 265F
-  - Core Ultra 7 265F
-  - Ultra 7 265F
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 7 265T
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 20 cores (8P+12E), 20 threads, P-core base 1.50 GHz, up to 5.30 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - 30 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 265T
-  - Core Ultra 7 265T
-  - Ultra 7 265T
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 245
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 14 cores (6P+8E), 14 threads, P-core base 3.50 GHz, up to 5.10 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 24 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - '245'
-  - Core Ultra 5 245
-  - Ultra 5 245
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 245T
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 14 cores (6P+8E), 14 threads, P-core base 2.20 GHz, up to 5.10 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - 24 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 245T
-  - Core Ultra 5 245T
-  - Ultra 5 245T
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 235
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 14 cores (6P+8E), 14 threads, P-core base 3.40 GHz, up to 5.00 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 24 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - '235'
-  - Core Ultra 5 235
-  - Ultra 5 235
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 235T
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 14 cores (6P+8E), 14 threads, P-core base 2.20 GHz, up to 5.00 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 35
-  key_features:
-  - 24 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 235T
-  - Core Ultra 5 235T
-  - Ultra 5 235T
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 225
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 10 cores (6P+4E), 10 threads, P-core base 3.30 GHz, up to 4.90 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 20 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - '225'
-  - Core Ultra 5 225
-  - Ultra 5 225
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: Intel Core Ultra 5 225F
-  brand: Intel
-  category: CPU
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 10 cores (6P+4E), 10 threads, P-core base 3.30 GHz, up to 4.90 GHz
-  gpu: null
-  compute_tflops: null
-  memory: Up to DDR5 6400 MT/s, max 192 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 65
-  key_features:
-  - 20 MB cache
-  - Socket LGA1851
-  - 24 PCIe lanes
-  best_for:
-  - Gaming
-  - Productivity
-  aliases:
-  - 225F
-  - Core Ultra 5 225F
-  - Ultra 5 225F
-  exists: true
-  notes: Specs from Intel's official desktop comparison chart (PDF)
-- name: AMD Ryzen AI 9 HX 375
-  brand: AMD
-  category: Processor
-  release_year: 2025
-  launch_price_usd: 1779
-  cpu: 12 cores, 24 threads, up to 5.1 GHz
-  gpu: AMD Radeon 890M
-  compute_tflops: null
-  memory: DDR5-5600, LPDDR5x-8000, up to 256 GB
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - 4x Zen 5, 8x Zen 5c architecture
-  - TSMC 4nm FinFET technology
-  - Precision Boost Overdrive
-  - AMD EXPO Memory Overclocking Technology
-  best_for:
-  - Premium AI PCs
-  - Laptops
-  - Desktops
-  aliases:
-  - '375'
-  - Ryzen AI 9 HX 375
-  exists: true
-  notes: ''
-- name: AMD Ryzen AI 9 HX 370
-  brand: AMD
-  category: Processor
-  release_year: 2025
-  launch_price_usd: null
-  cpu: 12 Cores, 24 Threads, 4x Zen 5, 8x Zen 5c
-  gpu: AMD Radeon 890M
-  compute_tflops: null
-  memory: DDR5, LPDDR5X
-  memory_bandwidth: null
-  storage: null
-  display: null
-  power_watts: 28
-  key_features:
-  - Up to 5.1 GHz Boost Clock
-  - TSMC 4nm FinFET
-  - Precision Boost Overdrive
-  - AMD EXPO Memory Overclocking Technology
-  best_for:
-  - Gaming
-  - AI PCs
-  aliases:
-  - '370'
-  - AMD Ryzen AI 9 HX 370 w/ Radeon 890M
-  - Ryzen AI 9 HX 370
-  exists: true
-  notes: ''
 - name: Apple A18 Pro
   brand: Apple
   category: SoC
@@ -1299,3 +462,656 @@ learned:
   - APL1W10
   exists: true
   notes: Achieves a total AnTuTu score of 1,302,867 as tested by 91Mobiles.
+- name: AMD Ryzen 7 3700X
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2019
+  launch_price_usd: 325
+  cpu: 8 cores, 16 threads, 4.4 GHz single-core turbo
+  memory: DDR4-3200
+  power_watts: 65
+  key_features:
+  - Strong Multicore Performance
+  - Efficient 7 nm Manufacturing
+  - Support for PCIe 4.0
+  - Generous 32 MB L3 Cache
+  best_for:
+  - Gaming
+  - Multitasking
+  - Content Creation
+  aliases:
+  - Ryzen 7 3700X
+  - Ryzen 3700X
+  - AMD Ryzen 3700X
+  - 3700X
+- name: AMD Ryzen AI 9 HX PRO 475
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 12 cores, 24 threads, @ 2 GHz, boost 5.2 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 24 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '475'
+  - Ryzen AI 9 HX PRO 475
+- name: AMD Ryzen AI 5 PRO 440GE
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
+  memory: DDR5 2 channels
+  power_watts: 35
+  key_features:
+  - L3 cache 16 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 440GE
+  - Ryzen AI 5 PRO 440GE
+- name: AMD Ryzen AI 9 PRO 465
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 10 cores, 20 threads, @ 2 GHz, boost 5 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 24 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '465'
+  - Ryzen AI 9 PRO 465
+- name: AMD Ryzen AI 5 PRO 435G
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
+  memory: DDR5 2 channels
+  power_watts: 65
+  key_features:
+  - L3 cache 8 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 435G
+  - Ryzen AI 5 PRO 435G
+- name: AMD Ryzen AI 7 PRO 450GE
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
+  memory: DDR5 2 channels
+  power_watts: 35
+  key_features:
+  - L3 cache 16 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 450GE
+  - Ryzen AI 7 PRO 450GE
+- name: AMD Ryzen AI 5 PRO 435GE
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
+  memory: DDR5 2 channels
+  power_watts: 35
+  key_features:
+  - L3 cache 8 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 435GE
+  - Ryzen AI 5 PRO 435GE
+- name: AMD Ryzen AI 7 PRO 450
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 16 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '450'
+  - Ryzen AI 7 PRO 450
+- name: AMD Ryzen AI 7 PRO 450G
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 8 cores, 16 threads, @ 2 GHz, boost 5.1 GHz
+  memory: DDR5 2 channels
+  power_watts: 65
+  key_features:
+  - L3 cache 16 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 450G
+  - Ryzen AI 7 PRO 450G
+- name: AMD Ryzen AI 5 PRO 440
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 16 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '440'
+  - Ryzen AI 5 PRO 440
+- name: AMD Ryzen AI 5 PRO 440G
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.8 GHz
+  memory: DDR5 2 channels
+  power_watts: 65
+  key_features:
+  - L3 cache 16 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 440G
+  - Ryzen AI 5 PRO 440G
+- name: AMD Ryzen AI 9 HX PRO 470
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 12 cores, 24 threads, @ 2 GHz, boost 5.2 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 24 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '470'
+  - Ryzen AI 9 HX PRO 470
+- name: AMD Ryzen AI 5 PRO 435
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 6 cores, 12 threads, @ 2 GHz, boost 4.5 GHz
+  memory: DDR5 (FP8) 2 channels
+  power_watts: 28
+  key_features:
+  - L3 cache 8 MB
+  - Socket FP8
+  - TSMC 4nm FinFET
+  - PCIe® 4.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '435'
+  - Ryzen AI 5 PRO 435
+- name: AMD Ryzen 7 PRO 9755
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 8 cores, 16 threads, @ 3.8 GHz, boost 5.4 GHz
+  memory: DDR5 2 channels
+  power_watts: 120
+  key_features:
+  - L3 cache 32 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 5.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '9755'
+  - Ryzen 7 PRO 9755
+- name: AMD Ryzen 9 PRO 9965
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 16 cores, 32 threads, @ 4.3 GHz, boost 5.5 GHz
+  memory: DDR5 2 channels
+  power_watts: 170
+  key_features:
+  - L3 cache 64 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 5.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - '9965'
+  - Ryzen 9 PRO 9965
+- name: AMD Ryzen 9 PRO 9965X3D
+  exists: true
+  group: cpus
+  brand: AMD
+  category: CPU
+  release_year: 2026
+  cpu: 16 cores, 32 threads, @ 4.3 GHz, boost 5.5 GHz
+  memory: DDR5 2 channels
+  power_watts: 170
+  key_features:
+  - L3 cache 128 MB
+  - Socket AM5
+  - TSMC 4nm FinFET
+  - PCIe® 5.0
+  best_for:
+  - Gaming
+  - Content Creation
+  aliases:
+  - 9965X3D
+  - Ryzen 9 PRO 9965X3D
+- name: Intel Core Ultra 7 270K Plus
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2026
+  cpu: 24 cores (8P+16E), 24 threads, P-core base 3.70 GHz, up to 5.50 GHz
+  memory: Up To DDR5 7200 MT/s, max 256 GB
+  power_watts: 125
+  key_features:
+  - 36 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 270K Plus
+  - Core Ultra 7 270K Plus
+  - Ultra 7 270K Plus
+- name: Intel Core Ultra 5 250K Plus
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2026
+  cpu: 18 cores (6P+12E), 18 threads, P-core base 4.20 GHz, up to 5.30 GHz
+  memory: Up To DDR5 7200 MT/s, max 256 GB
+  power_watts: 125
+  key_features:
+  - 30 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 250K Plus
+  - Core Ultra 5 250K Plus
+  - Ultra 5 250K Plus
+- name: Intel Core Ultra 5 250KF Plus
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2026
+  cpu: 18 cores (6P+12E), 18 threads, P-core base 4.20 GHz, up to 5.30 GHz
+  memory: Up To DDR5 7200 MT/s, max 256 GB
+  power_watts: 125
+  key_features:
+  - 30 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 250KF Plus
+  - Core Ultra 5 250KF Plus
+  - Ultra 5 250KF Plus
+- name: Intel Core Ultra 9 285
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 24 cores (8P+16E), 24 threads, P-core base 2.50 GHz, up to 5.60 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 36 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - '285'
+  - Core Ultra 9 285
+  - Ultra 9 285
+- name: Intel Core Ultra 9 285T
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 24 cores (8P+16E), 24 threads, P-core base 1.40 GHz, up to 5.40 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 35
+  key_features:
+  - 36 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 285T
+  - Core Ultra 9 285T
+  - Ultra 9 285T
+- name: Intel Core Ultra 7 265
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 20 cores (8P+12E), 20 threads, P-core base 2.40 GHz, up to 5.30 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 30 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - '265'
+  - Core Ultra 7 265
+  - Ultra 7 265
+- name: Intel Core Ultra 7 265F
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 20 cores (8P+12E), 20 threads, P-core base 2.40 GHz, up to 5.30 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 30 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 265F
+  - Core Ultra 7 265F
+  - Ultra 7 265F
+- name: Intel Core Ultra 7 265T
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 20 cores (8P+12E), 20 threads, P-core base 1.50 GHz, up to 5.30 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 35
+  key_features:
+  - 30 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 265T
+  - Core Ultra 7 265T
+  - Ultra 7 265T
+- name: Intel Core Ultra 5 245
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 14 cores (6P+8E), 14 threads, P-core base 3.50 GHz, up to 5.10 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 24 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - '245'
+  - Core Ultra 5 245
+  - Ultra 5 245
+- name: Intel Core Ultra 5 245T
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 14 cores (6P+8E), 14 threads, P-core base 2.20 GHz, up to 5.10 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 35
+  key_features:
+  - 24 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 245T
+  - Core Ultra 5 245T
+  - Ultra 5 245T
+- name: Intel Core Ultra 5 235
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 14 cores (6P+8E), 14 threads, P-core base 3.40 GHz, up to 5.00 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 24 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - '235'
+  - Core Ultra 5 235
+  - Ultra 5 235
+- name: Intel Core Ultra 5 235T
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 14 cores (6P+8E), 14 threads, P-core base 2.20 GHz, up to 5.00 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 35
+  key_features:
+  - 24 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 235T
+  - Core Ultra 5 235T
+  - Ultra 5 235T
+- name: Intel Core Ultra 5 225
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 10 cores (6P+4E), 10 threads, P-core base 3.30 GHz, up to 4.90 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 20 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - '225'
+  - Core Ultra 5 225
+  - Ultra 5 225
+- name: Intel Core Ultra 5 225F
+  exists: true
+  group: cpus
+  brand: Intel
+  category: CPU
+  release_year: 2025
+  cpu: 10 cores (6P+4E), 10 threads, P-core base 3.30 GHz, up to 4.90 GHz
+  memory: Up to DDR5 6400 MT/s, max 192 GB
+  power_watts: 65
+  key_features:
+  - 20 MB cache
+  - Socket LGA1851
+  - 24 PCIe lanes
+  best_for:
+  - Gaming
+  - Productivity
+  aliases:
+  - 225F
+  - Core Ultra 5 225F
+  - Ultra 5 225F
+- name: AMD Ryzen AI 9 HX 375
+  exists: true
+  group: cpus
+  brand: AMD
+  category: Processor
+  release_year: 2025
+  launch_price_usd: 1779
+  cpu: 12 cores, 24 threads, up to 5.1 GHz
+  gpu: AMD Radeon 890M
+  memory: DDR5-5600, LPDDR5x-8000, up to 256 GB
+  power_watts: 28
+  key_features:
+  - 4x Zen 5, 8x Zen 5c architecture
+  - TSMC 4nm FinFET technology
+  - Precision Boost Overdrive
+  - AMD EXPO Memory Overclocking Technology
+  best_for:
+  - Premium AI PCs
+  - Laptops
+  - Desktops
+  aliases:
+  - '375'
+  - Ryzen AI 9 HX 375
+- name: AMD Ryzen AI 9 HX 370
+  exists: true
+  group: cpus
+  brand: AMD
+  category: Processor
+  release_year: 2025
+  cpu: 12 Cores, 24 Threads, 4x Zen 5, 8x Zen 5c
+  gpu: AMD Radeon 890M
+  memory: DDR5, LPDDR5X
+  power_watts: 28
+  key_features:
+  - Up to 5.1 GHz Boost Clock
+  - TSMC 4nm FinFET
+  - Precision Boost Overdrive
+  - AMD EXPO Memory Overclocking Technology
+  best_for:
+  - Gaming
+  - AI PCs
+  aliases:
+  - '370'
+  - AMD Ryzen AI 9 HX 370 w/ Radeon 890M
+  - Ryzen AI 9 HX 370
+- name: Qualcomm Snapdragon 8 Gen 1
+  exists: true
+  group: cpus
+  gpu: Adreno 730, 818 MHz

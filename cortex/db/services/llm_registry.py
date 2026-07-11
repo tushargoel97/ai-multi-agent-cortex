@@ -108,27 +108,6 @@ def _anthropic_adaptive_thinking(model: str) -> bool:
     )
 
 
-def _anthropic_adaptive_thinking(model: str) -> bool:
-    """True for Claude generations that use ``thinking:{type:adaptive}`` instead
-    of the older ``thinking:{type:enabled,budget_tokens}`` (Sonnet/Opus/Haiku
-    4.5 and the Claude 5 family). Sending the old shape to these 400s with
-    ``"thinking.type.enabled" is not supported for this model``.
-    """
-    m = model.lower().replace("_", "-")
-    return any(
-        tag in m
-        for tag in (
-            "sonnet-5",
-            "opus-5",
-            "haiku-5",
-            "claude-5",
-            "sonnet-4-5",
-            "opus-4-5",
-            "haiku-4-5",
-        )
-    )
-
-
 def _anthropic_supports_thinking(model: str) -> bool:
     """Whether a Claude model supports extended thinking at all.
 

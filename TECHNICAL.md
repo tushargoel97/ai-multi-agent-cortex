@@ -102,7 +102,7 @@ needs Apple-Silicon MLX and runs on the host.
 | `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
 | `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models (reads `./models`) |
 | `mcp`       | 8811      | `docker/Dockerfile.langgraph` | FastMCP server exposing the stateless tools to external MCP clients |
-| `trainer` † | 8200      | host, `trainer/` (not Docker) | MLX LoRA fine-tuning; writes fine-tuned GGUFs into `./models`       |
+| `trainer` † | 8200      | host, `trainer/` (not Docker) | MLX LoRA/QLoRA backends; writes fine-tuned GGUFs into `./models`    |
 | `langfuse-*`| 4000      | `langfuse/*` (profile `observability`) | Tracing UI + worker (own Postgres/ClickHouse/Redis/MinIO)  |
 | `evals`     | n/a       | `docker/Dockerfile.evals` (profile `evals`) | One-shot runner for the pytest eval suites             |
 
@@ -782,13 +782,22 @@ and its identity + off-domain refusals are **domain-aware**.
    consoles) / buying advice / off-domain refusals / **domain-aware identity** →
    `train.jsonl` + `valid.jsonl`. The legacy raw-chunk LLM Q&A-pair path is gone.
    **View dataset** (`GET /admin/dataset/preview`) shows the pairs to validate.
-4. **Train** (MLX LoRA on host) → **Convert** (fuse + tokenizer sanitize + GGUF,
+4. **Train** (select MLX LoRA or cached 4-bit QLoRA from capability cards) →
+   **Convert** (fuse + tokenizer sanitize + GGUF,
    atomic replace) → **Register** into the ai service as
    `finetuned-gemma3-1b-hardware` (the `-hardware` suffix is a **cosmetic label**;
    the model is trained on whichever subdomains you selected; registry contract:
    `finetuned-` prefix under the local provider; **newest wins**). **Quick
    top-up** resumes the existing adapters (`--resume-adapter-file`) for a fast
    incremental train.
+
+Trainer responsibilities are separated by ownership: `trainer/app/backends/`
+contains backend contracts, registry, host capability discovery, adapter
+metadata compatibility, and MLX-specific preparation/training/fusion commands;
+`trainer/app/exporters/gguf.py` owns backend-independent tokenizer sanitation
+and llama.cpp GGUF conversion; `trainer/app/pipeline.py` only orchestrates job
+state, subprocess execution, progress, logging, and cancellation. Dataset,
+source, domain, scrape, and research modules remain backend-independent.
 5. **Knowledge gaps card**: specialist refusals / mismatches / LLM-fact-check
    fails are logged; "Research gaps (web)" → learned facts → regen → retrain.
 
@@ -1168,8 +1177,11 @@ ai-multi-agent-cortex/
 │                             #   catalog.py (prebuilt LangChain tools); mcp.py exposes
 │                             #   the stateless ones over FastMCP
 ├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
-├── trainer/                  # Host-side MLX LoRA fine-tuning service (port 8200)
-│   ├── app/                  # FastAPI: dataset, train, convert, scrape/search, gap research
+├── trainer/                  # Host-side pluggable MLX training service (port 8200)
+│   ├── app/                  # FastAPI plus backend-independent job orchestration
+│   │   ├── backends/         # contracts, registry, capabilities, adapter state, MLX commands
+│   │   └── exporters/        # generic fused-model artifact exporters (GGUF)
+│   ├── helpers/              # operational setup and scoped restart implementations
 │   ├── data/                 # facts.yaml + learned_facts.yaml (ground truth)
 │   └── generate_dataset.py   # Fine-tune dataset builder
 ├── evals/                    # pytest-based eval suites

@@ -15,11 +15,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import pipeline
 from . import sources as src
 from . import domains as dom
+from .backends import adapter_backend_id, capabilities, get_backend
 from .config import settings
 
 # generate_dataset.py lives at trainer/ root, one level above this package
@@ -36,14 +37,22 @@ app.add_middleware(
 
 
 class TrainRequest(BaseModel):
-    iters: int = 600
-    batch_size: int = 4
-    learning_rate: float = 1e-4
+    iters: int = Field(default=600, ge=10, le=100_000)
+    batch_size: int = Field(default=4, ge=1, le=64)
+    learning_rate: float = Field(default=1e-4, gt=0, le=0.1)
+    backend_id: str = Field(default=settings.default_backend, min_length=1, max_length=80)
     # e.g. "Qwen/Qwen2.5-0.5B-Instruct" (default) or "google/gemma-4-e2b-it"
     base_model: str | None = None
     # Quick top-up: warm-start from the existing adapters (fewer iters) instead
     # of a full retrain. The base is taken from base_model.txt, not base_model.
     resume: bool = False
+
+
+class EstimateRequest(BaseModel):
+    backend_id: str = Field(default=settings.default_backend, min_length=1, max_length=80)
+    iters: int = Field(default=600, ge=10, le=100_000)
+    batch_size: int = Field(default=4, ge=1, le=64)
+    base_model: str | None = None
 
 
 class DatasetRequest(BaseModel):
@@ -100,6 +109,43 @@ def health() -> dict:
         "phase": pipeline.get_status().get("phase", "idle"),
         "base_model": settings.base_model,
         "converter_ready": settings.convert_script.exists(),
+    }
+
+
+@app.get("/admin/capabilities")
+def trainer_capabilities() -> dict:
+    return capabilities(
+        data_dir=settings.data_dir,
+        artifacts_dir=settings.artifacts_dir,
+        host_id=settings.host_id,
+        host_label=settings.host_label,
+        default_backend=settings.default_backend,
+    )
+
+
+@app.post("/admin/estimate")
+def training_estimate(req: EstimateRequest) -> dict:
+    try:
+        backend = get_backend(req.backend_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    available, reason = backend.available()
+    source_model = req.base_model or settings.base_model
+    training_model = backend.training_model(source_model, settings.artifacts_dir)
+    needs_prepare = (
+        backend.description.algorithm == "qlora_4bit"
+        and not (Path(training_model) / "config.json").exists()
+    )
+    return {
+        "backend_id": backend.description.id,
+        "available": available,
+        "reason": reason,
+        "estimated_seconds": backend.estimate_seconds(
+            iters=req.iters,
+            batch_size=req.batch_size,
+            needs_prepare=needs_prepare,
+        ),
+        "needs_prepare": needs_prepare,
     }
 
 
@@ -254,6 +300,7 @@ def dataset_status() -> dict:
     out["sources_count"] = len(src.list_sources())
     # Whether a prior full train left adapters to warm-start a quick top-up.
     out["adapters_exist"] = (settings.adapters_dir / "adapters.safetensors").exists()
+    out["adapters_backend_id"] = adapter_backend_id(settings.adapters_dir)
     return out
 
 
@@ -456,16 +503,20 @@ def train(req: TrainRequest) -> dict:
             req.learning_rate,
             base_model=req.base_model,
             resume=req.resume,
+            backend_id=req.backend_id,
         )
     except pipeline.JobConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {
         "status": "started",
         "iters": req.iters,
         "resume": req.resume,
         "base_model": req.base_model or settings.base_model,
+        "backend_id": req.backend_id,
     }
 
 
@@ -486,6 +537,8 @@ def convert(req: ConvertRequest) -> dict:
     except pipeline.JobConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "started", "output_name": req.output_name}
 

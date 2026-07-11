@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "TRAINER_"}
 
     port: int = 8200
+    host_id: str = "local-mac"
+    host_label: str = "Local Mac (MLX)"
+    default_backend: str = "mlx-lora"
     # Ungated HF-layout mirror of google/gemma-3-1b-it (the google/ repo is
     # license-gated; this one needs no HF token).
     base_model: str = "unsloth/gemma-3-1b-it"

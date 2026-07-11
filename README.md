@@ -93,7 +93,8 @@ CLI for day-to-day use.
 ┌─────────┐  ┌────────────┐     ┌────────────┐      ┌───────────┐
 │pgvector │  │ ai service │     │  trainer   │      │  Langfuse │
 │  :5432  │  │   :8100    │     │   :8200    │      │   :4000   │
-│registry │  │ llama.cpp  │     │  MLX LoRA  │      │  traces   │
+│registry │  │ llama.cpp  │     │ MLX LoRA/  │      │  traces   │
+│         │  │            │     │   QLoRA    │      │           │
 │  + KB   │  │ GGUF serve │     │  (on host) │      │           │
 └─────────┘  └────────────┘     └────────────┘      └───────────┘
 ```
@@ -105,7 +106,7 @@ CLI for day-to-day use.
 | `ui`        | 3000 | Chat UI + `/admin` console                              |
 | `ai`        | 8100 | llama.cpp GGUF server for local / fine-tuned models     |
 | `mcp`       | 8811 | FastMCP server re-exposing the stateless tools          |
-| `trainer` † | 8200 | Host-side MLX LoRA fine-tuning (not Docker)             |
+| `trainer` † | 8200 | Host-side MLX LoRA/QLoRA fine-tuning (not Docker)       |
 | `langfuse`  | 4000 | Tracing UI (profile `observability`)                    |
 
 † The trainer is the only non-containerized component (MLX needs Apple Silicon).

@@ -48,5 +48,12 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["cortex"]
+[tool.setuptools.packages.find]
+include = ["cortex*"]
+
+[tool.setuptools.package-data]
+cortex = ["declarative/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["trainer/vendor", "agent-chat-ui/node_modules", "agent-chat-ui/.next"]
