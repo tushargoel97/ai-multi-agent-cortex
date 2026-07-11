@@ -24,9 +24,6 @@ import { cn } from "@/lib/utils";
 import { getThreadLabel, isPinned, useThreadActions, ThreadActionsMenu } from "./thread-actions";
 import Link from "next/link";
 
-const SCROLLER_CLASS =
-  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-border";
-
 /** Concatenated text of every message in a thread (for cross-thread search). */
 function threadText(t: Thread): string {
   const msgs = (t.values as { messages?: { content: unknown }[] } | undefined)?.messages;
@@ -198,7 +195,7 @@ function ThreadList({
     <>
       <div
         className={cn(
-          SCROLLER_CLASS,
+          "hover-scrollbar",
           "flex min-h-0 w-full flex-1 flex-col items-start justify-start gap-1 overflow-y-auto pb-4",
         )}
       >
@@ -299,7 +296,7 @@ function ThreadHistoryLoading() {
   return (
     <div
       className={cn(
-        SCROLLER_CLASS,
+        "hover-scrollbar",
         "flex min-h-0 w-full flex-1 flex-col items-start justify-start gap-2 overflow-y-auto",
       )}
     >

@@ -39,7 +39,7 @@ function AdminTabs() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="text-muted-foreground text-sm">
@@ -47,7 +47,7 @@ function AdminTabs() {
         </p>
       </div>
 
-      <div className="glass-tint inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-sm">
+      <div className="glass-tint hover-scrollbar inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-sm">
         {TABS.map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
@@ -67,7 +67,7 @@ function AdminTabs() {
         })}
       </div>
 
-      <div className="glass-tint rounded-2xl border p-6 shadow-sm">
+      <div key={tab} className="glass-tint overflow-hidden rounded-2xl border p-6 shadow-sm">
         {tab === "providers" && <ProvidersPanel onChanged={() => setBump((n) => n + 1)} />}
         {tab === "models" && <ModelsPanel refreshKey={bump} />}
         {tab === "local" && <LocalModelsPanel onChanged={() => setBump((n) => n + 1)} />}

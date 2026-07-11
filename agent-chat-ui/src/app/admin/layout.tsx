@@ -102,7 +102,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="from-muted/60 via-background to-muted min-h-screen bg-gradient-to-br">
-      <header className="glass-surface sticky top-0 z-40 flex items-center gap-6 border-b px-6 py-3">
+      <header className="glass-surface sticky top-0 z-40 flex items-center gap-6 px-6 py-3">
         <Link href="/admin" className="flex items-center gap-2 font-semibold tracking-tight">
           <div className="bg-primary flex size-7 items-center justify-center rounded-md text-white">
             <Lock className="size-4" />
@@ -127,7 +127,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl p-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl p-6">{children}</main>
     </div>
   );
 }

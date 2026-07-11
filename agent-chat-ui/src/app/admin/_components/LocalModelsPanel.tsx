@@ -201,7 +201,7 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
           </Button>
         </div>
         {hits.length > 0 && (
-          <div className="mt-4 max-h-96 overflow-auto rounded-md border">
+          <div className="hover-scrollbar mt-4 max-h-96 overflow-auto overscroll-contain rounded-md border [contain:paint]">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-muted-foreground text-xs tracking-wider uppercase">
                 <tr>
@@ -261,7 +261,7 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
         <h3 className="mb-3 flex items-center gap-2 font-semibold">
           <Cpu className="size-4" /> Catalog
         </h3>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="hover-scrollbar grid max-h-[56rem] auto-rows-max grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-1 [contain:paint] md:max-h-[36rem] md:grid-cols-2">
           {catalog.map((m) => {
             const dl = progress[m.name];
             return (
