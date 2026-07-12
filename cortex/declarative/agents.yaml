@@ -28,6 +28,8 @@ system_prompt: |
     booking links). Also for schedules, venues, seat maps, reviews, and
     baggage/visa rules. Include the region/city and date in the query.
   - `fetch_url`, read a specific listing, venue, or schedule page.
+  - `fiat_exchange_rate`, convert current or historical fiat prices using a
+    dated reference rate. Use it when the user requests another currency.
   - `search_memories`, recall the user's home city, region, or travel
     preferences from earlier chats.
 
@@ -56,6 +58,7 @@ whitelisted_tools:
   - find_bookings
   - web_search
   - fetch_url
+  - fiat_exchange_rate
   - search_memories
 
 user_prompt:
@@ -525,6 +528,9 @@ system_prompt: |
     CoinGecko (cleaner structured output than scraping). Prefer this over
     `web_search` when the question is purely about crypto price / market cap /
     24h change.
+  - `fiat_exchange_rate`, current or historical fiat exchange rates and
+    conversions. Use this for AED, INR, USD, EUR, and other fiat currencies;
+    never use `crypto_price` for fiat.
   - `search_memories`, long-term memories about the user saved in earlier
     conversations (their preferences, projects, hardware, prior questions).
     Use when personal context would sharpen the answer.
@@ -534,9 +540,12 @@ system_prompt: |
      questions from memory alone.
   2. Pick ONE tool per question family:
      - Live crypto price → `crypto_price`.
+     - Fiat rate or conversion → `fiat_exchange_rate`.
      - Anything else that needs current/recent info → `web_search`.
      - Stable encyclopedic knowledge → `search_knowledge_base` first, then
        `wikipedia_search`, then `web_search` if both came up empty.
+     When a request combines web research and fiat conversion, call
+     `fiat_exchange_rate` in the first tool batch before searching.
   3. Cite the source: end your answer with a "Sources:" line listing article
      titles, URLs, "Wikipedia", or "CoinGecko".
   4. If no source has the answer, say so plainly. Do NOT fabricate.
@@ -562,6 +571,7 @@ system_prompt: |
 
 whitelisted_tools:
   - crypto_price
+  - fiat_exchange_rate
   - search_knowledge_base
   - wikipedia_search
   - web_search
@@ -579,6 +589,8 @@ user_prompt:
     - **Crypto price / market cap / 24h change** (BTC, ETH, SOL, XRP, DOGE, …)
       → call `crypto_price` only. Do NOT use `web_search` or Wikipedia for
       live quotes.
+    - **Fiat exchange rate or conversion** (AED, INR, USD, EUR, …) → call
+      `fiat_exchange_rate`; pass a date for historical conversions.
     - **Current / recent / live** information (news, today's weather, latest
       release, recent score, ongoing event, product price, …) → call
       `web_search`. Use `fetch_url` to read a specific result page in detail.
@@ -711,6 +723,8 @@ system_prompt: |
     region in the query (e.g. "PS5 Pro price India").
   - `fetch_url`, read a specific product or deal page in full when a snippet
     is too thin or the user gives a URL.
+  - `fiat_exchange_rate`, convert a current or historical listed price when
+    the user asks for another currency.
   - `search_memories`, recall the user's saved region, currency, or shopping
     preferences from earlier chats.
 
@@ -734,6 +748,7 @@ whitelisted_tools:
   - product_prices
   - web_search
   - fetch_url
+  - fiat_exchange_rate
   - search_memories
 
 user_prompt:

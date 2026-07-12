@@ -81,6 +81,9 @@ def friendly_model_error(exc: BaseException) -> str:
     if not isinstance(status, int):
         status = None
 
+    if "graphrecursion" in name or "recursion limit" in text:
+        return "the agent reached its tool-step limit before finishing"
+
     if (
         "insufficient_quota" in text
         or "exceeded your current quota" in text
@@ -120,6 +123,11 @@ def friendly_model_error(exc: BaseException) -> str:
 def model_error_reply(exc: BaseException, *, auto: bool) -> str:
     """Full chat message shown when a model call can't be completed."""
     reason = friendly_model_error(exc)
+    if "tool-step limit" in reason:
+        return (
+            "I couldn't finish that because the agent reached its tool-step "
+            "limit. Please retry with a narrower request or split it into parts."
+        )
     if auto:
         return (
             f"I couldn't complete that because {reason}, and the automatic "

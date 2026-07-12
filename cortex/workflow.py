@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any, Literal
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware
+from langchain.agents.middleware import PIIMiddleware, ToolCallLimitMiddleware
 from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -136,11 +136,15 @@ def _text_content(m: object) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return " ".join(
-            b.get("text", "")
-            for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text") or ""))
+            elif getattr(block, "type", None) == "text":
+                parts.append(str(getattr(block, "text", "") or ""))
+        return " ".join(parts).strip()
     return str(content or "")
 
 
@@ -167,10 +171,14 @@ def _transcript(messages: list) -> str:
     for m in messages:
         if _is_router_marker(m) or getattr(m, "tool_calls", None):
             continue
-        if isinstance(m, HumanMessage):
-            lines.append(f"User: {m.content}")
-        elif isinstance(m, AIMessage) and isinstance(m.content, str) and m.content:
-            lines.append(f"Assistant: {m.content}")
+        role = (
+            "User"
+            if isinstance(m, HumanMessage)
+            else "Assistant" if isinstance(m, AIMessage) else None
+        )
+        text = _text_content(m) if role else ""
+        if text:
+            lines.append(f"{role}: {text}")
     return "\n".join(lines)
 
 
@@ -669,7 +677,7 @@ def _subagent_tool(
         # Read-only memory: never let a subagent persist long-term memories.
         tools = [t for t in tools if getattr(t, "name", "") != "save_memory"]
         recalled = await _recall_memories([HumanMessage(task)])
-        system = static
+        system = f"{static}\n\n{_agent_context(config)}"
         if recalled:
             system += (
                 "\n\n## Shared long-term memory (read-only, recall only, do not "
@@ -681,7 +689,10 @@ def _subagent_tool(
                 tools=tools,
                 system_prompt=system,
             )
-            result = await sub.ainvoke({"messages": [HumanMessage(task)]})
+            result = await sub.ainvoke(
+                {"messages": [HumanMessage(task)]},
+                config=_invoke_config(config),
+            )
         except Exception:  # noqa: BLE001, a subagent must never crash the parent
             _persist_logger.exception("Subagent %r failed", subagent_name)
             return f"The '{subagent_name}' subagent could not complete the task."
@@ -750,6 +761,49 @@ _INSTANT_DIRECTIVE = (
     "concise. Depth belongs to Thinking/Research modes, not this one."
 )
 
+_AGENT_RECURSION_LIMIT = 40
+_DEEP_RESEARCH_RECURSION_LIMIT = 60
+
+
+def _request_context(config: RunnableConfig | None) -> str:
+    from cortex.tools.commerce import region_from_browser
+
+    cfg = (config or {}).get("configurable") or {}
+    now = datetime.now()
+    region = region_from_browser(
+        str(cfg.get("locale") or ""), str(cfg.get("timezone") or "")
+    )
+    return (
+        f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}. "
+        f"The user appears to be in region {region} (from their browser); use "
+        "it as the default country for shopping, booking, prices, and local "
+        "results unless they say otherwise."
+    )
+
+
+def _agent_context(config: RunnableConfig | None, *, engineer: bool = False) -> str:
+    cfg = (config or {}).get("configurable") or {}
+    context = _request_context(config)
+    if bool(cfg.get("unrestricted")):
+        context += f"\n\n{_UNRESTRICTED_DIRECTIVE}"
+    mode = str(cfg.get("mode") or "general").lower()
+    if mode == "general":
+        context += f"\n\n{_INSTANT_DIRECTIVE}"
+    elif mode == "engineer" and engineer:
+        context += f"\n\n{_ENGINEER_DIRECTIVE}"
+    return context
+
+
+def _invoke_config(
+    config: RunnableConfig | None, minimum_recursion_limit: int = _AGENT_RECURSION_LIMIT
+) -> RunnableConfig:
+    nested = dict(config or {})
+    current = nested.get("recursion_limit")
+    nested["recursion_limit"] = max(
+        current if isinstance(current, int) else 0, minimum_recursion_limit
+    )
+    return nested
+
 
 def _build_agent(
     agent_id: Agents,
@@ -758,6 +812,7 @@ def _build_agent(
     with_pii: bool = True,
     extra_system: str | None = None,
     auto_intent: str | None = None,
+    max_tool_calls: int | None = None,
 ):
     spec = get_agent_spec(agent_id)
     cfg = (config or {}).get("configurable") or {}
@@ -772,33 +827,16 @@ def _build_agent(
         middleware.append(
             PIIMiddleware("email", strategy="redact", apply_to_output=True)
         )
+    if max_tool_calls:
+        middleware.append(
+            ToolCallLimitMiddleware(
+                run_limit=max_tool_calls, exit_behavior="continue"
+            )
+        )
     model = get_chat_client(config=config, auto_intent=auto_intent)
     fallback_models = auto_fallback_clients(config, auto_intent=auto_intent)
     static = _agent_static_prompt(agent_id.value, spec)
-    # Inject today's date + the user's browser region so agents resolve
-    # "9th July" to the right year and default shopping/booking to the user's
-    # country, kept in the dynamic (post-cache) segment.
-    from cortex.tools.commerce import region_from_browser
-
-    now = datetime.now()
-    region = region_from_browser(
-        str(cfg.get("locale") or ""), str(cfg.get("timezone") or "")
-    )
-    context_line = (
-        f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}. "
-        f"The user appears to be in region {region} (from their browser); use "
-        f"it as the default country for shopping, booking, prices, and local "
-        f"results unless they say otherwise."
-    )
-    if unrestricted:
-        context_line = f"{context_line}\n\n{_UNRESTRICTED_DIRECTIVE}"
-    # Instant (default) mode trades depth for latency; Thinking/Research get
-    # their budget from their own flows.
-    mode = str(cfg.get("mode") or "general").lower()
-    if mode == "general":
-        context_line = f"{context_line}\n\n{_INSTANT_DIRECTIVE}"
-    elif mode == "engineer" and agent_id is Agents.CODER:
-        context_line = f"{context_line}\n\n{_ENGINEER_DIRECTIVE}"
+    context_line = _agent_context(config, engineer=agent_id is Agents.CODER)
     dynamic = f"{context_line}\n\n{extra_system}" if extra_system else context_line
     tools = _effective_agent_tools(spec) + _subagent_tools(agent_id.value, config)
 
@@ -852,7 +890,10 @@ async def _run_agent(
             extra_system=memory_suffix or None,
             auto_intent=auto_intent,
         )
-        result = await agent.ainvoke({"messages": _window(state["messages"])})
+        result = await agent.ainvoke(
+            {"messages": _window(state["messages"])},
+            config=_invoke_config(config),
+        )
     except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
         return {"messages": [_model_error_message(e, config)], **updates}
     return {"messages": result["messages"], **updates}
@@ -863,22 +904,37 @@ async def generalist(state: ChatState, config: RunnableConfig) -> dict[str, Any]
     return await _run_agent(Agents.GENERALIST, state, config, Intent.GENERAL_CHAT.value)
 
 
+_NO_CLARIFICATION = "NO_CLARIFICATION_NEEDED"
 _RESEARCH_CLARIFY_PROMPT = (
-    "You are a deep-research planner. Before doing any research, ask the user "
-    "2 to 4 short, precise, numbered clarifying questions whose answers would "
-    "materially change the research: scope, timeframe, depth, preferred "
-    "sources, definitions, or intended use. Do NOT answer the request yet and "
-    "do NOT ask more than 4 questions. Begin with a one-line intro such as "
+    "You are a deep-research planner. Use the recent conversation to resolve "
+    "references in the latest request. If it is already specific enough to "
+    "research, especially a follow-up whose subject is clear from context, "
+    f"return exactly {_NO_CLARIFICATION}. Make reasonable assumptions rather "
+    "than asking about an exact day within a supplied month, a retailer-listed "
+    "product variant, source preference, exchange-rate provider, report depth, "
+    "or intended use. Ask only when the subject, scope, or requested comparison "
+    "is genuinely missing. Otherwise ask 2 to 4 short, "
+    "precise, numbered questions whose answers would materially change the "
+    "research: scope, timeframe, depth, preferred sources, definitions, or "
+    "intended use. Do NOT answer the request yet and do NOT ask more than 4 "
+    "questions. Begin with a one-line intro such as "
     '"A few quick questions so I research the right thing:" then the numbered '
-    "questions.\n\nResearch request: "
+    "questions.\n\nRequest context:\n{request_context}\n\nRecent conversation:\n"
+    "{context}\n\nResearch request:\n{query}"
 )
 
 _DEEP_RESEARCH_DIRECTIVE = (
-    "You are in DEEP RESEARCH mode. The user's original request was: "
-    '"{brief}". They have just answered your clarifying questions in the '
-    "latest message. Now research thoroughly: break the topic into sub-"
-    "questions, run several web searches from different angles, open the most "
-    "relevant pages with fetch_url, and cross-check the facts. Then write a "
+    "You are in DEEP RESEARCH mode. The research brief is: "
+    '"{brief}". Use the recent conversation, including any clarification in '
+    "the latest message. Research thoroughly: break the topic into sub-"
+    "questions and cross-check the facts. Use at most four tool-call rounds. "
+    "Search broadly with fetch_pages=false, then fetch only the best pages. "
+    "When fiat conversion is requested, call fiat_exchange_rate for every "
+    "required date in the first tool batch so searches cannot consume that "
+    "budget; never use crypto_price for fiat. Once useful evidence exists, "
+    "stop searching and answer. If an exact historical fact cannot be "
+    "verified, state that limitation and still return the verified partial "
+    "answer. Then write a "
     "structured report with clear section headings, specific figures, and "
     "inline source links for every claim. Prefer primary and recent sources, "
     "and call out disagreements or uncertainty. Be comprehensive without "
@@ -893,7 +949,9 @@ _DEFAULT_CLARIFY = (
 )
 
 
-async def _research_clarify_questions(query: str, config: RunnableConfig) -> str:
+async def _research_clarify_questions(
+    query: str, context: str, config: RunnableConfig
+) -> str | None:
     """Phase 1 of deep research: generate precise clarifying questions."""
     try:
         # Use the explicitly selected model when the user picked one, else the
@@ -904,20 +962,18 @@ async def _research_clarify_questions(query: str, config: RunnableConfig) -> str
         # nostream: the node returns the finished questions as one message, so
         # don't also token-stream this internal call.
         result = await model.ainvoke(
-            _RESEARCH_CLARIFY_PROMPT + query,
+            _RESEARCH_CLARIFY_PROMPT.format(
+                request_context=_request_context(config),
+                context=context or "(no prior conversation)",
+                query=query,
+            ),
             config={"tags": ["langsmith:nostream"]},
         )
-        text = (
-            result.content
-            if isinstance(result.content, str)
-            else "".join(
-                b.get("text", "") for b in result.content if isinstance(b, dict)
-            )
-        )
-        return text.strip() or _DEFAULT_CLARIFY
+        text = _text_content(result).strip()
+        return None if text == _NO_CLARIFICATION else text or _DEFAULT_CLARIFY
     except Exception:  # noqa: BLE001, clarify is best-effort
         _persist_logger.exception("research clarify generation failed")
-        return _DEFAULT_CLARIFY
+        return None
 
 
 async def _deep_research(
@@ -928,6 +984,7 @@ async def _deep_research(
     msgs = state["messages"]
     last_human = _last_human(msgs)
     query = _text_content(last_human) if last_human is not None else ""
+    memory_suffix, updates = await _memory_context(state, config)
 
     # Phase detection: a pending clarify marker sitting between the previous
     # human turn and the current one means the user just answered the
@@ -945,21 +1002,30 @@ async def _deep_research(
             break
 
     if brief is None:
-        questions = await _research_clarify_questions(query, config)
-        return {
-            "messages": [
-                AIMessage(
-                    content=questions,
-                    additional_kwargs={
-                        "research_clarify": True,
-                        "brief": query,
-                        "deep_research": True,
-                    },
-                )
-            ]
-        }
+        recent = _transcript(_window(msgs))
+        summary = (updates.get("summary", state.get("summary", "")) or "").strip()
+        context = (
+            f"Older summary:\n{summary}\n\nRecent dialogue:\n{recent}"
+            if summary
+            else recent
+        )
+        questions = await _research_clarify_questions(query, context, config)
+        if questions:
+            return {
+                "messages": [
+                    AIMessage(
+                        content=questions,
+                        additional_kwargs={
+                            "research_clarify": True,
+                            "brief": query,
+                            "deep_research": True,
+                        },
+                    )
+                ],
+                **updates,
+            }
+        brief = query
 
-    memory_suffix, updates = await _memory_context(state, config)
     directive = _DEEP_RESEARCH_DIRECTIVE.format(brief=brief or query)
     extra = f"{directive}\n\n{memory_suffix}" if memory_suffix else directive
     agent = _build_agent(
@@ -967,9 +1033,13 @@ async def _deep_research(
         config=config,
         extra_system=extra,
         auto_intent=Intent.KNOWLEDGE_QUERY.value,
+        max_tool_calls=10,
     )
     try:
-        result = await agent.ainvoke({"messages": _window(msgs)})
+        result = await agent.ainvoke(
+            {"messages": _window(msgs)},
+            config=_invoke_config(config, _DEEP_RESEARCH_RECURSION_LIMIT),
+        )
     except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
         return {"messages": [_model_error_message(e, config)], **updates}
     out_msgs = result.get("messages", [])
@@ -1083,8 +1153,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
     except Exception:  # noqa: BLE001, bad template: use it raw
         static = spec["system_prompt"]
 
-    now = datetime.now()
-    context_line = f"Today's date is {now.strftime('%A, %B')} {now.day}, {now.year}."
+    context_line = _agent_context(config)
     dynamic = f"{context_line}\n\n{memory_suffix}" if memory_suffix else context_line
 
     from cortex.db.services.tool_catalog import (
@@ -1098,10 +1167,12 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         tools = []
     tools = tools + _subagent_tools(name, config)
 
-    middleware: list[Any] = [
-        PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),
-        PIIMiddleware("email", strategy="redact", apply_to_output=True),
-    ]
+    middleware: list[Any] = []
+    if not bool(((config or {}).get("configurable") or {}).get("unrestricted")):
+        middleware = [
+            PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),
+            PIIMiddleware("email", strategy="redact", apply_to_output=True),
+        ]
 
     def _mk(m: Any):
         return create_agent(
@@ -1119,7 +1190,10 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
             exceptions_to_handle=retryable_model_exceptions(),
         )
     try:
-        result = await agent.ainvoke({"messages": _window(state["messages"])})
+        result = await agent.ainvoke(
+            {"messages": _window(state["messages"])},
+            config=_invoke_config(config),
+        )
     except Exception as e:  # noqa: BLE001, show a clean message, never crash the run
         return {"messages": [_model_error_message(e, config)], **updates}
     return {"messages": result["messages"], **updates}

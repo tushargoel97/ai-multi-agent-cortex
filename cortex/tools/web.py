@@ -1,4 +1,4 @@
-"""Web tools: Wikipedia summary lookup, live internet search, and crypto prices.
+"""Web tools: Wikipedia, live search, and market prices.
 
 Wikipedia REST and CoinGecko work with no key. Live web search prefers a real
 search API when a key is set (``BRAVE_API_KEY``, ``SERPAPI_API_KEY``, or
@@ -79,6 +79,7 @@ def wikipedia_search(query: str) -> str:
 
 
 _COINGECKO_PRICE = "https://api.coingecko.com/api/v3/simple/price"
+_FRANKFURTER_RATE = "https://api.frankfurter.dev/v2/rate"
 
 # Common ticker symbols → CoinGecko coin ids
 _CRYPTO_ALIASES = {
@@ -196,6 +197,49 @@ def crypto_price(symbols: str, currencies: str = "usd,inr") -> str:
             f"Symbols {unknown} were not recognized aliases; queried as-is."
         )
     return json.dumps(out, indent=2)
+
+
+class FiatExchangeRateInput(BaseModel):
+    """Input for fiat currency conversion."""
+
+    base: str = Field(description="Three-letter source currency code, such as AED.")
+    quote: str = Field(description="Three-letter target currency code, such as INR.")
+    amount: float = Field(default=1, description="Amount in the source currency.")
+    date: str = Field(
+        default="",
+        description="Optional historical date in YYYY-MM-DD format; empty means latest.",
+    )
+
+
+@register_tool(args_schema=FiatExchangeRateInput)
+def fiat_exchange_rate(
+    base: str, quote: str, amount: float = 1, date: str = ""
+) -> str:
+    """Convert fiat currencies using current or historical reference rates."""
+    base, quote = base.strip().upper(), quote.strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", base) or not re.fullmatch(r"[A-Z]{3}", quote):
+        return json.dumps({"error": "Currency codes must contain three letters."})
+    if date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+        return json.dumps({"error": "Date must use YYYY-MM-DD format."})
+    url = f"{_FRANKFURTER_RATE}/{base}/{quote}"
+    if date:
+        url += "?" + urllib.parse.urlencode({"date": date})
+    try:
+        data = json.loads(_http_get(url, timeout=8.0).decode("utf-8"))
+        rate = float(data["rate"])
+    except Exception as exc:
+        return json.dumps({"error": f"Exchange-rate request failed: {exc}"})
+    return json.dumps(
+        {
+            "source": "frankfurter.dev",
+            "date": data.get("date"),
+            "base": base,
+            "quote": quote,
+            "rate": rate,
+            "amount": amount,
+            "converted": round(amount * rate, 2),
+        }
+    )
 
 
 # ── Live internet search (DuckDuckGo HTML, no API key) ───────────────────────
