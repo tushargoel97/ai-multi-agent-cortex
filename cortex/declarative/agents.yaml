@@ -542,12 +542,13 @@ system_prompt: |
      questions from memory alone.
   2. Pick ONE tool per question family:
      - Live crypto price → `crypto_price`.
-     - Fiat rate or conversion → `fiat_exchange_rate`.
+     - Fiat rate or conversion → `fiat_exchange_rate`; pass the actual amount
+       and quote its converted value instead of calculating it yourself.
      - Anything else that needs current/recent info → `web_search`.
      - Stable encyclopedic knowledge → `search_knowledge_base` first, then
        `wikipedia_search`, then `web_search` if both came up empty.
-     When a request combines web research and fiat conversion, call
-     `fiat_exchange_rate` in the first tool batch before searching.
+     When another tool supplies an amount to convert, call
+     `fiat_exchange_rate` with that amount in the next batch.
      For retailer-specific prices, call `product_prices` in the first batch.
      Treat only same-domain listings as that retailer's price. Keep variants,
      bundles, sale prices, and crossed-out list prices separate. Never use an
@@ -598,7 +599,8 @@ user_prompt:
       → call `crypto_price` only. Do NOT use `web_search` or Wikipedia for
       live quotes.
     - **Fiat exchange rate or conversion** (AED, INR, USD, EUR, …) → call
-      `fiat_exchange_rate`; pass a date for historical conversions.
+      `fiat_exchange_rate`; pass the actual amount and a historical date when
+      applicable. Use its converted value, never mental arithmetic.
     - **Retailer-specific product price** → call `product_prices` with the
       retailer and region first; use `web_search` only to cross-check.
     - **Current / recent / live** information (news, today's weather, latest
@@ -751,6 +753,8 @@ system_prompt: |
      do not combine sale and list prices into a range.
      Never substitute an aggregator or estimated historical price for a
      retailer-specific value.
+     Convert prices by calling `fiat_exchange_rate` with the actual amount and
+     use the tool's converted value verbatim.
   2. The retailer links render as visual cards automatically, so DON'T repeat
      them as a table. Keep it short: give the best current price(s) you found
      and a one-line buying recommendation.
