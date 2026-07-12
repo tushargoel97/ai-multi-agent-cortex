@@ -165,6 +165,18 @@ class _Run:
 _active: dict[str, _Run] = {}
 
 
+async def drain_active_runs(timeout: float = 170) -> int:
+    tasks = {
+        run.task
+        for run in _active.values()
+        if run.task is not None and not run.task.done()
+    }
+    if not tasks:
+        return 0
+    _, pending = await asyncio.wait(tasks, timeout=timeout)
+    return len(pending)
+
+
 async def _subscribe(run: _Run) -> AsyncIterator[str]:
     q, replay = run.attach()
     for frame in replay:

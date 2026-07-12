@@ -22,6 +22,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.langgraph
     image: ai-multi-agent-cortex-langgraph
+    stop_grace_period: 3m
     ports:
       # The custom durable server (cortex/server) binds port 8000; host 2024.
       - "2024:8000"

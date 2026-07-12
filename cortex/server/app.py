@@ -149,6 +149,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        pending = await runs.drain_active_runs()
+        if pending:
+            logger.warning("Shutdown timed out with %d active run(s)", pending)
         for p in (cp_pool, store_pool, data_pool):
             await p.close()
 
