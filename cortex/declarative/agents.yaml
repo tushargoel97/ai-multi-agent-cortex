@@ -531,6 +531,8 @@ system_prompt: |
   - `fiat_exchange_rate`, current or historical fiat exchange rates and
     conversions. Use this for AED, INR, USD, EUR, and other fiat currencies;
     never use `crypto_price` for fiat.
+  - `product_prices`, retailer-domain-filtered product listings. For a request
+    naming a retailer, pass its name/domain and requested region.
   - `search_memories`, long-term memories about the user saved in earlier
     conversations (their preferences, projects, hardware, prior questions).
     Use when personal context would sharpen the answer.
@@ -546,6 +548,11 @@ system_prompt: |
        `wikipedia_search`, then `web_search` if both came up empty.
      When a request combines web research and fiat conversion, call
      `fiat_exchange_rate` in the first tool batch before searching.
+     For retailer-specific prices, call `product_prices` in the first batch.
+     Treat only same-domain listings as that retailer's price. Keep variants,
+     bundles, sale prices, and crossed-out list prices separate. Never use an
+     aggregator price or unverified historical estimate as the requested
+     retailer's verified price or in a trend calculation.
   3. Cite the source: end your answer with a "Sources:" line listing article
      titles, URLs, "Wikipedia", or "CoinGecko".
   4. If no source has the answer, say so plainly. Do NOT fabricate.
@@ -572,6 +579,7 @@ system_prompt: |
 whitelisted_tools:
   - crypto_price
   - fiat_exchange_rate
+  - product_prices
   - search_knowledge_base
   - wikipedia_search
   - web_search
@@ -591,6 +599,8 @@ user_prompt:
       live quotes.
     - **Fiat exchange rate or conversion** (AED, INR, USD, EUR, …) → call
       `fiat_exchange_rate`; pass a date for historical conversions.
+    - **Retailer-specific product price** → call `product_prices` with the
+      retailer and region first; use `web_search` only to cross-check.
     - **Current / recent / live** information (news, today's weather, latest
       release, recent score, ongoing event, product price, …) → call
       `web_search`. Use `fetch_url` to read a specific result page in detail.
@@ -712,15 +722,13 @@ system_prompt: |
   guessed.
 
   ## Tools
-  - `product_prices`, builds direct links that open each major retailer's
-    LIVE product search for the user's region (Amazon, Walmart, Best Buy,
-    Flipkart, Croma, …). Call this FIRST for any "price / cheapest / where to
-    buy" question. It returns links, not live prices, the current price is on
-    the retailer page.
+  - `product_prices`, returns retailer-domain-filtered product listings and
+    any price exposed by the live search result. Call this FIRST for any
+    "price / cheapest / where to buy" question and pass a named retailer.
   - `web_search`, USE THIS to find the ACTUAL current price and best deal for
-    the product (`product_prices` only gives retailer search links, not live
-    prices). Also for reviews, stock/availability, and coupons. Include the
-    region in the query (e.g. "PS5 Pro price India").
+    the product when `product_prices` has no price. Also use it for reviews,
+    stock/availability, and coupons. Include the region in the query (e.g.
+    "PS5 Pro price India").
   - `fetch_url`, read a specific product or deal page in full when a snippet
     is too thin or the user gives a URL.
   - `fiat_exchange_rate`, convert a current or historical listed price when
@@ -735,9 +743,14 @@ system_prompt: |
   fall back to US if no region is known.
 
   ## Rules
-  1. Call `product_prices` for the retailer cards AND `web_search` to find the
-     ACTUAL current price / best deal. NEVER invent a price, only state prices
-     that came back from `web_search`, and name the retailer.
+  1. Call `product_prices` for retailer cards and `web_search` for additional
+     current deals. NEVER invent a price; only state values from same-domain
+     results and name the retailer.
+     When the user names a retailer, pass it to `product_prices` and accept its
+     price only from same-domain results. Label each SKU or bundle separately;
+     do not combine sale and list prices into a range.
+     Never substitute an aggregator or estimated historical price for a
+     retailer-specific value.
   2. The retailer links render as visual cards automatically, so DON'T repeat
      them as a table. Keep it short: give the best current price(s) you found
      and a one-line buying recommendation.

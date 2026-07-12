@@ -133,11 +133,12 @@ _REGION_COUNTRY: dict[str, str] = {
 }
 
 _PRICE_RE = re.compile(
-    r"(?:US\$|A\$|C\$|S\$|AED|Rs\.?|₹|\$|£|€|¥)\s?\d[\d.,]*\d"
+    r"(?:US\$|A\$|C\$|S\$|AED|Rs\.?|₹|\$|£|€|¥|\ue001)\s?\d[\d.,]*\d"
     r"|(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)\s?\d[\d.,]*\d"
     r"|\d[\d.,]*\d\s?(?:USD|INR|GBP|EUR|AED|SGD|AUD|CAD|JPY)",
     re.IGNORECASE,
 )
+_BARE_PRICE_RE = re.compile(r"\b(?:\d{3,6}\.\d{2}|\d{1,3}(?:,\d{3})+(?:\.\d{2})?)\b")
 _OOS_RE = re.compile(r"out of stock|currently unavailable|sold out|unavailable", re.I)
 _IN_STOCK_RE = re.compile(r"in stock|add to cart|buy now|available", re.I)
 
@@ -159,11 +160,30 @@ def _match_retailer(url: str) -> str:
     return ""
 
 
-def _price_from_text(*texts: str) -> str:
+def _retailer_domain(value: str) -> str:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+    domain = _match_retailer(raw if "://" in raw else f"https://{raw}")
+    return domain or next(
+        (d for d in _ALL_SHOP_DOMAINS if raw in {d, d.split(".", 1)[0]}), ""
+    )
+
+
+def _price_from_text(
+    *texts: str, currency: str = "", allow_bare: bool = False
+) -> str:
     for t in texts:
         m = _PRICE_RE.search(t or "")
         if m:
-            return m.group(0).strip()
+            price = m.group(0).strip()
+            if price.startswith(chr(0xE001)):
+                return f"{currency} {price.removeprefix(chr(0xE001)).strip()}"
+            return price
+    if allow_bare:
+        for t in texts:
+            if m := _BARE_PRICE_RE.search(t or ""):
+                return f"{currency} {m.group(0)}"
     return ""
 
 
@@ -385,10 +405,14 @@ class ProductPricesInput(BaseModel):
             "AE, SG, JP. Defaults to US."
         ),
     )
+    retailer: str = Field(
+        default="",
+        description="Optional retailer domain or name, such as noon.com or noon.",
+    )
 
 
 @register_tool(args_schema=ProductPricesInput)
-def product_prices(product: str, region: str = "US") -> str:
+def product_prices(product: str, region: str = "US", retailer: str = "") -> str:
     """Find where a product is available to buy, with direct product-page links
     plus any price and in-stock status the live listing shows.
 
@@ -403,11 +427,22 @@ def product_prices(product: str, region: str = "US") -> str:
     reg = _norm_region(region)
     currency, sites = _SHOPPING_SITES[reg]
     country = _REGION_COUNTRY.get(reg, "")
+    requested = _retailer_domain(retailer)
+    target_sites = [requested] if requested else sites
 
     try:
         from cortex.tools.web import _provider_search
 
-        hits = _provider_search(f"{product} price buy {country}".strip(), 12)
+        if requested:
+            scope = (
+                f"{requested}/uae-en"
+                if requested == "noon.com" and reg == "AE"
+                else requested
+            )
+            query = f"site:{scope} {product} {currency} price"
+        else:
+            query = f"{product} price buy {country}".strip()
+        hits = _provider_search(query, 12)
     except Exception:  # noqa: BLE001
         hits = []
 
@@ -415,11 +450,14 @@ def product_prices(product: str, region: str = "US") -> str:
     seen: set[str] = set()
     for r in hits:
         dom = _match_retailer(r.get("url", ""))
-        if not dom or dom in seen:
+        key = r.get("url", "") if requested else dom
+        if not dom or (requested and dom != requested) or key in seen:
             continue
-        seen.add(dom)
+        seen.add(key)
         title, snippet = r.get("title", ""), r.get("snippet", "")
-        price = _price_from_text(snippet, title)
+        price = _price_from_text(
+            snippet, title, currency=currency, allow_bare=bool(requested)
+        )
         offers.append(
             {
                 "retailer": dom,
@@ -430,6 +468,13 @@ def product_prices(product: str, region: str = "US") -> str:
                 "available": _stock_flag(f"{title} {snippet}", bool(price)),
             }
         )
+        if requested and len(offers) == 5:
+            break
+
+    if requested:
+        direct = [o for o in offers if "/p/" in o["url"] and o["price"]]
+        if direct:
+            offers = direct
 
     if offers:
         offers.sort(
@@ -453,7 +498,7 @@ def product_prices(product: str, region: str = "US") -> str:
                 "price_value": None,
                 "available": None,
             }
-            for d in sites
+            for d in target_sites
         ]
         note = (
             "These open each retailer's search for the product. Set "
@@ -466,6 +511,7 @@ def product_prices(product: str, region: str = "US") -> str:
             "product": product,
             "region": reg,
             "currency": currency,
+            "retailer": requested or None,
             "offers": offers,
             "note": note,
         },
