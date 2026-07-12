@@ -118,13 +118,34 @@ function StickyToBottomContent(props: {
 }
 
 function ScrollToBottom(props: { className?: string }) {
-  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+  const { isAtBottom, scrollRef, scrollToBottom } = useStickToBottomContext();
+  const [isFarFromBottom, setIsFarFromBottom] = useState(false);
 
-  if (isAtBottom) return null;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const update = () =>
+      setIsFarFromBottom(
+        element.scrollHeight - element.scrollTop - element.clientHeight >
+          Math.max(240, element.clientHeight * 0.35),
+      );
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    return () => element.removeEventListener("scroll", update);
+  }, [scrollRef]);
+
+  if (isAtBottom || !isFarFromBottom) return null;
   return (
-    <Button variant="outline" className={props.className} onClick={() => scrollToBottom()}>
-      <ArrowDown className="h-4 w-4" />
-      <span>Scroll to bottom</span>
+    <Button
+      type="button"
+      size="icon"
+      variant="outline"
+      aria-label="Scroll to latest message"
+      title="Scroll to latest message"
+      className={cn("glass size-10 rounded-full shadow-lg", props.className)}
+      onClick={() => scrollToBottom({ animation: "smooth", ignoreEscapes: true })}
+    >
+      <ArrowDown className="size-4" />
     </Button>
   );
 }
@@ -618,7 +639,7 @@ export function Thread() {
                   <div className="sticky bottom-0 flex flex-col items-center gap-8">
                     {!chatStarted && <Greeting />}
 
-                    <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
+                    <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 z-20 mb-4 -translate-x-1/2" />
 
                     <div
                       ref={dropRef}
