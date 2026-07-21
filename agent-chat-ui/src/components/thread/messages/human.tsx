@@ -89,7 +89,7 @@ export function HumanMessage({ message, isLoading }: { message: Message; isLoadi
             {/* Render text if present, otherwise fallback to file/image name */}
             {contentString ? (
               <div className="ml-auto flex flex-col items-end gap-1">
-                <p className="bg-muted w-fit rounded-3xl px-4 py-2 text-right whitespace-pre-wrap">
+                <p className="bg-muted w-fit rounded-3xl px-4 py-2 text-left whitespace-pre-wrap">
                   {contentString}
                 </p>
                 <span className="text-muted-foreground/60 pr-1 text-[11px] tabular-nums opacity-0 transition-opacity group-hover:opacity-100">
