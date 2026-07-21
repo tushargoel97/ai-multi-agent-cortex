@@ -1,6 +1,9 @@
 import asyncio
 import json
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -117,6 +120,63 @@ def test_partial_download_is_reported_after_process_restart(tmp_path, monkeypatc
 
     assert progress["status"] == "paused"
     assert progress["downloaded_mb"] > 0
+
+
+@pytest.mark.parametrize("terminal", ["cancelled", "complete"])
+def test_stale_progress_cleanup_preserves_restarted_download(terminal, monkeypatch):
+    name = f"restarted-{terminal}"
+    pending = []
+    monkeypatch.setattr(mm, "start", lambda coroutine, **_: pending.append(coroutine))
+
+    async def scenario():
+        previous = object()
+        mm._download_generations[name] = previous
+        mm._download_progress[name] = {"status": terminal}
+        mm._schedule_progress_cleanup(name, 0, previous)
+        mm._download_generations[name] = object()
+        mm._download_progress[name] = {"status": "downloading"}
+
+        await pending.pop()
+
+        assert mm._download_progress[name]["status"] == "downloading"
+
+    asyncio.run(scenario())
+    mm._download_generations.pop(name, None)
+    mm._download_progress.pop(name, None)
+
+
+def test_catalog_updates_are_serialized_and_atomic(tmp_path, monkeypatch):
+    catalog_path = tmp_path / "catalog.json"
+    catalog_path.write_text("{}")
+    monkeypatch.setattr(mm, "MODELS_DIR", str(tmp_path))
+    monkeypatch.setattr(mm, "_CUSTOM_CATALOG_PATH", str(catalog_path))
+    original_load = json.load
+    replacements = []
+    original_replace = mm.os.replace
+
+    def slow_load(file):
+        value = original_load(file)
+        time.sleep(0.02)
+        return value
+
+    def track_replace(source, destination):
+        replacements.append((source, destination))
+        original_replace(source, destination)
+
+    monkeypatch.setattr(mm.json, "load", slow_load)
+    monkeypatch.setattr(mm.os, "replace", track_replace)
+    barrier = threading.Barrier(2)
+
+    def persist(name):
+        barrier.wait()
+        mm._persist_custom_entry(name, {"filename": f"{name}.gguf"})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(persist, ("first", "second")))
+
+    assert set(json.loads(catalog_path.read_text())) == {"first", "second"}
+    assert len(replacements) == 2
+    assert all(destination == str(catalog_path) for _, destination in replacements)
 
 
 def test_completed_tool_stream_adds_tool_call_indexes():

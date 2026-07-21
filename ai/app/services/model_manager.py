@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import re
+import tempfile
+import threading
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -23,8 +25,10 @@ _loaded_model_name: str | None = None
 _last_used_ts: float = 0.0
 _download_progress: dict[str, dict] = {}
 _download_control: dict[str, str] = {}
+_download_generations: dict[str, object] = {}
 _model_lock = asyncio.Lock()
 _download_locks: dict[str, asyncio.Lock] = {}
+_catalog_lock = threading.Lock()
 
 MODELS_DIR = settings.models_dir
 
@@ -82,7 +86,7 @@ def _load_custom_catalog() -> None:
         logger.exception("Could not read %s, ignoring", _CUSTOM_CATALOG_PATH)
 
 
-def _persist_custom_entry(name: str, info: dict) -> None:
+def _read_custom_catalog() -> dict:
     custom: dict = {}
     if os.path.exists(_CUSTOM_CATALOG_PATH):
         try:
@@ -90,24 +94,45 @@ def _persist_custom_entry(name: str, info: dict) -> None:
                 custom = json.load(f)
         except Exception:
             logger.exception("Could not read %s, rewriting", _CUSTOM_CATALOG_PATH)
-    custom[name] = info
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    with open(_CUSTOM_CATALOG_PATH, "w") as f:
-        json.dump(custom, f, indent=2)
+    return custom
+
+
+def _write_custom_catalog(custom: dict) -> None:
+    directory = os.path.dirname(_CUSTOM_CATALOG_PATH) or MODELS_DIR
+    os.makedirs(directory, exist_ok=True)
+    temporary = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", dir=directory, prefix=".catalog-", suffix=".tmp", delete=False
+        ) as f:
+            temporary = f.name
+            json.dump(custom, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, _CUSTOM_CATALOG_PATH)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.remove(temporary)
+
+
+def _persist_custom_entry(name: str, info: dict) -> None:
+    with _catalog_lock:
+        custom = _read_custom_catalog()
+        custom[name] = dict(info)
+        _write_custom_catalog(custom)
 
 
 def _remove_custom_entry(name: str) -> None:
-    if not os.path.exists(_CUSTOM_CATALOG_PATH):
-        return
-    try:
-        with open(_CUSTOM_CATALOG_PATH) as f:
-            custom = json.load(f)
-        if name in custom:
-            del custom[name]
-            with open(_CUSTOM_CATALOG_PATH, "w") as f:
-                json.dump(custom, f, indent=2)
-    except Exception:
-        logger.exception("Could not update %s", _CUSTOM_CATALOG_PATH)
+    with _catalog_lock:
+        if not os.path.exists(_CUSTOM_CATALOG_PATH):
+            return
+        try:
+            custom = _read_custom_catalog()
+            if name in custom:
+                del custom[name]
+                _write_custom_catalog(custom)
+        except Exception:
+            logger.exception("Could not update %s", _CUSTOM_CATALOG_PATH)
 
 
 _load_custom_catalog()
@@ -506,6 +531,8 @@ async def download_model(
         targets = _download_targets(info)
         resumed = _downloaded_bytes(targets)
         expected = round(float(info["size_mb"]) * 1024 * 1024)
+        generation = object()
+        _download_generations[name] = generation
         _download_progress[name] = {
             "progress": round(resumed / expected * 100, 1) if expected else 0,
             "downloaded_mb": round(resumed / (1024 * 1024), 1),
@@ -551,7 +578,7 @@ async def download_model(
                 "progress": 100,
                 "status": "complete",
             }
-            _schedule_progress_cleanup(name, 10)
+            _schedule_progress_cleanup(name, 10, generation)
             return {"name": name, "status": "downloaded", "path": path}
         except DownloadAborted as ab:
             if ab.mode == "cancel":
@@ -560,7 +587,7 @@ async def download_model(
                     **_download_progress.get(name, {}),
                     "status": "cancelled",
                 }
-                _schedule_progress_cleanup(name, 4)
+                _schedule_progress_cleanup(name, 4, generation)
             else:
                 _download_progress[name] = {
                     **_download_progress.get(name, {}),
@@ -574,10 +601,12 @@ async def download_model(
             _download_control.pop(name, None)
 
 
-def _schedule_progress_cleanup(name: str, delay: float) -> None:
+def _schedule_progress_cleanup(name: str, delay: float, generation: object) -> None:
     async def _cleanup():
         await asyncio.sleep(delay)
-        _download_progress.pop(name, None)
+        if _download_generations.get(name) is generation:
+            _download_progress.pop(name, None)
+            _download_generations.pop(name, None)
 
     start(_cleanup(), label=f"download-progress-cleanup:{name}")
 
@@ -588,9 +617,10 @@ def request_download_control(name: str, mode: str) -> bool:
         return False
     _download_progress[name] = entry
     if entry.get("status") in ("paused", "error") and mode == "cancel":
+        generation = _download_generations.setdefault(name, object())
         _purge_partial_download(name)
         _download_progress[name] = {**entry, "status": "cancelled"}
-        _schedule_progress_cleanup(name, 4)
+        _schedule_progress_cleanup(name, 4, generation)
         return True
     if entry.get("status") not in ("starting", "downloading"):
         return False
