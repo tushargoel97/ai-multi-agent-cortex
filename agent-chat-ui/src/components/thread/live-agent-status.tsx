@@ -30,24 +30,29 @@ function useLivePhrase(activity: Activity) {
     };
   }, [key, phraseKey, phrases.length, reducedMotion]);
 
-  return { phrase: phrases[index % phrases.length], reducedMotion };
+  return { phrase: phrases[index % phrases.length], phrases, reducedMotion };
 }
 
 export function LiveAgentStatus({ activity }: { activity: Activity }) {
-  const { phrase, reducedMotion } = useLivePhrase(activity);
+  const { phrase, phrases, reducedMotion } = useLivePhrase(activity);
   return (
     <>
       <span className="cortex-live-mark" aria-hidden="true">
         <LangGraphLogoSVG markOnly className="cortex-live-mark__glyph" width={14} height={14} />
       </span>
       <span className="live-status-viewport" aria-hidden="true">
-        <AnimatePresence initial={false} mode="wait">
+        <span className="live-status-sizer font-medium whitespace-nowrap">
+          {phrases.map((candidate) => (
+            <span key={candidate}>{candidate}</span>
+          ))}
+        </span>
+        <AnimatePresence initial={false} mode="sync">
           <motion.span
             key={`${activity.key}:${phrase}`}
             initial={reducedMotion ? false : { y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={reducedMotion ? undefined : { y: -12, opacity: 0 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             className="shimmer-text block font-medium whitespace-nowrap"
           >
             {phrase}

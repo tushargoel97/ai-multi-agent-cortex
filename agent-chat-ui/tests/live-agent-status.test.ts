@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -138,6 +139,38 @@ test("renders the kinetic Cortex mark and accessible live status", () => {
   assert.match(html, /live-status-viewport/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /shimmer-text/);
+});
+
+test("reserves the widest phrase so the detail arrow stays fixed while copy rotates", () => {
+  const html = renderToStaticMarkup(
+    createElement(AgentTrace, {
+      live: true,
+      messages: [
+        {
+          type: "ai",
+          content: "knowledge_query",
+          additional_kwargs: { routing: { intent: "knowledge_query" } },
+        },
+      ],
+    }),
+  );
+
+  assert.match(html, /class="live-status-sizer font-medium whitespace-nowrap"/);
+  for (const phrase of ["Routing", "Finding the right specialist", "Choosing the best model"]) {
+    assert.match(html, new RegExp(`>${phrase}<`));
+  }
+});
+
+test("uses slower status transitions without a fixed viewport width", () => {
+  const component = readFileSync("src/components/thread/live-agent-status.tsx", "utf8");
+  const styles = readFileSync("src/app/globals.css", "utf8");
+  const viewportStyles = styles.match(/\.live-status-viewport\s*\{[^}]*}/s)?.[0] ?? "";
+
+  assert.match(component, /duration: 0\.42/);
+  assert.match(component, /<AnimatePresence initial=\{false\} mode="sync">/);
+  assert.match(styles, /animation: shimmer-text 3\.5s linear infinite/);
+  assert.match(viewportStyles, /display: inline-grid/);
+  assert.doesNotMatch(viewportStyles, /(?:^|\n)\s*width:/);
 });
 
 test("uses the same compact status before routing completes", () => {

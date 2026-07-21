@@ -355,8 +355,6 @@
 .dark .imggen-frame__label {
   border-color: rgb(255 255 255 / 0.1);
 }
-/* ChatGPT-style thinking nudge: a light band sweeps through dim status
-   text (pairs with .text-muted-foreground-ish base). */
 .shimmer-text {
   background-image: linear-gradient(
     90deg,
@@ -368,7 +366,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: shimmer-text 2s linear infinite;
+  animation: shimmer-text 3.5s linear infinite;
 }
 @keyframes shimmer-text {
   from {
@@ -403,12 +401,23 @@
   animation: cortex-live-breathe 2.4s ease-in-out infinite;
 }
 .live-status-viewport {
-  display: grid;
-  width: min(13rem, 62vw);
+  display: inline-grid;
+  max-width: min(18rem, 62vw);
   height: 1.25rem;
   align-items: center;
   overflow: hidden;
   text-align: left;
+}
+.live-status-viewport > * {
+  grid-area: 1 / 1;
+}
+.live-status-sizer {
+  display: grid;
+  visibility: hidden;
+}
+.live-status-sizer > * {
+  grid-area: 1 / 1;
+  white-space: nowrap;
 }
 @keyframes cortex-live-orbit {
   to {
