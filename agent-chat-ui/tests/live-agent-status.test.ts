@@ -121,7 +121,7 @@ test("renders live activity as a collapsed canonical status", () => {
   assert.doesNotMatch(html, /Working through it|<ol/);
 });
 
-test("renders the kinetic Cortex mark and accessible live status", () => {
+test("renders the blooming Cortex mark and accessible live status", () => {
   const html = renderToStaticMarkup(
     createElement(AgentTrace, {
       live: true,
@@ -136,9 +136,21 @@ test("renders the kinetic Cortex mark and accessible live status", () => {
   );
 
   assert.match(html, /cortex-live-mark/);
+  assert.match(html, /cortex-live-mark__bloom/);
   assert.match(html, /live-status-viewport/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /shimmer-text/);
+});
+
+test("animates the Cortex glyph as a calm staggered bloom instead of a spinner", () => {
+  const styles = readFileSync("src/app/globals.css", "utf8");
+
+  assert.match(styles, /\.cortex-live-mark__glyph path/);
+  assert.match(styles, /animation: cortex-live-bloom/);
+  assert.match(styles, /path:nth-child\(2\)/);
+  assert.match(styles, /path:nth-child\(3\)/);
+  assert.match(styles, /path:nth-child\(4\)/);
+  assert.doesNotMatch(styles, /cortex-live-orbit/);
 });
 
 test("reserves the widest phrase so the detail arrow stays fixed while copy rotates", () => {

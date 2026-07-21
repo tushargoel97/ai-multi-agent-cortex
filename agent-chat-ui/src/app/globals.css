@@ -386,19 +386,30 @@
   place-items: center;
   color: rgb(56 189 248);
 }
-.cortex-live-mark::before {
+.cortex-live-mark__bloom {
   position: absolute;
-  inset: -0.12rem;
-  content: "";
-  border: 1px solid transparent;
-  border-top-color: rgb(37 99 235 / 0.9);
-  border-right-color: rgb(56 189 248 / 0.45);
+  inset: -0.2rem;
   border-radius: 9999px;
-  animation: cortex-live-orbit 1.8s linear infinite;
+  background: radial-gradient(circle, rgb(56 189 248 / 0.22), transparent 68%);
+  animation: cortex-live-halo 3.2s ease-in-out infinite;
 }
 .cortex-live-mark__glyph {
+  position: relative;
   filter: drop-shadow(0 0 0.3rem rgb(56 189 248 / 0.35));
-  animation: cortex-live-breathe 2.4s ease-in-out infinite;
+}
+.cortex-live-mark__glyph path {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cortex-live-bloom 2.8s ease-in-out infinite;
+}
+.cortex-live-mark__glyph path:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.cortex-live-mark__glyph path:nth-child(3) {
+  animation-delay: 0.36s;
+}
+.cortex-live-mark__glyph path:nth-child(4) {
+  animation-delay: 0.54s;
 }
 .live-status-viewport {
   display: inline-grid;
@@ -419,20 +430,27 @@
   grid-area: 1 / 1;
   white-space: nowrap;
 }
-@keyframes cortex-live-orbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes cortex-live-breathe {
+@keyframes cortex-live-bloom {
   0%,
   100% {
-    transform: rotate(-5deg) scale(0.9);
-    opacity: 0.72;
+    transform: scale(0.78);
+    opacity: 0.55;
+  }
+  42%,
+  68% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cortex-live-halo {
+  0%,
+  100% {
+    transform: scale(0.78);
+    opacity: 0.35;
   }
   50% {
-    transform: rotate(7deg) scale(1.08);
-    opacity: 1;
+    transform: scale(1.18);
+    opacity: 0.9;
   }
 }
 
@@ -508,8 +526,8 @@
     background: none;
     color: var(--muted-foreground);
   }
-  .cortex-live-mark::before,
-  .cortex-live-mark__glyph {
+  .cortex-live-mark__bloom,
+  .cortex-live-mark__glyph path {
     animation: none;
   }
 }

@@ -38,7 +38,8 @@ export function LiveAgentStatus({ activity }: { activity: Activity }) {
   return (
     <>
       <span className="cortex-live-mark" aria-hidden="true">
-        <LangGraphLogoSVG markOnly className="cortex-live-mark__glyph" width={14} height={14} />
+        <span className="cortex-live-mark__bloom" />
+        <LangGraphLogoSVG markOnly className="cortex-live-mark__glyph" width={15} height={15} />
       </span>
       <span className="live-status-viewport" aria-hidden="true">
         <span className="live-status-sizer font-medium whitespace-nowrap">
