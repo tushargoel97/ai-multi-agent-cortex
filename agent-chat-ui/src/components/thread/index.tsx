@@ -23,12 +23,10 @@ import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   Activity,
   ArrowDown,
-  ArrowUp,
   ChevronLeft,
   ChevronRight,
   Clock,
   Search,
-  Square,
   SquarePen,
   XIcon,
 } from "lucide-react";
@@ -45,9 +43,10 @@ import { ThemeToggle } from "./theme-toggle";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ContentBlocksPreview } from "./ContentBlocksPreview";
-import ModelSelector, { ModeSelector } from "@/components/model-selector";
+import ModelSelector from "@/components/model-selector";
 import { useModelSelection } from "@/providers/ModelSelection";
 import { useArtifactOpen, ArtifactContent, ArtifactTitle, useArtifactContext } from "./artifact";
+import { ComposerActions } from "./composer-actions";
 
 // Commerce tool results render as answer cards (ShoppingCards / BookingCards),
 // so they stay visible instead of collapsing into the activity trace.
@@ -715,33 +714,14 @@ export function Thread() {
                             hideToolCalls={hideToolCalls ?? false}
                             onHideToolCallsChange={(v) => setHideToolCalls(v)}
                           />
-                          <ModeSelector
-                            className="ml-auto"
+                          <ComposerActions
+                            input={input}
+                            attachmentCount={contentBlocks.length}
+                            isLoading={stream.isLoading}
                             mode={selection.mode}
                             onModeChange={(m) => setSelection({ ...selection, mode: m })}
+                            onCancel={handleCancel}
                           />
-                          {stream.isLoading ? (
-                            <Button
-                              key="stop"
-                              type="button"
-                              size="icon"
-                              title="Stop generating"
-                              onClick={handleCancel}
-                              className="size-9 rounded-full"
-                            >
-                              <Square className="size-3.5 fill-current" />
-                            </Button>
-                          ) : (
-                            <Button
-                              type="submit"
-                              size="icon"
-                              title="Send"
-                              className="size-9 rounded-full shadow-sm transition-all"
-                              disabled={isLoading || (!input.trim() && contentBlocks.length === 0)}
-                            >
-                              <ArrowUp className="size-5" />
-                            </Button>
-                          )}
                         </div>
                       </form>
                     </div>
