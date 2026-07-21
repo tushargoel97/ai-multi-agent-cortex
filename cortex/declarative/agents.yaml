@@ -143,6 +143,7 @@ whitelisted_tools:
   - fetch_url
   - save_memory
   - search_memories
+  - consult_local_specialist
 
 user_prompt:
   - |
@@ -213,6 +214,7 @@ whitelisted_tools:
   - get_current_time
   - save_memory
   - search_memories
+  - consult_local_specialist
 
 user_prompt:
   - |
@@ -586,6 +588,7 @@ whitelisted_tools:
   - web_search
   - fetch_url
   - search_memories
+  - consult_local_specialist
 
 user_prompt:
   - |
@@ -642,6 +645,18 @@ system_prompt: |
     spec question, even though such questions are factual. This is about SPECS
     ONLY, NOT prices, deals, or where to buy. Any "how much / cheapest / best
     price / where to buy" question is **shopping**, even for this hardware.
+  - **local_specialist**, ONLY when a "Local specialist models" section
+    appears below AND the user's message falls squarely within one of those
+    models' described capabilities; also set `local_model` to that model's
+    exact name. These run on-device at zero cost, so prefer them for clearly
+    in-domain queries, but NEVER stretch one to a query outside its
+    description (and never pick this label when no specialists are listed).
+
+  Alongside the label, judge `complexity` honestly: `simple` for trivial
+  lookups, greetings, or one-line rewrites; `complex` for multi-step
+  reasoning, architecture or debugging depth, or high-stakes precision;
+  `standard` otherwise. This steers how strong (and how expensive) a model
+  the answer is routed to.
   - **knowledge_query**, a factual question that needs CURRENT, recent, niche,
     or source-verifiable information: news, latest releases, ongoing events,
     live data, statistics, figures or dates that change over time, obscure or

@@ -72,6 +72,7 @@ def get_chat_client(
     *,
     config: dict[str, Any] | None = None,
     auto_intent: str | None = None,
+    complexity: str | None = None,
 ) -> BaseChatModel:
     """Build the chat model for a request.
 
@@ -94,6 +95,7 @@ def get_chat_client(
             from cortex.db.services.auto_mode import (
                 FAST_TIER,
                 is_auto,
+                profile_for_complexity,
                 resolve_auto_model,
             )
 
@@ -103,7 +105,9 @@ def get_chat_client(
 
                 resolved = resolve_auto_model(
                     auto_intent or FAST_TIER,
-                    profile="quality" if thinking else None,
+                    profile="quality"
+                    if thinking
+                    else profile_for_complexity(complexity),
                 )
                 if resolved is not None:
                     return build_client_from_resolved(resolved, thinking=thinking)
@@ -146,6 +150,7 @@ def auto_fallback_clients(
     config: dict[str, Any] | None = None,
     *,
     auto_intent: str | None = None,
+    complexity: str | None = None,
 ) -> list[BaseChatModel]:
     """Fallback chat clients for auto mode, tried when the primary is unavailable.
 
@@ -168,6 +173,7 @@ def auto_fallback_clients(
         from cortex.db.services.auto_mode import (
             FAST_TIER,
             is_auto,
+            profile_for_complexity,
             resolve_auto_candidates,
         )
         from cortex.db.services.llm_registry import build_client_from_resolved
@@ -175,7 +181,8 @@ def auto_fallback_clients(
         if not is_auto(model_uuid):
             return []
         candidates = resolve_auto_candidates(
-            auto_intent or FAST_TIER, profile="quality" if thinking else None
+            auto_intent or FAST_TIER,
+            profile="quality" if thinking else profile_for_complexity(complexity),
         )
         return [
             build_client_from_resolved(r, thinking=thinking)

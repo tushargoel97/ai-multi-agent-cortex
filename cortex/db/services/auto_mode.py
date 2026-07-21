@@ -146,7 +146,23 @@ def resolve_auto_candidates(
                 continue
             seen.add(resolved.model_id)
             resolved_list.append(resolved)
+    try:
+        from cortex.model_client.model_health import in_cooldown
+
+        healthy, cooling = [], []
+        for resolved in resolved_list:
+            (cooling if in_cooldown(resolved.model_id) else healthy).append(resolved)
+        return healthy + cooling
+    except Exception:  # noqa: BLE001, health ordering is best-effort
+        pass
     return resolved_list
+
+
+_COMPLEXITY_PROFILE = {"simple": "cost", "complex": "quality"}
+
+
+def profile_for_complexity(complexity: str | None) -> str | None:
+    return _COMPLEXITY_PROFILE.get((complexity or "").strip().lower())
 
 
 def resolve_auto_model(

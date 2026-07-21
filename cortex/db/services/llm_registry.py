@@ -239,7 +239,7 @@ def build_client_from_resolved(
         case ProviderKind.LOCAL:
             kwargs = {
                 "model": resolved.model_id,
-                "max_retries": 4,
+                "max_retries": 0,
                 "api_key": local_api_key_override or resolved.api_key or "not-needed",
                 "base_url": local_base_url_override or resolved.base_url,
             }
@@ -288,6 +288,70 @@ def resolve_fine_tuned_model() -> ResolvedModel | None:
     """Session-managing wrapper around get_fine_tuned_resolved_model."""
     with get_session() as s:
         return get_fine_tuned_resolved_model(s)
+
+
+@dataclass
+class LocalSpecialist:
+    model_id: str
+    display_name: str
+    description: str
+
+
+def local_specialists_for_routing() -> list[LocalSpecialist]:
+    """Return described, enabled local specialist models."""
+    stmt = (
+        select(LLMModel)
+        .join(LLMProvider, LLMModel.provider_id == LLMProvider.id)
+        .where(LLMProvider.kind == ProviderKind.LOCAL.value)
+        .where(LLMModel.enabled.is_(True))
+        .where(LLMProvider.enabled.is_(True))
+        .order_by(LLMModel.created_at.asc())
+    )
+    with get_session() as s:
+        rows = s.execute(stmt).scalars().all()
+        return [
+            LocalSpecialist(
+                model_id=m.model_id,
+                display_name=m.display_name or m.model_id,
+                description=m.description.strip(),
+            )
+            for m in rows
+            if (m.description or "").strip()
+        ]
+
+
+def resolve_local_specialist(model_id: str) -> ResolvedModel | None:
+    """Resolve an enabled local model by model ID."""
+    stmt = (
+        select(LLMModel, LLMProvider)
+        .join(LLMProvider, LLMModel.provider_id == LLMProvider.id)
+        .where(LLMProvider.kind == ProviderKind.LOCAL.value)
+        .where(LLMModel.model_id == model_id)
+        .where(LLMModel.enabled.is_(True))
+        .where(LLMProvider.enabled.is_(True))
+        .limit(1)
+    )
+    with get_session() as s:
+        row = s.execute(stmt).first()
+        if row is None:
+            return None
+        model, provider = row
+        return ResolvedModel(
+            kind=ProviderKind(provider.kind),
+            model_id=model.model_id,
+            api_key=provider.api_key,
+            base_url=provider.base_url,
+            azure_endpoint=provider.azure_endpoint,
+            azure_api_version=provider.azure_api_version,
+        )
+
+
+def local_specialist_profile(model_id: str) -> LocalSpecialist | None:
+    """Return a local model's capability profile."""
+    return next(
+        (sp for sp in local_specialists_for_routing() if sp.model_id == model_id),
+        None,
+    )
 
 
 def resolve_by_model_id(model_id: str) -> ResolvedModel | None:

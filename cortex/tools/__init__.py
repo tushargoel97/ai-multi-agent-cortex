@@ -1,5 +1,5 @@
-# Import every tool module so @register_tool decorators execute
 import cortex.tools.commerce as _commerce  # noqa: F401
+import cortex.tools.local_specialist as _local_specialist  # noqa: F401
 import cortex.tools.memory as _memory  # noqa: F401
 import cortex.tools.shared as _shared  # noqa: F401
 import cortex.tools.spec_table as _spec_table  # noqa: F401

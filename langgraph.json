@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "cortex": "./cortex/workflow.py:graph"
+    "cortex": "./cortex/workflow/__init__.py:graph"
   },
   "env": ".env",
   "store": {
