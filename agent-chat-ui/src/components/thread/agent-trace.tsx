@@ -12,10 +12,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getContentString, getThinkingString } from "./utils";
+import { LiveAgentStatus } from "./live-agent-status";
 import {
   TOOL_ACTIVITY,
   RoutingChip,
   agentForIntent,
+  deriveLiveActivity,
   getRoutingIntent,
   getRoutingModel,
   prettyModel,
@@ -62,7 +64,6 @@ export function deriveSteps(messages: Message[]): TraceStep[] {
       const text = getContentString(m.content).trim();
       const toolCalls =
         (m as { tool_calls?: { id?: string; name?: string; args?: unknown }[] }).tool_calls ?? [];
-      // A short preamble the model wrote before calling a tool (commentary).
       if (text && toolCalls.length > 0) {
         steps.push({
           key: `${m.id}-note`,
@@ -117,7 +118,6 @@ function summarize(steps: TraceStep[]): string {
   return bits.join(" · ");
 }
 
-/** Dedicated loader for image generation (one long node, no streamed tokens). */
 function ImageGenLoader() {
   return (
     <div className="mr-auto w-full max-w-md">
@@ -131,15 +131,9 @@ function ImageGenLoader() {
   );
 }
 
-/**
- * The agent's activity + thinking for one turn. While the turn is in flight
- * (`live`) it streams an expanded, structured list of what the agent is doing;
- * once finished it collapses into a compact, muted "Thought process" dropdown
- * (click to review the steps), mirroring how Claude / ChatGPT fold reasoning
- * away once the answer is ready.
- */
 export function AgentTrace({ messages, live }: { messages: Message[]; live: boolean }) {
   const [open, setOpen] = useState(false);
+  const liveActivity = live ? deriveLiveActivity(messages, true) : null;
 
   if (live && messages.some((m) => getRoutingIntent(m) === "image_generation")) {
     return <ImageGenLoader />;
@@ -148,8 +142,6 @@ export function AgentTrace({ messages, live }: { messages: Message[]; live: bool
   const steps = deriveSteps(messages);
   if (steps.length === 0) return null;
 
-  // A plainly-routed answer (no tools, no thinking) keeps the compact routing
-  // chip instead of a "Thought process" dropdown, so simple chats stay clean.
   const hasActivity = steps.some((s) => !s.label.startsWith("Routed to"));
   if (!live && !hasActivity) {
     const routed = messages.find((m) => getRoutingIntent(m));
@@ -158,29 +150,42 @@ export function AgentTrace({ messages, live }: { messages: Message[]; live: bool
     return <RoutingChip intent={intent} model={getRoutingModel(routed)} />;
   }
 
-  const expanded = live || open;
+  const expanded = open;
   const summary = summarize(steps);
 
   return (
     <div className="mr-auto w-full max-w-3xl">
       <button
         type="button"
-        onClick={() => !live && setOpen((o) => !o)}
+        onClick={() => setOpen((o) => !o)}
         aria-expanded={expanded}
+        aria-label={
+          live
+            ? `${liveActivity?.label || "Thinking"}. ${open ? "Hide" : "Show"} activity details`
+            : `${open ? "Hide" : "Show"} thought process`
+        }
         className={cn(
           "text-muted-foreground/80 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors",
-          live ? "cursor-default" : "hover:bg-muted/60 hover:text-muted-foreground",
+          "hover:bg-muted/60 hover:text-muted-foreground",
         )}
       >
         {live ? (
-          <Sparkles className="size-3.5 text-amber-500" />
+          <>
+            <LiveAgentStatus
+              activity={
+                liveActivity || { label: "Thinking", icon: Sparkles, key: "thinking:fallback" }
+              }
+            />
+            <ChevronRight
+              className={cn("size-3 transition-transform", open && "rotate-90")}
+              aria-hidden="true"
+            />
+          </>
         ) : (
           <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
         )}
-        <span className={cn("font-medium", live && "shimmer-text")}>
-          {live ? "Working through it" : "Thought process"}
-        </span>
-        {summary && <span className="text-muted-foreground/60">· {summary}</span>}
+        {!live && <span className="font-medium">Thought process</span>}
+        {!live && summary && <span className="text-muted-foreground/60">· {summary}</span>}
       </button>
 
       {expanded && (

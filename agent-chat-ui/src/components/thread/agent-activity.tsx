@@ -2,8 +2,10 @@ import { Message } from "@langchain/langgraph-sdk";
 import {
   Bot,
   BrainCircuit,
+  Calculator,
   Clock,
   Code2,
+  Cpu,
   Database,
   Globe,
   Link2,
@@ -14,11 +16,13 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
+  TableProperties,
   Ticket,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 import { getContentString } from "./utils";
+import { LiveAgentStatus } from "./live-agent-status";
 
 /** The router node emits a marker AIMessage with additional_kwargs.routing. */
 export function getRoutingIntent(message: Message | undefined): string | null {
@@ -53,20 +57,80 @@ const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
   booking: { label: "Booking Assistant", icon: Ticket },
 };
 
-export const TOOL_ACTIVITY: Record<string, { label: string; icon: LucideIcon }> = {
-  web_search: { label: "Searching the web", icon: Globe },
-  wikipedia_search: { label: "Searching Wikipedia", icon: BookOpen },
+export const TOOL_ACTIVITY: Record<
+  string,
+  { label: string; icon: LucideIcon; followUps?: string[] }
+> = {
+  web_search: {
+    label: "Searching the web",
+    icon: Globe,
+    followUps: ["Looking for stronger sources", "Following promising leads"],
+  },
+  wikipedia_search: {
+    label: "Searching Wikipedia",
+    icon: BookOpen,
+    followUps: ["Checking the reference trail", "Cross-checking the details"],
+  },
   search_knowledge_base: {
     label: "Searching the knowledge base",
     icon: Database,
+    followUps: ["Looking through what I know", "Matching the closest context"],
   },
-  fetch_url: { label: "Reading a web page", icon: Link2 },
-  crypto_price: { label: "Fetching live prices", icon: Coins },
-  get_current_time: { label: "Checking the clock", icon: Clock },
-  save_memory: { label: "Saving a memory", icon: NotebookPen },
-  search_memories: { label: "Recalling memories", icon: NotebookPen },
-  product_prices: { label: "Comparing prices", icon: ShoppingBag },
-  find_bookings: { label: "Finding booking options", icon: Ticket },
+  fetch_url: {
+    label: "Reading a web page",
+    icon: Link2,
+    followUps: ["Reading between the lines", "Checking the details"],
+  },
+  crypto_price: {
+    label: "Fetching live prices",
+    icon: Coins,
+    followUps: ["Checking the latest market move", "Pinning down the live number"],
+  },
+  fiat_exchange_rate: {
+    label: "Converting the amount",
+    icon: Coins,
+    followUps: ["Checking the live rate", "Keeping the math honest"],
+  },
+  get_current_time: {
+    label: "Checking the clock",
+    icon: Clock,
+    followUps: ["Syncing with local time"],
+  },
+  calculator: {
+    label: "Calculating",
+    icon: Calculator,
+    followUps: ["Checking the arithmetic", "Making the numbers behave"],
+  },
+  save_memory: {
+    label: "Saving a memory",
+    icon: NotebookPen,
+    followUps: ["Keeping that for later", "Tucking it into context"],
+  },
+  search_memories: {
+    label: "Recalling memories",
+    icon: NotebookPen,
+    followUps: ["Looking through earlier context", "Reconnecting the dots"],
+  },
+  product_prices: {
+    label: "Comparing prices",
+    icon: ShoppingBag,
+    followUps: ["Checking live listings", "Comparing what came back"],
+  },
+  find_bookings: {
+    label: "Finding booking options",
+    icon: Ticket,
+    followUps: ["Checking availability", "Narrowing the options"],
+  },
+  render_spec_table: {
+    label: "Formatting the comparison",
+    icon: TableProperties,
+    followUps: ["Lining up the details", "Making it easy to scan"],
+  },
+  consult_local_specialist: {
+    label: "Consulting a local specialist",
+    icon: Cpu,
+    followUps: ["Passing along the context", "Waiting for the specialist"],
+  },
 };
 
 export function agentForIntent(intent: string | null) {
@@ -96,8 +160,6 @@ export function RoutingChip({ intent, model }: { intent: string; model?: string 
     </div>
   );
 }
-
-// ── Token usage ──────────────────────────────────────────────────────────────
 
 export interface TokenUsage {
   input_tokens?: number;
@@ -153,11 +215,22 @@ export function threadUsage(messages: Message[]): {
   return { input, output, cached };
 }
 
-interface Activity {
+export interface Activity {
+  key?: string;
   label: string;
+  phrases?: string[];
   icon: LucideIcon;
   intent?: string;
 }
+
+const ROUTING_PHRASES = ["Routing", "Finding the right specialist", "Choosing the best model"];
+const THINKING_PHRASES = ["Thinking", "Mapping the moving parts", "Connecting the context"];
+const REVIEWING_PHRASES = ["Reviewing results", "Separating signal from noise"];
+const COMPOSING_PHRASES = [
+  "Writing the answer",
+  "Pulling everything together",
+  "Giving it one last check",
+];
 
 /** The most recent routing marker's intent, scanning newest-first. */
 function lastRoutingIntent(messages: Message[]): string | null {
@@ -168,34 +241,35 @@ function lastRoutingIntent(messages: Message[]): string | null {
   return null;
 }
 
-/** Internal LLM outputs that must never render as chat bubbles, e.g. the
- *  image safety-guardrail verdict ({"allowed": ...}). Belt-and-suspenders for
- *  when the backend `langsmith:nostream` tag doesn't fully suppress them. */
 export function isInternalNoiseMessage(message: Message): boolean {
   if (message.type !== "ai") return false;
   let s = getContentString(message.content).trim();
-  // The guardrail model sometimes wraps its verdict in a ```json fence.
   const fence = s.match(/^```(?:json)?\s*/i);
   if (fence) s = s.slice(fence[0].length).trimStart();
-  // The image safety-guardrail verdict: {"allowed": true|false, "reason": …}.
-  // Matched even mid-stream (partial JSON) since no real answer starts like
-  // this, so it never flashes into the transcript.
   return /^\{\s*"allowed"\s*:/.test(s);
 }
 
 /** Derive what the graph is doing right now from the streamed messages. */
-function deriveActivity(messages: Message[]): Activity | null {
+function deriveActivity(messages: Message[], live = false): Activity | null {
   const last = messages[messages.length - 1];
-  if (!last) return { label: "Routing your request", icon: Zap };
-
-  if (last.type === "human") {
-    return { label: "Routing your request", icon: Zap };
+  if (!last) {
+    return {
+      key: "routing:pending",
+      label: ROUTING_PHRASES[0],
+      phrases: ROUTING_PHRASES,
+      icon: Zap,
+    };
   }
 
-  // Image generation is one long node with no streamed tokens, keep a
-  // prominent card up for the whole wait, keyed off the routing marker.
-  // Only the finished image (markdown image) clears it; internal messages
-  // like the safety-guardrail verdict must NOT hide it.
+  if (last.type === "human") {
+    return {
+      key: `routing:pending:${last.id || "request"}`,
+      label: ROUTING_PHRASES[0],
+      phrases: ROUTING_PHRASES,
+      icon: Zap,
+    };
+  }
+
   if (lastRoutingIntent(messages) === "image_generation") {
     const imageReady =
       last.type === "ai" &&
@@ -213,41 +287,68 @@ function deriveActivity(messages: Message[]): Activity | null {
   const intent = getRoutingIntent(last);
   if (intent) {
     const agent = agentForIntent(intent);
-    return { label: `${agent.label} is thinking`, icon: agent.icon, intent };
+    const model = getRoutingModel(last) ?? "default";
+    return {
+      key: `routing:${intent}:${model}`,
+      label: ROUTING_PHRASES[0],
+      phrases: ROUTING_PHRASES,
+      icon: agent.icon,
+      intent,
+    };
   }
 
   if (last.type === "ai") {
-    const toolCalls = (last as { tool_calls?: { name?: string }[] }).tool_calls;
+    const toolCalls = (last as { tool_calls?: { id?: string; name?: string }[] }).tool_calls;
     if (toolCalls && toolCalls.length > 0) {
-      const name = toolCalls[toolCalls.length - 1]?.name ?? "";
-      return (
-        TOOL_ACTIVITY[name] ?? {
-          label: `Running ${name || "a tool"}`,
-          icon: Bot,
-        }
-      );
+      const call = toolCalls[toolCalls.length - 1];
+      const name = call?.name ?? "";
+      const activity = TOOL_ACTIVITY[name] ?? {
+        label: `Running ${name || "a tool"}`,
+        icon: Bot,
+      };
+      return {
+        ...activity,
+        key: `tool:${name || "unknown"}:${call?.id || "active"}`,
+        phrases: [activity.label, ...(activity.followUps ?? [])],
+      };
     }
-    // Streaming visible text, no status needed.
-    if (getContentString(last.content).length > 0) return null;
-    return { label: "Thinking", icon: Bot };
+    if (getContentString(last.content).length > 0) {
+      return live
+        ? {
+            key: `composing:${last.id || "answer"}`,
+            label: COMPOSING_PHRASES[0],
+            phrases: COMPOSING_PHRASES,
+            icon: Sparkles,
+          }
+        : null;
+    }
+    return {
+      key: `thinking:${last.id || "active"}`,
+      label: THINKING_PHRASES[0],
+      phrases: THINKING_PHRASES,
+      icon: Bot,
+    };
   }
 
   if (last.type === "tool") {
-    return { label: "Reading results", icon: BookOpen };
+    return {
+      key: `reviewing:${last.name || "tool"}:${last.id || "result"}`,
+      label: REVIEWING_PHRASES[0],
+      phrases: REVIEWING_PHRASES,
+      icon: BookOpen,
+    };
   }
 
   return null;
 }
 
+export const deriveLiveActivity = deriveActivity;
+
 /** Live status row rendered under the transcript while a run is in flight. */
 export function AgentActivity({ messages }: { messages: Message[] }) {
   const activity = deriveActivity(messages);
   if (!activity) return null;
-  const Icon = activity.icon;
 
-  // Image generation gets a dedicated frosted-glass loader (drifting blue
-  // blobs, a light sweep and a develop-line) instead of the compact status
-  // row, the same box shape the finished image will fill.
   if (activity.intent === "image_generation") {
     return (
       <div className="mr-auto w-full max-w-md">
@@ -261,30 +362,9 @@ export function AgentActivity({ messages }: { messages: Message[] }) {
     );
   }
 
-  const lastHuman = [...messages].reverse().find((m) => m.type === "human");
-  const queryTokens = lastHuman
-    ? estimateTokens(
-        typeof lastHuman.content === "string"
-          ? lastHuman.content
-          : JSON.stringify(lastHuman.content),
-      )
-    : 0;
-  const total = threadUsage(messages);
-
   return (
-    <div className="border-border bg-muted/40 mr-auto flex flex-wrap items-center gap-2.5 rounded-2xl border px-3.5 py-2">
-      <Icon className="text-muted-foreground size-4" />
-      <span className="shimmer-text text-sm">{activity.label}</span>
-      <span className="border-border text-muted-foreground/80 ml-1 border-l pl-2.5 text-[11px] tabular-nums">
-        query ≈{formatTokens(queryTokens)} tk
-        {total.input + total.output > 0 && (
-          <>
-            {" · thread "}
-            {formatTokens(total.input)} in / {formatTokens(total.output)} out
-            {total.cached > 0 && <> · {formatTokens(total.cached)} cached</>}
-          </>
-        )}
-      </span>
+    <div className="text-muted-foreground/80 mr-auto flex items-center gap-1.5 px-2 py-1 text-xs">
+      <LiveAgentStatus activity={activity} />
     </div>
   );
 }
