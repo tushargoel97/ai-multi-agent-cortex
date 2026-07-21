@@ -31,6 +31,7 @@ interface Model {
   provider_kind: string;
   model_id: string;
   display_name: string;
+  description: string | null;
   enabled: boolean;
   is_default: boolean;
 }
@@ -592,7 +593,17 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
             <tbody>
               {filteredModels.map((m) => (
                 <tr key={m.id} className="border-t">
-                  <td className="p-3 font-medium">{m.display_name}</td>
+                  <td className="p-3 font-medium">
+                    {m.display_name}
+                    {m.description && (
+                      <div
+                        className="text-muted-foreground max-w-64 truncate text-xs font-normal"
+                        title={m.description}
+                      >
+                        {m.description}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 font-mono text-xs">{m.model_id}</td>
                   <td className="p-3">
                     <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs">

@@ -734,14 +734,12 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         if (s.phase === "error") throw new Error(s.error ?? "conversion failed");
       }
 
+      const finetuneDescription =
+        "Self-trained LoRA fine-tune; answers questions in its trained domain from learned knowledge.";
       const imp = await fetch("/api/v1/admin/local/import-local", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({
-          name,
-          filename,
-          description: "Self-trained hardware specialist (MLX LoRA fine-tune)",
-        }),
+        body: JSON.stringify({ name, filename, description: finetuneDescription }),
       });
       if (!imp.ok) {
         const data = await imp.json().catch(() => ({}));
@@ -759,8 +757,9 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         body: JSON.stringify({
           provider_id: local.id,
           model_id: name,
-          display_name: "Hardware Specialist (fine-tuned)",
+          display_name: `${name} (fine-tuned)`,
           is_default: false,
+          description: finetuneDescription,
         }),
       });
       if (!registeredModel.ok) throw new Error(`register ${registeredModel.status}`);
