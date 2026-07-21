@@ -15,7 +15,7 @@ COPY agent-chat-ui/ .
 # Public client settings are compiled into the Next.js bundle. These defaults
 # keep the browser on the same-origin API proxy; deployments may override them
 # with Docker build args.
-ARG NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_API_URL=/api/v1
 ARG NEXT_PUBLIC_ASSISTANT_ID=cortex
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_ASSISTANT_ID=${NEXT_PUBLIC_ASSISTANT_ID}

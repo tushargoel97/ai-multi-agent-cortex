@@ -53,14 +53,14 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/local/catalog", {
+      const res = await fetch("/api/v1/admin/local/catalog", {
         headers: headers(),
       });
       if (!res.ok) throw new Error(`catalog ${res.status}`);
       const data = await res.json();
       setCatalog(data.models ?? []);
       setLoaded(data.loaded ?? null);
-      const p = await fetch("/api/admin/local/progress", {
+      const p = await fetch("/api/v1/admin/local/progress", {
         headers: headers(),
       });
       if (p.ok) setProgress(await p.json());
@@ -80,7 +80,7 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
     setSearching(true);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/local/search?q=${encodeURIComponent(query)}`, {
+      const r = await fetch(`/api/v1/admin/local/search?q=${encodeURIComponent(query)}`, {
         headers: headers(),
       });
       const data = await r.json();
@@ -97,7 +97,7 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
     setBusy(name);
     setError(null);
     try {
-      const r = await fetch("/api/admin/local/download", {
+      const r = await fetch("/api/v1/admin/local/download", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ name, repo_id, filename }),
@@ -115,19 +115,19 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
     setBusy(name);
     setError(null);
     try {
-      const r = await fetch("/api/admin/local/load", {
+      const r = await fetch("/api/v1/admin/local/load", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ name }),
       });
       if (!r.ok) throw new Error(`load ${r.status}`);
 
-      const provs = await fetch("/api/admin/providers", {
+      const provs = await fetch("/api/v1/admin/providers", {
         headers: headers(),
       }).then((x) => x.json());
       const local = provs.find((p: { kind: string }) => p.kind === "local");
       if (local) {
-        await fetch("/api/admin/models", {
+        await fetch("/api/v1/admin/models", {
           method: "POST",
           headers: headers(),
           body: JSON.stringify({
@@ -152,7 +152,7 @@ export default function LocalModelsPanel({ onChanged }: { onChanged?: () => void
     if (!(await confirm({ title: `Delete model "${name}"?` }))) return;
     setBusy(name);
     try {
-      await fetch(`/api/admin/local/models/${encodeURIComponent(name)}`, {
+      await fetch(`/api/v1/admin/local/models/${encodeURIComponent(name)}`, {
         method: "DELETE",
         headers: headers(),
       });

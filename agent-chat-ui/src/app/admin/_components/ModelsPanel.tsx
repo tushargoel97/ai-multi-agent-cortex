@@ -141,8 +141,8 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
 
   async function load() {
     const [m, p] = await Promise.all([
-      adminFetch("/api/admin/models"),
-      adminFetch("/api/admin/providers"),
+      adminFetch("/api/v1/admin/models"),
+      adminFetch("/api/v1/admin/providers"),
     ]);
     if (m.ok) setModels(await m.json());
     if (p.ok) setProviders(await p.json());
@@ -308,7 +308,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
       toast.error("Pick a provider");
       return;
     }
-    const r = await adminFetch("/api/admin/models", {
+    const r = await adminFetch("/api/v1/admin/models", {
       method: "POST",
       body: JSON.stringify(form),
     });
@@ -326,7 +326,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
   }
 
   async function patch(id: string, body: Record<string, unknown>) {
-    const r = await adminFetch(`/api/admin/models/${id}`, {
+    const r = await adminFetch(`/api/v1/admin/models/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     });
@@ -336,7 +336,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
 
   async function del(id: string) {
     if (!(await confirm({ title: "Delete this model?" }))) return;
-    const r = await adminFetch(`/api/admin/models/${id}`, {
+    const r = await adminFetch(`/api/v1/admin/models/${id}`, {
       method: "DELETE",
     });
     if (!r.ok) toast.error("Delete failed");
@@ -357,7 +357,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
       let failed = 0;
       const failures: string[] = [];
       for (const p of eligible) {
-        const r = await fetch(`/api/admin/providers/${p.id}/sync-models`, {
+        const r = await fetch(`/api/v1/admin/providers/${p.id}/sync-models`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -391,7 +391,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
 
   async function saveAutoProfile(profile: string) {
     setAutoProfile(profile);
-    const r = await adminFetch("/api/admin/settings", {
+    const r = await adminFetch("/api/v1/admin/settings", {
       method: "PUT",
       body: JSON.stringify({ key: "auto_profile", value: profile }),
     });
@@ -400,7 +400,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
   }
 
   useEffect(() => {
-    adminFetch("/api/admin/settings")
+    adminFetch("/api/v1/admin/settings")
       .then((r) => (r.ok ? r.json() : { settings: {} }))
       .then((d) => setAutoProfile(d.settings?.auto_profile || "balanced"))
       .catch(() => {});

@@ -105,7 +105,7 @@ export default function DomainBuilder({
 
   const api = useCallback(
     async (method: string, path: string, body?: object) => {
-      const r = await fetch(`/api/admin/trainer/${path}`, {
+      const r = await fetch(`/api/v1/admin/trainer/${path}`, {
         method,
         headers: headers(),
         body: body ? JSON.stringify(body) : undefined,

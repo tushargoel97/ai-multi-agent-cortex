@@ -88,7 +88,7 @@ async function autoTitleThread(
   // Model-synthesized title; fall back to a trimmed first message on failure.
   let title = "";
   try {
-    const r = await fetch("/api/title", {
+    const r = await fetch("/api/v1/title", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
@@ -266,7 +266,7 @@ const StreamSession = ({
 };
 
 // Default values for the form
-const DEFAULT_API_URL = "http://localhost:2024";
+const DEFAULT_API_URL = "http://localhost:2024/api/v1";
 const DEFAULT_ASSISTANT_ID = "agent";
 const AGENT_BUILDER_AUTH_SCHEME = "langsmith-api-key";
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from langgraph_sdk import get_client
 
-LANGGRAPH_URL = os.getenv("LANGGRAPH_URL", "http://localhost:2024")
+LANGGRAPH_URL = os.getenv("LANGGRAPH_URL", "http://localhost:2024/api/v1")
 ASSISTANT_ID = "cortex"
 
 

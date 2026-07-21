@@ -75,7 +75,7 @@ export default function ToolsPanel() {
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch("/api/admin/tools", { headers: headers() });
+      const res = await fetch("/api/v1/admin/tools", { headers: headers() });
       if (!res.ok) throw new Error(`load ${res.status}`);
       const data = await res.json();
       setTools(data.tools ?? []);
@@ -96,7 +96,7 @@ export default function ToolsPanel() {
   const toggleTool = async (t: ToolRow) => {
     setBusy(t.id);
     try {
-      await fetch(`/api/admin/tools/${t.id}`, {
+      await fetch(`/api/v1/admin/tools/${t.id}`, {
         method: "PATCH",
         headers: headers(),
         body: JSON.stringify({ enabled: !t.enabled }),
@@ -118,7 +118,7 @@ export default function ToolsPanel() {
     setBusy(t.id);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/tools/${t.id}`, {
+      const r = await fetch(`/api/v1/admin/tools/${t.id}`, {
         method: "DELETE",
         headers: headers(),
       });
@@ -135,7 +135,7 @@ export default function ToolsPanel() {
     setBusy(`restore-${name}`);
     setError(null);
     try {
-      const r = await fetch("/api/admin/tools/restore", {
+      const r = await fetch("/api/v1/admin/tools/restore", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ name }),
@@ -154,7 +154,7 @@ export default function ToolsPanel() {
     setBusy("add-catalog");
     setError(null);
     try {
-      const r = await fetch("/api/admin/tools", {
+      const r = await fetch("/api/v1/admin/tools", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -190,7 +190,7 @@ export default function ToolsPanel() {
       }
     }
     try {
-      const r = await fetch("/api/admin/mcp-servers", {
+      const r = await fetch("/api/v1/admin/mcp-servers", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -219,7 +219,7 @@ export default function ToolsPanel() {
   const toggleMcp = async (s: McpRow) => {
     setBusy(s.id);
     try {
-      await fetch(`/api/admin/mcp-servers/${s.id}`, {
+      await fetch(`/api/v1/admin/mcp-servers/${s.id}`, {
         method: "PATCH",
         headers: headers(),
         body: JSON.stringify({ enabled: !s.enabled }),
@@ -240,7 +240,7 @@ export default function ToolsPanel() {
       return;
     setBusy(s.id);
     try {
-      await fetch(`/api/admin/mcp-servers/${s.id}`, {
+      await fetch(`/api/v1/admin/mcp-servers/${s.id}`, {
         method: "DELETE",
         headers: headers(),
       });

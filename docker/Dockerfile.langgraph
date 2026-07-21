@@ -1,8 +1,4 @@
-# Custom durable LangGraph runtime (Path 2B).
-# Serves the subset of the LangGraph Platform REST + SSE API the chat UI needs
-# (cortex/server), compiling the graph with an AsyncPostgresSaver checkpointer
-# and AsyncPostgresStore. All state is durable in Postgres: no LangSmith
-# license and no Redis.
+# Custom durable LangGraph runtime with Postgres persistence.
 FROM python:3.11-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -26,6 +22,6 @@ EXPOSE 8000
 
 # Uvicorn runs the custom FastAPI server. The lifespan sets up the Postgres
 # pool, runs checkpointer/store migrations, and compiles the graph before
-# serving: so /ok only responds once persistence is ready.
-CMD ["/app/.venv/bin/uvicorn", "cortex.server.app:app", \
+# serving, so health responds only after persistence is ready.
+CMD ["/app/.venv/bin/uvicorn", "cortex.api.app:app", \
      "--host", "0.0.0.0", "--port", "8000"]

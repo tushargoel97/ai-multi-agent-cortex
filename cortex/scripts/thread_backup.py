@@ -24,7 +24,7 @@ import psycopg2.extras
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("thread-backup")
 
-LANGGRAPH_URL = os.getenv("LANGGRAPH_URL", "http://langgraph:2024")
+LANGGRAPH_URL = os.getenv("LANGGRAPH_URL", "http://langgraph:2024/api/v1")
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://cortex:cortex@db:5432/cortex"
 ).replace("postgresql+psycopg2://", "postgresql://")

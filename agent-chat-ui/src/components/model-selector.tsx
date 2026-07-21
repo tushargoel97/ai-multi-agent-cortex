@@ -848,7 +848,7 @@ export default function ModelSelector({
   });
 
   useEffect(() => {
-    fetch("/api/models")
+    fetch("/api/v1/models")
       .then((r) => r.json())
       .then((data) => {
         setModels(data);

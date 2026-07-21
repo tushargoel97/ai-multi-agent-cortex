@@ -15,7 +15,7 @@ chat UI with the same observability/guardrails as the rest of Cortex.
 Shipped now:
 
 - **Intent + node.** New `Intent.CODING_TASK` → `coder` node
-  (`cortex/workflow.py`), `Agents.CODER` (`cortex/enums.py`), and
+  (`cortex/workflow/`), `Agents.CODER` (`cortex/enums.py`), and
   `cortex/declarative/agents/coder.yaml`. Router (`router.yaml`) now routes
   writing/debugging/refactoring/algorithms/SQL/regex/shell to `coding_task`
   and keeps pure math/logic on `reasoning_task`.

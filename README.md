@@ -102,7 +102,7 @@ CLI for day-to-day use.
 | Service     | Port | Role                                                    |
 | ----------- | ---- | ------------------------------------------------------- |
 | `db`        | 5432 | Postgres: registry/KB **and** durable graph state       |
-| `langgraph` | 2024 | Custom durable LangGraph server (`cortex/server`)       |
+| `langgraph` | 2024 | Custom durable LangGraph server (`cortex/api`)       |
 | `ui`        | 3000 | Chat UI + `/admin` console                              |
 | `ai`        | 8100 | llama.cpp GGUF server for local / fine-tuned models     |
 | `mcp`       | 8811 | FastMCP server re-exposing the stateless tools          |
@@ -137,7 +137,7 @@ docker compose up -d --build db langgraph ui ai
 ```
 
 The chat UI comes up on <http://localhost:3000> and the LangGraph server on
-<http://localhost:2024>.
+<http://localhost:2024/api/v1>.
 
 **3. Configure providers and models**
 
@@ -164,9 +164,9 @@ for the job.
 
 - **[`TECHNICAL.md`](TECHNICAL.md)**, the full technical reference:
   [service topology](TECHNICAL.md#2-service-topology),
-  the [durable server](TECHNICAL.md#3-the-custom-durable-langgraph-server-cortexserver)
+  the [durable server](TECHNICAL.md#3-the-custom-durable-langgraph-server-cortexapi)
   and [run lifecycle / background broker](TECHNICAL.md#4-run-lifecycle--the-background-run-broker),
-  the [graph](TECHNICAL.md#5-the-graph-cortexworkflowpy),
+  the [graph](TECHNICAL.md#5-the-graph-cortexworkflowinitpy),
   [agents & routing](TECHNICAL.md#6-agents--routing),
   the [self-trained specialist](TECHNICAL.md#7-the-self-trained-specialist--spec_review),
   [auto mode & providers](TECHNICAL.md#9-model-selection-auto-mode--providers),

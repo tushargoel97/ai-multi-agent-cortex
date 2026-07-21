@@ -54,7 +54,7 @@ After entering these values, click `Continue`. You'll then be redirected to a ch
 You can bypass the initial setup form by setting the following environment variables:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:2024
+NEXT_PUBLIC_API_URL=http://localhost:2024/api/v1
 NEXT_PUBLIC_ASSISTANT_ID=agent
 NEXT_PUBLIC_AUTH_SCHEME=
 ```
@@ -201,7 +201,7 @@ NEXT_PUBLIC_ASSISTANT_ID="agent"
 # This should be the deployment URL of your LangGraph server
 LANGGRAPH_API_URL="https://my-agent.default.us.langgraph.app"
 # This should be the URL of your website + "/api". This is how you connect to the API proxy
-NEXT_PUBLIC_API_URL="https://my-website.com/api"
+NEXT_PUBLIC_API_URL="https://my-website.com/api/v1"
 # Your LangSmith API key which is injected into requests inside the API proxy
 LANGSMITH_API_KEY="lsv2_..."
 ```
@@ -210,7 +210,7 @@ Let's cover what each of these environment variables does:
 
 - `NEXT_PUBLIC_ASSISTANT_ID`: The ID of the assistant you want to use when fetching, and submitting runs via the chat interface. This still needs the `NEXT_PUBLIC_` prefix, since it's not a secret, and we use it on the client when submitting requests.
 - `LANGGRAPH_API_URL`: The URL of your LangGraph server. This should be the production deployment URL.
-- `NEXT_PUBLIC_API_URL`: The URL of your website + `/api`. This is how you connect to the API proxy. For the [Agent Chat demo](https://agentchat.vercel.app), this would be set as `https://agentchat.vercel.app/api`. You should set this to whatever your production URL is.
+- `NEXT_PUBLIC_API_URL`: The URL of your website + `/api/v1`. This is how you connect to the API proxy. For the [Agent Chat demo](https://agentchat.vercel.app), this would be set as `https://agentchat.vercel.app/api/v1`. You should set this to whatever your production URL is.
 - `LANGSMITH_API_KEY`: Your LangSmith API key to use when authenticating requests sent to LangGraph servers. Once again, do _not_ prefix this with `NEXT_PUBLIC_` since it's a secret, and is only used on the server when the API proxy injects it into the request to your deployed LangGraph server.
 
 For in depth documentation, consult the [LangGraph Next.js API Passthrough](https://www.npmjs.com/package/langgraph-nextjs-api-passthrough) docs.

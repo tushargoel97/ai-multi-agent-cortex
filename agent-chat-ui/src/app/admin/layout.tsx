@@ -24,7 +24,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/login", {
+      const res = await fetch("/api/v1/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

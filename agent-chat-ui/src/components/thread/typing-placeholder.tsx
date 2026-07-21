@@ -35,7 +35,7 @@ export function useSuggestions(messages: Message[], isLoading: boolean): string[
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try {
-        const res = await fetch("/api/suggestions", {
+        const res = await fetch("/api/v1/suggestions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ context: key.split("|") }),

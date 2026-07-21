@@ -41,10 +41,10 @@ class Settings(BaseSettings):
     host_label: str = "Local Mac (MLX)"
     default_backend: str = "mlx-lora"
     base_model: str = "unsloth/gemma-3-1b-it"
-    qa_base_url: str = "http://localhost:8100/v1"
+    qa_base_url: str = "http://localhost:8100/api/v1"
     qa_api_key: str = "not-needed"
     qa_model: str = ""  # empty = first model listed by the endpoint
-    eval_base_url: str = "http://localhost:8100/v1"
+    eval_base_url: str = "http://localhost:8100/api/v1"
     eval_api_key: str = "not-needed"
 
     models_dir: Path = REPO_ROOT / "models"          # shared with the ai service (bind mount)

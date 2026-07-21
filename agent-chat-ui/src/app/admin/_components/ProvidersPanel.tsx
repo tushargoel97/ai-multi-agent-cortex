@@ -52,7 +52,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
 
   async function load() {
     setLoading(true);
-    const r = await adminFetch("/api/admin/providers");
+    const r = await adminFetch("/api/v1/admin/providers");
     if (!r.ok) {
       toast.error("Failed to load providers");
       setLoading(false);
@@ -68,7 +68,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    const r = await adminFetch("/api/admin/providers", {
+    const r = await adminFetch("/api/v1/admin/providers", {
       method: "POST",
       body: JSON.stringify({
         ...form,
@@ -94,7 +94,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
   }
 
   async function patchProvider(id: string, body: Record<string, unknown>) {
-    const r = await adminFetch(`/api/admin/providers/${id}`, {
+    const r = await adminFetch(`/api/v1/admin/providers/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     });
@@ -107,7 +107,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
 
   async function syncModels(id: string) {
     const t = toast.loading("Syncing models from provider…");
-    const r = await adminFetch(`/api/admin/providers/${id}/sync-models`, {
+    const r = await adminFetch(`/api/v1/admin/providers/${id}/sync-models`, {
       method: "POST",
     });
     const data = await r.json().catch(() => ({}));
@@ -129,7 +129,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
       }))
     )
       return;
-    const r = await adminFetch(`/api/admin/providers/${id}`, {
+    const r = await adminFetch(`/api/v1/admin/providers/${id}`, {
       method: "DELETE",
     });
     if (!r.ok) toast.error("Delete failed");
@@ -151,7 +151,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
     let failed = 0;
     const failures: string[] = [];
     for (const p of eligible) {
-      const r = await adminFetch(`/api/admin/providers/${p.id}/sync-models`, {
+      const r = await adminFetch(`/api/v1/admin/providers/${p.id}/sync-models`, {
         method: "POST",
       });
       const data = await r.json().catch(() => ({}));
@@ -245,7 +245,7 @@ export default function ProvidersPanel({ onChanged }: { onChanged?: () => void }
           <Input
             value={form.base_url}
             onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-            placeholder={form.kind === "local" ? "http://ai:8100/v1" : "Optional override"}
+            placeholder={form.kind === "local" ? "http://ai:8100/api/v1" : "Optional override"}
           />
         </div>
         {form.kind === "azure_openai" && (

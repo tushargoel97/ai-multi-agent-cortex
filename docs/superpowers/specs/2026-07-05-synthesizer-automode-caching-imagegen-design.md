@@ -33,7 +33,7 @@ Tool-less `synthesize` node appended after the factual agents:
   reasoning_task → claude-opus-4-8; product_specs → finetuned; fast tier (router,
   synthesizer, guardrails) → gemini-3.5-flash.
 - Active profile stored in a new `app_settings` key-value table; switchable via pills in
-  Admin → Models (`/api/admin/settings`).
+  Admin → Models (`/api/v1/admin/settings`).
 - Graph: `route_from_start` sends `"auto"` to the router (never the specialist bypass);
   the router classifies with the fast tier; each agent node resolves its model via
   `resolve_auto_model(intent)`.
@@ -60,8 +60,8 @@ Tool-less `synthesize` node appended after the factual agents:
   key may 429 on the pro image model.
 - Guardrail B (post): Gemini safety block → friendly refusal instead of an error.
 - Storage: PNG written to `generated_images/` (new bind mount, gitignored) named
-  `{thread_id}_{timestamp}.png`. Served by Next route `GET /api/images/[name]`
-  (filename sanitized). Chat message embeds `![…](/api/images/…)`.
+  `{thread_id}_{timestamp}.png`. Served by Next route `GET /api/v1/images/[name]`
+  (filename sanitized). Chat message embeds `![…](/api/v1/images/…)`.
 
 ## Constraints & notes
 

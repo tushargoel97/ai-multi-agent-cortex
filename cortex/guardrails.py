@@ -5,8 +5,7 @@ covers credit-card and email redaction; the workflow installs that one
 on every agent.
 
 This module provides additional, opt-in middleware that is not enabled by
-default but is available for users to add to ``_build_agent`` in
-``cortex/workflow.py`` if they need it.
+default but is available for users to add to the workflow runtime.
 """
 
 from __future__ import annotations

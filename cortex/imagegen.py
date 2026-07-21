@@ -8,7 +8,7 @@ Two guardrail layers keep output safe:
      the API becomes a polite refusal, not an error.
 
 Generated PNGs land in GENERATED_DIR named `{thread_id}_{timestamp}.png` and
-are served to the chat UI by the Next.js `/api/images/[name]` route.
+are served to the chat UI by the Next.js `/api/v1/images/[name]` route.
 """
 
 from __future__ import annotations

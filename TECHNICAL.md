@@ -13,9 +13,9 @@ design solves**.
 
 1. [System overview](#1-system-overview)
 2. [Service topology](#2-service-topology)
-3. [The custom durable LangGraph server (`cortex/server`)](#3-the-custom-durable-langgraph-server-cortexserver)
+3. [The custom durable LangGraph server (`cortex/api`)](#3-the-custom-durable-langgraph-server-cortexapi)
 4. [Run lifecycle & the background run broker](#4-run-lifecycle--the-background-run-broker)
-5. [The graph (`cortex/workflow.py`)](#5-the-graph-cortexworkflowpy)
+5. [The graph (`cortex/workflow/__init__.py`)](#5-the-graph-cortexworkflowinitpy)
 6. [Agents & routing](#6-agents--routing)
 7. [The self-trained specialist & `spec_review`](#7-the-self-trained-specialist--spec_review)
 8. [The synthesizer](#8-the-synthesizer)
@@ -98,7 +98,7 @@ needs Apple-Silicon MLX and runs on the host.
 | Service     | Host port | Build                         | Role                                                               |
 | ----------- | --------- | ----------------------------- | ------------------------------------------------------------------ |
 | `db`        | 5432      | `pgvector/pgvector:pg16`      | Postgres: app registry/KB **and** durable graph state              |
-| `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server (`cortex/server`)                  |
+| `langgraph` | 2024      | `docker/Dockerfile.langgraph` | Custom durable LangGraph server (`cortex/api`)                  |
 | `ui`        | 3000      | `docker/Dockerfile.ui`        | `agent-chat-ui` Next.js front-end + `/admin` console               |
 | `ai`        | 8100      | `ai/Dockerfile`               | llama.cpp GGUF server for local / fine-tuned models (reads `./models`) |
 | `mcp`       | 8811      | `docker/Dockerfile.langgraph` | FastMCP server exposing the stateless tools to external MCP clients |
@@ -147,7 +147,7 @@ docker compose --profile evals up              # run the eval suites once
 
 ---
 
-## 3. The custom durable LangGraph server (`cortex/server`)
+## 3. The custom durable LangGraph server (`cortex/api`)
 
 The `langgraph` service runs a compact, self-hosted FastAPI app that implements
 the subset of the LangGraph Platform REST + SSE API the chat UI's `useStream`
@@ -159,16 +159,16 @@ Redis required.**
 
 | Module | Responsibility |
 | --- | --- |
-| [`app.py`](cortex/server/app.py) | FastAPI app + `lifespan`: opens the Postgres pools, runs checkpointer/store migrations, compiles the graph, runs startup self-heal, mounts the routers, exposes `/ok` and `/info`. |
-| [`runtime.py`](cortex/server/runtime.py) | Process-wide `Runtime` singleton (`pool`, `checkpointer`, `store`, `graph`) populated once at startup and read by handlers. Also `db_uri()`, which normalizes SQLAlchemy driver suffixes psycopg3 doesn't understand, and `ASSISTANT_ID = "cortex"`. Kept in its own module to avoid an `app`↔routers circular import. |
-| [`serde.py`](cortex/server/serde.py) | Wire-format helpers that speak the exact serialization the SDK expects. |
-| [`assistants.py`](cortex/server/assistants.py) | Minimal single-graph assistant stub (`search`, `get`, `graph`, `schemas`). |
-| [`threads.py`](cortex/server/threads.py) | Thread endpoints + Postgres data-access for the `threads` metadata table and checkpoint/state serialization. |
-| [`runs.py`](cortex/server/runs.py) | The core SSE run endpoints and the **background run broker** (see §4). |
+| [`app.py`](cortex/api/app.py) | FastAPI app + `lifespan`: opens the Postgres pools, runs checkpointer/store migrations, compiles the graph, runs startup self-heal, mounts the routers, exposes `/api/v1/health` and `/api/v1/info`. |
+| [`runtime.py`](cortex/api/dependencies/runtime.py) | Process-wide `Runtime` singleton (`pool`, `checkpointer`, `store`, `graph`) populated once at startup and read by handlers. Also `db_uri()`, which normalizes SQLAlchemy driver suffixes psycopg3 doesn't understand, and `ASSISTANT_ID = "cortex"`. Kept in its own module to avoid an `app`↔routers circular import. |
+| [`serialization.py`](cortex/api/v1/serialization.py) | Wire-format helpers that speak the exact serialization the SDK expects. |
+| [`assistants.py`](cortex/api/v1/endpoints/assistants.py) | Minimal single-graph assistant stub (`search`, `get`, `graph`, `schemas`). |
+| [`threads.py`](cortex/api/v1/endpoints/threads.py) | Thread endpoints + Postgres data-access for the `threads` metadata table and checkpoint/state serialization. |
+| [`runs.py`](cortex/api/v1/endpoints/runs.py) | The core SSE run endpoints and the **background run broker** (see §4). |
 
 ### 3.2 Startup / lifespan sequence
 
-[`app.py`](cortex/server/app.py) `lifespan` performs, in order:
+[`app.py`](cortex/api/app.py) `lifespan` performs, in order:
 
 1. `setup_tracing()` (OpenTelemetry → Langfuse, see §16).
 2. Resolves the DSN via `db_uri()` (accepts `POSTGRES_URI` or the app's
@@ -197,9 +197,8 @@ Redis required.**
     prompts) to a comma, touching only rows that still contain one.
 13. Logs `Cortex durable server ready` and yields; on shutdown closes all pools.
 
-The FastAPI app also adds a permissive CORS middleware and mounts the
-`assistants`, `threads`, and `runs` routers. `/ok` is the health check `ui` gates
-on (`depends_on: condition: service_healthy`); `/info` advertises capability
+The FastAPI app mounts middleware and all endpoint routers under `/api/v1`.
+`/api/v1/health` gates UI startup and `/api/v1/info` advertises capability
 flags (`assistants: true`, `crons: false`).
 
 ### 3.3 Why three connection pools
@@ -222,7 +221,7 @@ they can never collide.
   `checkpoint_writes`, `store`, `store_vectors`) plus a small `threads` metadata
   table are created automatically in the same `cortex` database as the app
   tables, with no manual migration step.
-- The `threads` table ([`threads.py`](cortex/server/threads.py) `THREADS_DDL`):
+- The `threads` table ([`threads.py`](cortex/api/v1/endpoints/threads.py) `THREADS_DDL`):
 
   ```sql
   CREATE TABLE IF NOT EXISTS threads (
@@ -241,7 +240,7 @@ they can never collide.
 
 ### 3.5 Thread endpoints & data access
 
-[`threads.py`](cortex/server/threads.py) mirrors the subset of the LangGraph
+[`threads.py`](cortex/api/v1/endpoints/threads.py) mirrors the subset of the LangGraph
 Platform thread API the UI calls:
 
 - `POST /threads`, create (generates a UUID if none supplied).
@@ -265,7 +264,7 @@ Key data-access helpers:
 
 ### 3.6 SSE protocol mapping
 
-[`serde.py`](cortex/server/serde.py) speaks the LangGraph Platform serialization
+[`serde.py`](cortex/api/v1/serialization.py) speaks the LangGraph Platform serialization
 the `@langchain/langgraph-sdk` client expects:
 
 - The SDK deserializes messages as **plain dicts keyed by `type`** (`"ai"` /
@@ -301,7 +300,7 @@ The run endpoints drive `graph.astream(stream_mode=["values","messages",
 ## 4. Run lifecycle & the background run broker
 
 This is the most subtle part of the server and the subject of the most recent
-work. It lives in [`cortex/server/runs.py`](cortex/server/runs.py).
+work. It lives in [`cortex/api/v1/endpoints/runs.py`](cortex/api/v1/endpoints/runs.py).
 
 ### 4.1 The problem it solves
 
@@ -415,10 +414,10 @@ layer is in-process by design.
 
 ---
 
-## 5. The graph (`cortex/workflow.py`)
+## 5. The graph (`cortex/workflow/__init__.py`)
 
 `build_workflow(checkpointer, store)` compiles the multi-agent graph
-([`cortex/workflow.py`](cortex/workflow.py)). Highlights:
+([`cortex/workflow/__init__.py`](cortex/workflow/__init__.py)). Highlights:
 
 - **`route_from_start`**, the first hop. It either bypasses straight to the
   `specialist` (when a fine-tuned model is selected/default and the turn is
@@ -1010,7 +1009,7 @@ uv run pytest evals/ -v
   resistance.
 
 The shared [`evals/conftest.py`](evals/conftest.py) provides an `agent_runner`
-fixture that hits the running LangGraph API at `http://localhost:2024`. Add new
+fixture that hits the running LangGraph API at `http://localhost:2024/api/v1`. Add new
 cases to [`evals/golden_dataset.json`](evals/golden_dataset.json). The suites use
 [DeepEval](https://github.com/confident-ai/deepeval) and
 [RAGAS](https://github.com/explodinggradients/ragas) primitives.
@@ -1018,7 +1017,7 @@ cases to [`evals/golden_dataset.json`](evals/golden_dataset.json). The suites us
 ### 16.3 Guardrails
 
 Built-in middleware applied to every specialist agent in
-[`cortex/workflow.py`](cortex/workflow.py):
+[`cortex/workflow/__init__.py`](cortex/workflow/__init__.py):
 
 ```python
 PIIMiddleware("credit_card", strategy="redact", apply_to_output=True)
@@ -1035,7 +1034,7 @@ The image pipeline adds its own **safety gate**
 request (refuses NSFW etc. before any API call) and strict provider safety
 settings back it up. The flow is guardrail screen → Google image models → OpenAI
 gpt-image fallback; candidates come from `auto_mode.yaml`. PNGs are written to
-`generated_images/{thread_id}_{ts}.png` and served by `/api/images/[name]`.
+`generated_images/{thread_id}_{ts}.png` and served by `/api/v1/images/[name]`.
 
 An opt-in **Unrestricted mode** (the amber prompt-box toggle) relaxes the
 **app-level** guardrails for a turn: it **skips PII redaction**, appends a
@@ -1059,18 +1058,18 @@ docker compose logs -f langgraph              # wait for "Cortex durable server 
 The default `LLM_PROVIDER=openai` uses `OPENAI_MODEL` (default `gpt-5-nano`). For
 Azure, set `LLM_PROVIDER=azure_openai` and the `AZURE_OPENAI_*` variables. The
 chat UI comes up on <http://localhost:3000>, the LangGraph server on
-<http://localhost:2024>. Then open <http://localhost:3000/admin> (log in with
+<http://localhost:2024/api/v1>. Then open <http://localhost:3000/admin> (log in with
 `ADMIN_USERNAME` / `ADMIN_PASSWORD`) to add **Providers** (paste API keys) and
 register **Models** / pick the active auto-mode profile / mark a default.
 
 ### 17.2 Ports & startup order
 
 - The server binds `8000` inside the container and is published as `2024:8000`.
-  The UI container reaches it at `http://langgraph:8000` over the compose
-  network; host tooling and the eval suite use `http://localhost:2024`.
+  The UI container reaches it at `http://langgraph:8000/api/v1` over the compose
+  network; host tooling and the eval suite use `http://localhost:2024/api/v1`.
 - The FastAPI lifespan opens the pools, runs the checkpointer/store migrations,
   and compiles the graph before serving. It waits for `db` to be healthy and
-  exposes `/ok`, which `ui` gates on (`depends_on: condition: service_healthy`).
+  exposes `/api/v1/health`, which `ui` gates on (`depends_on: condition: service_healthy`).
 
 ### 17.3 Rebuild
 
@@ -1108,7 +1107,8 @@ docker compose exec db psql -U cortex -d cortex -c \
 
 ### 17.6 Verification recipes
 
-- **Graph API smoke**: `POST :2024/threads` → `POST /threads/{id}/runs/wait` with
+- **Graph API smoke**: `POST :2024/api/v1/threads` →
+  `POST /api/v1/threads/{id}/runs/stream` with
   `{"assistant_id":"cortex","input":{...},"config":{"configurable":{"model_id":"auto"}}}`.
 - **Regression questions**: "compare ps5 pro and ps5 slim" (Slim 2023 / $450 /
   10.3 TFLOPS); "compare PS5 vs PS5 Slim vs PS5 Pro" (3-way table); "compare AMD
@@ -1149,13 +1149,13 @@ and the durable server (the server normalizes the driver suffix via `db_uri()`).
 ai-multi-agent-cortex/
 ├── agent-chat-ui/            # Next.js 15 front-end (chat + /admin console)
 │   └── src/
-│       ├── app/             # routes: chat/, admin/, api/ (LangGraph + admin proxies)
+│       ├── app/             # routes: chat/, admin/, api/v1/ (LangGraph + admin proxies)
 │       ├── components/      # thread UI (agent-trace, agent-activity, thread-search,
 │       │                    #   history), model-selector, agent-inbox
 │       ├── providers/       # Stream, Thread, ModelSelection, client
 │       └── lib/             # db pool, admin-auth, multimodal utils
 ├── cortex/                   # The LangGraph Python package
-│   ├── workflow.py           # Compiled graph: nodes, routing, memory, synthesizer
+│   ├── workflow/             # Graph composition, nodes, routing, memory, research
 │   ├── enums.py              # Agents StrEnum
 │   ├── guardrails.py         # Opt-in ToolAllowlistMiddleware
 │   ├── errors.py             # Model-error classification + graceful fallback messages
@@ -1175,15 +1175,16 @@ ai-multi-agent-cortex/
 │   │   ├── auto_mode.yaml    # Per-intent model candidates (balanced/quality/cost)
 │   │   └── agents.yaml       # All agent specs (one --- document per agent)
 │   ├── model_client/         # Chat + embedding client factories (+ auto-mode fallback clients)
-│   ├── server/               # Custom durable LangGraph server (FastAPI + SSE)
+│   ├── api/                  # FastAPI app, middleware, dependencies, v1 endpoints
 │   ├── scripts/              # one-off maintenance scripts
 │   └── tools/                # registry + web/commerce/utility/shared/memory tools;
 │                             #   spec_table.py (deterministic spec/comparison tables),
 │                             #   catalog.py (prebuilt LangChain tools); mcp.py exposes
 │                             #   the stateless ones over FastMCP
-├── ai/                       # llama.cpp GGUF server (FastAPI, port 8100)
+├── ai/                       # llama.cpp GGUF server with versioned API
 ├── trainer/                  # Host-side pluggable MLX training service (port 8200)
-│   ├── app/                  # FastAPI plus backend-independent job orchestration
+│   ├── app/                  # Versioned API plus backend-independent orchestration
+│   │   ├── api/             # Middleware and v1 trainer endpoints
 │   │   ├── backends/         # contracts, registry, capabilities, adapter state, MLX commands
 │   │   └── exporters/        # generic fused-model artifact exporters (GGUF)
 │   ├── helpers/              # operational setup and scoped restart implementations
@@ -1212,10 +1213,10 @@ ai-multi-agent-cortex/
    external MCP server in **Admin → Tools**.
 2. **New agent**: for a graph-level agent, add a `---` document in
    `cortex/declarative/agents.yaml` with its `name` and `whitelisted_tools`, add
-   a member to the `Agents` enum, and a node in `cortex/workflow.py`. For a
+   a member to the `Agents` enum, and a node in `cortex/workflow/__init__.py`. For a
    **custom agent with no code**, create one in **Admin → Agents**, it auto-routes
    via the router by its description.
-3. **New routing label**: extend `Intent` in `cortex/workflow.py`, update
+3. **New routing label**: extend `Intent` in `cortex/workflow/__init__.py`, update
    `_INTENT_TO_NODE`, add the label to the router prompt in `agents.yaml`, and
    give the intent a candidate list in each profile of
    `cortex/declarative/auto_mode.yaml` so auto mode can serve it.

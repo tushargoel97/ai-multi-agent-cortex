@@ -34,19 +34,19 @@ generate dataset → train (live loss) → convert & register.
 
 ## Pipeline (what the buttons do)
 
-1. `POST /admin/dataset/generate`, expands `data/facts.yaml` into
+1. `POST /api/v1/admin/dataset/generate`, expands `data/facts.yaml` into
    `data/train.jsonl` + `data/valid.jsonl` (deterministic, seeded).
-2. `GET /admin/capabilities` reports host resources and available backends.
-   `POST /admin/estimate` provides a live estimate for the selected base,
+2. `GET /api/v1/admin/capabilities` reports host resources and available backends.
+   `POST /api/v1/admin/estimate` provides a live estimate for the selected base,
    algorithm, iterations, and batch size.
-3. `POST /admin/train` runs the selected `backend_id`:
+3. `POST /api/v1/admin/train` runs the selected `backend_id`:
    - `mlx-lora`, the existing 16-bit LoRA path.
    - `mlx-qlora-4bit`, a cached one-time 4-bit conversion followed by LoRA
      adapter training with lower unified-memory requirements.
    Validation selects the best saved checkpoint and stops after five stale
-   evaluations by default. `GET /admin/runs` returns durable run history, which
+   evaluations by default. `GET /api/v1/admin/runs` returns durable run history, which
    calibrates later time estimates.
-4. `POST /admin/convert`, `mlx_lm fuse` (adapters → HF safetensors), then
+4. `POST /api/v1/admin/convert`, `mlx_lm fuse` (adapters → HF safetensors), then
    llama.cpp `convert_hf_to_gguf.py --outtype q8_0` → `<repo>/models/<name>.gguf`.
 5. The UI imports and registers the GGUF as a draft, then evaluates 12 stable
    validation cases. Only a passing, explicitly promoted model is used for

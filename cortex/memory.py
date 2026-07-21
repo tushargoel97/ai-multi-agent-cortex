@@ -6,7 +6,7 @@ points at :func:`aembed_texts` below. Under `langgraph dev` the store (and its
 vectors) is persisted to the same volume-backed pickles as thread state.
 
 Short-term memory is a rolling conversation summary kept in graph state
-(``ChatState.summary`` in cortex/workflow.py).
+(``ChatState.summary`` in ``cortex/workflow/types.py``).
 """
 
 from __future__ import annotations

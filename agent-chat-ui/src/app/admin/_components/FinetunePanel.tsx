@@ -328,13 +328,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/trainer/progress", {
+      const res = await fetch("/api/v1/admin/trainer/progress", {
         headers: headers(),
       });
       if (!res.ok) throw new Error(`progress ${res.status}`);
       setStatus(await res.json());
       setTrainerUp(true);
-      const d = await fetch("/api/admin/trainer/dataset/status", {
+      const d = await fetch("/api/v1/admin/trainer/dataset/status", {
         headers: headers(),
       });
       if (d.ok) setDataset(await d.json());
@@ -345,7 +345,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshCapabilities = useCallback(async () => {
     try {
-      const r = await fetch("/api/admin/trainer/capabilities", { headers: headers() });
+      const r = await fetch("/api/v1/admin/trainer/capabilities", { headers: headers() });
       if (!r.ok) return;
       const data = (await r.json()) as TrainerCapabilities;
       setCapabilities(data);
@@ -359,7 +359,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshSources = useCallback(async () => {
     try {
-      const r = await fetch("/api/admin/trainer/sources", { headers: headers() });
+      const r = await fetch("/api/v1/admin/trainer/sources", { headers: headers() });
       if (r.ok) setSources((await r.json()).sources ?? []);
     } catch {
       return;
@@ -368,7 +368,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshGaps = useCallback(async () => {
     try {
-      const r = await fetch("/api/admin/gaps", { headers: headers() });
+      const r = await fetch("/api/v1/admin/gaps", { headers: headers() });
       if (r.ok) setGaps((await r.json()).gaps ?? []);
     } catch {
       return;
@@ -377,7 +377,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshDomains = useCallback(async () => {
     try {
-      const r = await fetch("/api/admin/trainer/domains", {
+      const r = await fetch("/api/v1/admin/trainer/domains", {
         headers: headers(),
       });
       if (r.ok) {
@@ -429,7 +429,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const r = await fetch("/api/admin/trainer/estimate", {
+        const r = await fetch("/api/v1/admin/trainer/estimate", {
           method: "POST",
           headers: headers(),
           signal: controller.signal,
@@ -464,7 +464,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const post = useCallback(
     async (path: string, body?: object) => {
-      const r = await fetch(`/api/admin/trainer/${path}`, {
+      const r = await fetch(`/api/v1/admin/trainer/${path}`, {
         method: "POST",
         headers: headers(),
         body: body ? JSON.stringify(body) : undefined,
@@ -483,7 +483,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       setPreviewSplit(split);
       try {
         const r = await fetch(
-          `/api/admin/trainer/dataset/preview?split=${encodeURIComponent(split)}&limit=300`,
+          `/api/v1/admin/trainer/dataset/preview?split=${encodeURIComponent(split)}&limit=300`,
           { headers: headers() },
         );
         const data = await r.json();
@@ -566,7 +566,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       const form = new FormData();
       form.append("file", file);
       const t = getAdminToken();
-      const r = await fetch("/api/admin/trainer/sources/upload", {
+      const r = await fetch("/api/v1/admin/trainer/sources/upload", {
         method: "POST",
         headers: { "X-Admin-Token": t || "" },
         body: form,
@@ -614,7 +614,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const deleteSource = async (id: string) => {
     setError(null);
     try {
-      const r = await fetch(`/api/admin/trainer/sources/${id}`, {
+      const r = await fetch(`/api/v1/admin/trainer/sources/${id}`, {
         method: "DELETE",
         headers: headers(),
       });
@@ -638,13 +638,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         await new Promise((r) => setTimeout(r, 2500));
         const s: TrainerStatus & {
           research_results?: { id: string; status: string; summary: string }[];
-        } = await fetch("/api/admin/trainer/progress", { headers: headers() }).then((x) =>
+        } = await fetch("/api/v1/admin/trainer/progress", { headers: headers() }).then((x) =>
           x.json(),
         );
         setStatus(s);
         if (s.phase === "research_done") {
           for (const r of s.research_results ?? []) {
-            await fetch("/api/admin/gaps", {
+            await fetch("/api/v1/admin/gaps", {
               method: "PATCH",
               headers: headers(),
               body: JSON.stringify({
@@ -667,7 +667,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   };
 
   const dismissGap = async (id: string) => {
-    await fetch("/api/admin/gaps", {
+    await fetch("/api/v1/admin/gaps", {
       method: "PATCH",
       headers: headers(),
       body: JSON.stringify({ id, status: "dismissed" }),
@@ -723,7 +723,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       let filename = "";
       for (;;) {
         await new Promise((r) => setTimeout(r, 2000));
-        const s: TrainerStatus = await fetch("/api/admin/trainer/progress", {
+        const s: TrainerStatus = await fetch("/api/v1/admin/trainer/progress", {
           headers: headers(),
         }).then((x) => x.json());
         setStatus(s);
@@ -734,7 +734,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         if (s.phase === "error") throw new Error(s.error ?? "conversion failed");
       }
 
-      const imp = await fetch("/api/admin/local/import-local", {
+      const imp = await fetch("/api/v1/admin/local/import-local", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -748,12 +748,12 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         throw new Error(data?.detail ?? data?.error ?? `import ${imp.status}`);
       }
 
-      const provs = await fetch("/api/admin/providers", {
+      const provs = await fetch("/api/v1/admin/providers", {
         headers: headers(),
       }).then((x) => x.json());
       const local = provs.find((p: { kind: string }) => p.kind === "local");
       if (!local) throw new Error("No local provider registered");
-      const registeredModel = await fetch("/api/admin/models", {
+      const registeredModel = await fetch("/api/v1/admin/models", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -781,7 +781,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setHfSearching(true);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/trainer/hf/search?q=${encodeURIComponent(q)}`, {
+      const r = await fetch(`/api/v1/admin/trainer/hf/search?q=${encodeURIComponent(q)}`, {
         headers: headers(),
       });
       const data = await r.json();
@@ -807,7 +807,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshFinetuned = useCallback(async () => {
     try {
-      const r = await fetch("/api/admin/models", { headers: headers() });
+      const r = await fetch("/api/v1/admin/models", { headers: headers() });
       const rows = await r.json();
       if (Array.isArray(rows)) {
         setFinetuned(
@@ -828,8 +828,8 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const refreshRuns = useCallback(async () => {
     try {
       const [runResponse, lifecycleResponse] = await Promise.all([
-        fetch("/api/admin/trainer/runs", { headers: headers() }),
-        fetch("/api/admin/models/lifecycle", { headers: headers() }),
+        fetch("/api/v1/admin/trainer/runs", { headers: headers() }),
+        fetch("/api/v1/admin/models/lifecycle", { headers: headers() }),
       ]);
       if (runResponse.ok) setRuns((await runResponse.json()).runs ?? []);
       if (lifecycleResponse.ok) setLifecycle(await lifecycleResponse.json());
@@ -857,7 +857,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       await post(`runs/${run.run_id}/evaluate`, { model_id: modelId, cases: 12 });
       for (;;) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        const current = await fetch("/api/admin/trainer/progress", {
+        const current = await fetch("/api/v1/admin/trainer/progress", {
           headers: headers(),
         }).then((response) => response.json());
         setStatus(current);
@@ -878,7 +878,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setBusy("lifecycle");
     setError(null);
     try {
-      const response = await fetch("/api/admin/models/lifecycle", {
+      const response = await fetch("/api/v1/admin/models/lifecycle", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify(body),
@@ -904,7 +904,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setBusy(`del-${m.id}`);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/models/${m.id}`, {
+      const r = await fetch(`/api/v1/admin/models/${m.id}`, {
         method: "DELETE",
         headers: headers(),
       });
@@ -912,7 +912,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         const d = await r.json().catch(() => ({}));
         throw new Error(d?.detail ?? d?.error ?? `delete ${r.status}`);
       }
-      await fetch(`/api/admin/local/models/${encodeURIComponent(m.model_id)}`, {
+      await fetch(`/api/v1/admin/local/models/${encodeURIComponent(m.model_id)}`, {
         method: "DELETE",
         headers: headers(),
       }).catch(() => {});
@@ -938,7 +938,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setBusy("clear-artifacts");
     setError(null);
     try {
-      const r = await fetch("/api/admin/trainer/artifacts", {
+      const r = await fetch("/api/v1/admin/trainer/artifacts", {
         method: "DELETE",
         headers: headers(),
       });

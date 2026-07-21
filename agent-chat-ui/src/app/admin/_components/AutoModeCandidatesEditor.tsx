@@ -81,7 +81,7 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
   async function load() {
     setLoading(true);
     try {
-      const r = await adminFetch("/api/admin/auto-mode");
+      const r = await adminFetch("/api/v1/admin/auto-mode");
       if (!r.ok) {
         toast.error("Could not load auto-mode config");
         return;
@@ -162,7 +162,7 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
   async function save() {
     setSaving(true);
     try {
-      const r = await adminFetch("/api/admin/auto-mode", {
+      const r = await adminFetch("/api/v1/admin/auto-mode", {
         method: "PUT",
         body: JSON.stringify({ overrides }),
       });

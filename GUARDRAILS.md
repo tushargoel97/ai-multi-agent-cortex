@@ -142,7 +142,7 @@ it does not need tool-call guardrails.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The relevant snippet from `cortex/workflow.py`:
+The relevant implementation is in `cortex/workflow/runtime.py`:
 
 ```python
 def _build_agent(agent_id: Agents, *, with_pii: bool = True):

@@ -217,7 +217,7 @@ _DEFAULT_PROVIDERS: list[dict] = [
     {
         "name": "Self-Hosted (Local)",
         "kind": ProviderKind.LOCAL,
-        "base_url": "http://ai:8100/v1",
+        "base_url": "http://ai:8100/api/v1",
         "models": [],  # filled in by user via admin → Local Models
     },
     {

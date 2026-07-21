@@ -58,7 +58,7 @@ export default function AgentsPanel() {
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const r = await fetch("/api/admin/agents", { headers: headers() });
+      const r = await fetch("/api/v1/admin/agents", { headers: headers() });
       if (!r.ok) throw new Error(`load ${r.status}`);
       const data = await r.json();
       setAgents(data.agents ?? []);
@@ -99,7 +99,7 @@ export default function AgentsPanel() {
     setBusy(key);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/agents/${encodeURIComponent(name)}`, {
+      const r = await fetch(`/api/v1/admin/agents/${encodeURIComponent(name)}`, {
         method: "PATCH",
         headers: headers(),
         body: JSON.stringify(body),
@@ -160,7 +160,7 @@ export default function AgentsPanel() {
     setBusy(`del-${a.name}`);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/agents/${encodeURIComponent(a.name)}`, {
+      const r = await fetch(`/api/v1/admin/agents/${encodeURIComponent(a.name)}`, {
         method: "DELETE",
         headers: headers(),
       });
@@ -178,7 +178,7 @@ export default function AgentsPanel() {
     setBusy("create");
     setError(null);
     try {
-      const r = await fetch("/api/admin/agents", {
+      const r = await fetch("/api/v1/admin/agents", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({

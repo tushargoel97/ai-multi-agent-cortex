@@ -24,13 +24,12 @@ services:
     image: ai-multi-agent-cortex-langgraph
     stop_grace_period: 3m
     ports:
-      # The custom durable server (cortex/server) binds port 8000; host 2024.
+      # The durable API binds port 8000; host 2024.
       - "2024:8000"
     env_file:
       - .env
     environment:
-      # App code + the durable server both read Postgres from here (the server
-      # normalizes the psycopg2 driver suffix, see cortex/server/runtime.py).
+      # App code and the durable API share this Postgres database.
       DATABASE_URL: postgresql+psycopg2://cortex:cortex@db:5432/cortex
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
@@ -38,7 +37,7 @@ services:
       # Ground-truth specs for the synthesizer's fact grounding (cortex/facts.py)
       - ./trainer/data:/app/trainer_data:ro
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ok')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -75,13 +74,13 @@ services:
     env_file:
       - .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
       NEXT_PUBLIC_ASSISTANT_ID: cortex
-      LANGGRAPH_API_URL: http://langgraph:8000
+      LANGGRAPH_API_URL: http://langgraph:8000/api/v1
       DATABASE_URL: postgresql://cortex:cortex@db:5432/cortex
-      LOCAL_AI_URL: http://ai:8100
+      LOCAL_AI_URL: http://ai:8100/api/v1
       # Host-side MLX fine-tuning service (trainer/, runs on the host, not in Docker)
-      TRAINER_URL: http://host.docker.internal:8200
+      TRAINER_URL: http://host.docker.internal:8200/api/v1
     volumes:
       - ./generated_images:/app/generated_images:ro
     depends_on:
@@ -101,7 +100,7 @@ services:
       # land directly in the container's model dir.
       - ./models:/models
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8100/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8100/api/v1/health"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -268,7 +267,7 @@ services:
     env_file:
       - .env
     environment:
-      LANGGRAPH_URL: http://langgraph:8000
+      LANGGRAPH_URL: http://langgraph:8000/api/v1
     volumes:
       - ./evals:/app/evals
       - ./cortex:/app/cortex

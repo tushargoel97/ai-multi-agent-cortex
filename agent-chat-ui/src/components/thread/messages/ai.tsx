@@ -147,7 +147,7 @@ export function AssistantMessage({
         idx >= 0
           ? thread.messages
               .slice(idx + 1)
-              .find((m) => m.type === "ai" && getContentString(m.content).includes("/api/images/"))
+              .find((m) => m.type === "ai" && getContentString(m.content).includes("/api/v1/images/"))
           : undefined;
       chipModel =
         (result as { response_metadata?: { model_name?: string } } | undefined)?.response_metadata
