@@ -23,6 +23,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cortex.api")
 
 
+def checkpoint_serializer():
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+    return JsonPlusSerializer(
+        allowed_msgpack_modules=[
+            ("cortex.workflow", "Intent"),
+            ("cortex.workflow.types", "Intent"),
+        ]
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_tracing()
@@ -48,7 +59,7 @@ async def lifespan(app: FastAPI):
     for p in (cp_pool, store_pool, data_pool):
         await p.open()
 
-    checkpointer = AsyncPostgresSaver(cp_pool)
+    checkpointer = AsyncPostgresSaver(cp_pool, serde=checkpoint_serializer())
     await checkpointer.setup()
 
     async with store_pool.connection() as conn:
