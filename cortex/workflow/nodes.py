@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
+from datetime import date
 from typing import Any
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from cortex.db.services.agents import load_custom_agent
@@ -20,15 +22,46 @@ from cortex.workflow.context import (
     agent_context,
     invoke_config,
     is_router_marker,
+    last_human,
     message_window,
     request_context,
     routing_complexity,
+    text_content,
 )
 from cortex.workflow.memory import memory_context, update_summary
 from cortex.workflow.runtime import assistant_name, build_agent, subagent_tools, system_prompt_for
 from cortex.workflow.types import ChatState, Intent
 
 logger = logging.getLogger("cortex.workflow")
+
+_FIAT_REQUEST_RE = re.compile(
+    r"\b(?:convert|conversion)\b|\b(?:in|to)\s+(?:indian\s+)?(?:rupees?|inr)\b",
+    re.IGNORECASE,
+)
+_HISTORICAL_REQUEST_RE = re.compile(
+    r"\b(?:historical|previously|last\s+year|past\s+price)\b", re.IGNORECASE
+)
+
+
+def shopping_required_tools(messages: list) -> tuple[str, ...]:
+    latest = last_human(messages)
+    question = text_content(latest) if latest is not None else ""
+    tools = ["product_prices"]
+    if _FIAT_REQUEST_RE.search(question):
+        tools.append("fiat_exchange_rate")
+    years = {int(year) for year in re.findall(r"\b20\d{2}\b", question)}
+    if _HISTORICAL_REQUEST_RE.search(question) or any(year < date.today().year for year in years):
+        tools.append("web_search")
+    return tuple(tools)
+
+
+def _missing_tools(messages: list, required: tuple[str, ...]) -> tuple[str, ...]:
+    used = {
+        str(message.name)
+        for message in messages
+        if isinstance(message, ToolMessage) and message.name
+    }
+    return tuple(name for name in required if name not in used)
 
 
 def model_error_message(exc: BaseException, config: RunnableConfig) -> AIMessage:
@@ -72,6 +105,7 @@ async def run_agent(
     state: ChatState,
     config: RunnableConfig,
     auto_intent: str | None = None,
+    required_tools: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     memory_suffix, updates = await memory_context(state, config)
     complexity = routing_complexity(state)
@@ -87,6 +121,52 @@ async def run_agent(
             {"messages": message_window(state["messages"])},
             config=invoke_config(config),
         )
+        missing = _missing_tools(result.get("messages", []), required_tools)
+        if missing:
+            interim = next(
+                (
+                    message
+                    for message in reversed(result.get("messages", []))
+                    if isinstance(message, AIMessage)
+                    and not getattr(message, "tool_calls", None)
+                ),
+                None,
+            )
+            if interim is not None and not interim.id:
+                interim.id = "required-tools-interim"
+            correction = HumanMessage(
+                content=(
+                    "Required tools before answering: "
+                    + ", ".join(missing)
+                    + ". Call them and use their returned values verbatim."
+                ),
+                id="required-tools-retry",
+            )
+            result = await agent.ainvoke(
+                {"messages": [*result.get("messages", []), correction]},
+                config=invoke_config(config),
+            )
+            result["messages"] = [
+                message
+                for message in result.get("messages", [])
+                if getattr(message, "id", None)
+                not in {correction.id, getattr(interim, "id", None)}
+            ]
+            missing = _missing_tools(result["messages"], required_tools)
+            if missing:
+                return {
+                    "messages": [
+                        AIMessage(
+                            content=(
+                                "I couldn't verify the requested live data, so I won't "
+                                "provide an unverified answer. Check that the required "
+                                "tools are enabled and try again."
+                            ),
+                            additional_kwargs={"grounding_error": True},
+                        )
+                    ],
+                    **updates,
+                }
     except Exception as exc:  # noqa: BLE001
         try:
             from cortex.db.services.auto_mode import (
@@ -159,7 +239,11 @@ async def shopping(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         Intent.SHOPPING.value, state, config, grounded=True
     )
     return local or await run_agent(
-        Agents.SHOPPING, state, config, Intent.SHOPPING.value
+        Agents.SHOPPING,
+        state,
+        config,
+        Intent.SHOPPING.value,
+        required_tools=shopping_required_tools(state["messages"]),
     )
 
 

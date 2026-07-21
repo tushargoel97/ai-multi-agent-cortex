@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from cortex import local_grounding
 from cortex import workflow
@@ -209,6 +209,41 @@ def test_general_followup_reuses_previous_grounded_answer(monkeypatch):
     assert result.response_metadata["grounded_by"] == "web_search"
 
 
+def test_explicit_local_model_receives_its_capability_description(monkeypatch):
+    captured = []
+
+    class Client:
+        def bind(self, **_kwargs):
+            return self
+
+        async def ainvoke(self, messages, config=None):
+            captured.extend(messages)
+            return AIMessage(content="reviewed")
+
+    resolved = SimpleNamespace(model_id="finetuned-contract-reviewer")
+    monkeypatch.setattr(local_grounding, "selected_local_model", lambda _: resolved)
+    monkeypatch.setattr(
+        local_grounding,
+        "local_specialist_profile",
+        lambda _: SimpleNamespace(
+            display_name="Contract Reviewer",
+            description="Reviews commercial contracts, obligations, and termination clauses.",
+        ),
+    )
+    monkeypatch.setattr(local_grounding, "build_client_from_resolved", lambda _: Client())
+
+    asyncio.run(
+        local_grounding.run_local_answer(
+            "general_chat",
+            [HumanMessage(content="Review this termination clause")],
+            {"configurable": {"model_id": "model-row"}},
+            request_context="Today is July 21, 2026.",
+        )
+    )
+
+    assert "Reviews commercial contracts" in str(captured[0].content)
+
+
 @pytest.mark.parametrize(
     ("node", "intent", "module"),
     [
@@ -229,7 +264,7 @@ def test_tool_intents_use_grounded_local_path(node, intent, module, monkeypatch)
 
     monkeypatch.setattr(workflow_nodes, "run_grounded_local", grounded)
     monkeypatch.setattr(module, "run_agent", cloud_agent)
-    state = {"messages": [HumanMessage(content="latest result")], "spec_gap": ""}
+    state = {"messages": [HumanMessage(content="latest result")]}
     config = {"configurable": {"model_id": "local-row"}}
 
     result = asyncio.run(node(state, config))
@@ -245,7 +280,7 @@ def test_grounded_local_error_is_not_masked_as_capability_decline(monkeypatch):
         raise ValueError("Requested tokens exceed context window")
 
     monkeypatch.setattr(workflow_nodes, "run_grounded_local", grounded)
-    state = {"messages": [HumanMessage(content="latest result")], "spec_gap": ""}
+    state = {"messages": [HumanMessage(content="latest result")]}
     result = asyncio.run(
         workflow.researcher(state, {"configurable": {"model_id": "local-row"}})
     )
@@ -253,6 +288,106 @@ def test_grounded_local_error_is_not_masked_as_capability_decline(monkeypatch):
     message = result["messages"][-1]
     assert message.additional_kwargs.get("model_error") is True
     assert "tool-capable" not in str(message.content)
+
+
+def test_shopping_passes_request_specific_tool_requirements(monkeypatch):
+    captured = {}
+
+    async def no_local(*_args, **_kwargs):
+        return None
+
+    async def agent(*_args, **kwargs):
+        captured.update(kwargs)
+        return {"messages": [AIMessage(content="answer")]}
+
+    monkeypatch.setattr(workflow_nodes, "selected_local_response", no_local)
+    monkeypatch.setattr(workflow_nodes, "run_agent", agent)
+
+    asyncio.run(
+        workflow.shopping(
+            {
+                "messages": [
+                    HumanMessage(
+                        content=(
+                            "Compare Alpha Pro and Beta Slim prices in Dubai for July "
+                            "2026 and July 2025 and convert them to Indian rupees"
+                        )
+                    )
+                ]
+            },
+            {},
+        )
+    )
+
+    assert captured["required_tools"] == (
+        "product_prices",
+        "fiat_exchange_rate",
+        "web_search",
+    )
+
+
+def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
+    class Agent:
+        def __init__(self):
+            self.calls = 0
+
+        async def ainvoke(self, payload, config=None):
+            self.calls += 1
+            if self.calls == 1:
+                return {
+                    "messages": [
+                        *payload["messages"],
+                        ToolMessage(
+                            content='{"offers": []}',
+                            name="product_prices",
+                            tool_call_id="prices",
+                        ),
+                        AIMessage(content="unverified conversion"),
+                    ]
+                }
+            return {
+                "messages": [
+                    *payload["messages"],
+                    ToolMessage(
+                        content='{"converted": 96029.74}',
+                        name="fiat_exchange_rate",
+                        tool_call_id="fx",
+                    ),
+                    AIMessage(content="verified conversion"),
+                ]
+            }
+
+    agent = Agent()
+
+    async def memory(*_args, **_kwargs):
+        return "", {}
+
+    monkeypatch.setattr(workflow_nodes, "memory_context", memory)
+    monkeypatch.setattr(workflow_nodes, "build_agent", lambda *_args, **_kwargs: agent)
+
+    result = asyncio.run(
+        workflow_nodes.run_agent(
+            workflow_nodes.Agents.SHOPPING,
+            {"messages": [HumanMessage(content="Convert this price to INR")]},
+            {},
+            "shopping",
+            required_tools=("product_prices", "fiat_exchange_rate"),
+        )
+    )
+
+    assert agent.calls == 2
+    assert result["messages"][-1].content == "verified conversion"
+    assert "unverified conversion" not in [
+        message.content
+        for message in result["messages"]
+        if isinstance(message, AIMessage)
+    ]
+    assert {
+        message.name
+        for message in result["messages"]
+        if isinstance(message, ToolMessage)
+    } == {"product_prices", "fiat_exchange_rate"}
+    assert all("Required tools" not in str(message.content) for message in result["messages"])
 
 
 @pytest.mark.parametrize(
