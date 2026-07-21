@@ -649,9 +649,10 @@ system_prompt: |
 
   Alongside the label, judge `complexity` honestly: `simple` for trivial
   lookups, greetings, or one-line rewrites; `complex` for multi-step
-  reasoning, architecture or debugging depth, or high-stakes precision;
-  `standard` otherwise. This steers how strong (and how expensive) a model
-  the answer is routed to.
+  reasoning, architecture or debugging depth, historical investigation,
+  comparisons with several constraints, multi-source verification, or
+  high-stakes precision; `standard` otherwise. This steers model quality and
+  execution depth independently of the selected capability.
   - **knowledge_query**, a factual question that needs CURRENT, recent, niche,
     or source-verifiable information: news, latest releases, ongoing events,
     live data, statistics, figures or dates that change over time, obscure or

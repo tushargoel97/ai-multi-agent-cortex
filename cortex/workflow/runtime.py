@@ -251,7 +251,11 @@ def build_agent(
         complexity=complexity,
     )
     static = agent_static_prompt(agent_id.value, spec)
-    dynamic = agent_context(config, engineer=agent_id is Agents.CODER)
+    dynamic = agent_context(
+        config,
+        engineer=agent_id is Agents.CODER,
+        complexity=complexity,
+    )
     if extra_system:
         dynamic += f"\n\n{extra_system}"
     tools = effective_agent_tools(spec) + subagent_tools(agent_id.value, config)

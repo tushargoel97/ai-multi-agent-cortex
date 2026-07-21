@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from cortex.local_grounding import answer_with_local_specialist
 from cortex.workflow.context import agent_context, is_router_marker, last_human, text_content
+from cortex.workflow.planning import plan_from_messages
 from cortex.workflow.types import ChatState
 
 logger = logging.getLogger("cortex.workflow")
@@ -23,11 +24,12 @@ async def run_local_specialist(
     latest = last_human(state["messages"])
     if latest is None or not text_content(latest).strip():
         return _error(f"The local specialist '{model_id}' received no question.")
+    plan = plan_from_messages(state["messages"], "local_specialist")
     try:
         reply = await answer_with_local_specialist(
             model_id,
             state["messages"],
-            agent_context(config),
+            agent_context(config, complexity=plan.complexity),
         )
     except Exception:  # noqa: BLE001
         logger.exception("Local specialist %r failed", model_id)
@@ -44,6 +46,10 @@ async def run_local_specialist(
     reply.response_metadata = {
         **(reply.response_metadata or {}),
         "model_name": model_id,
+    }
+    reply.additional_kwargs = {
+        **(reply.additional_kwargs or {}),
+        "execution_tier": plan.tier,
     }
     return {"messages": [reply]}
 

@@ -120,13 +120,18 @@ def request_context(config: RunnableConfig | None) -> str:
     )
 
 
-def agent_context(config: RunnableConfig | None, *, engineer: bool = False) -> str:
+def agent_context(
+    config: RunnableConfig | None,
+    *,
+    engineer: bool = False,
+    complexity: str | None = None,
+) -> str:
     cfg = (config or {}).get("configurable") or {}
     context = request_context(config)
     if bool(cfg.get("unrestricted")):
         context += f"\n\n{UNRESTRICTED_DIRECTIVE}"
     mode = str(cfg.get("mode") or "general").lower()
-    if mode == "general":
+    if mode == "general" and complexity != "complex":
         context += f"\n\n{INSTANT_DIRECTIVE}"
     elif mode == "engineer" and engineer:
         context += f"\n\n{ENGINEER_DIRECTIVE}"

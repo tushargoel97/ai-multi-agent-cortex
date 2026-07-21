@@ -8,6 +8,7 @@ from cortex import local_grounding
 from cortex import workflow
 from cortex.workflow import nodes as workflow_nodes
 from cortex.workflow import research as workflow_research
+from cortex.workflow.context import agent_context
 
 
 def test_registered_tool_uses_runnable_interface():
@@ -270,6 +271,7 @@ def test_tool_intents_use_grounded_local_path(node, intent, module, monkeypatch)
     result = asyncio.run(node(state, config))
 
     assert result["messages"][-1].content == "grounded local answer"
+    assert result["messages"][-1].additional_kwargs["execution_tier"] == "grounded"
     assert calls[0][0] == intent
     assert calls[0][1] is state["messages"]
     assert calls[0][2] is config
@@ -290,40 +292,143 @@ def test_grounded_local_error_is_not_masked_as_capability_decline(monkeypatch):
     assert "tool-capable" not in str(message.content)
 
 
-def test_shopping_passes_request_specific_tool_requirements(monkeypatch):
+def test_complex_shopping_uses_bounded_research_execution(monkeypatch):
     captured = {}
 
-    async def no_local(*_args, **_kwargs):
-        return None
+    class Agent:
+        async def ainvoke(self, payload, config=None):
+            captured["invoke_config"] = config
+            return {
+                "messages": [
+                    *payload["messages"],
+                    ToolMessage(content="current", name="product_prices", tool_call_id="1"),
+                    ToolMessage(content="history", name="web_search", tool_call_id="2"),
+                    ToolMessage(content="converted", name="fiat_exchange_rate", tool_call_id="3"),
+                    AIMessage(content="answer"),
+                ]
+            }
 
-    async def agent(*_args, **kwargs):
+    async def memory(*_args, **_kwargs):
+        return "", {}
+
+    def build(*_args, **kwargs):
         captured.update(kwargs)
-        return {"messages": [AIMessage(content="answer")]}
+        return Agent()
 
-    monkeypatch.setattr(workflow_nodes, "selected_local_response", no_local)
-    monkeypatch.setattr(workflow_nodes, "run_agent", agent)
+    monkeypatch.setattr(workflow_nodes, "memory_context", memory)
+    monkeypatch.setattr(workflow_nodes, "build_agent", build)
+    state = {
+        "messages": [
+            HumanMessage(content="Compare prices now and in 2025 and convert them"),
+            AIMessage(
+                content="shopping",
+                additional_kwargs={
+                    "routing": {
+                        "intent": "shopping",
+                        "complexity": "complex",
+                        "execution_tier": "research",
+                        "evidence_dimensions": [
+                            "current",
+                            "historical",
+                            "comparison",
+                            "conversion",
+                        ],
+                        "required_tools": [
+                            "product_prices",
+                            "web_search",
+                            "fiat_exchange_rate",
+                        ],
+                    }
+                },
+            ),
+        ]
+    }
 
     asyncio.run(
-        workflow.shopping(
-            {
-                "messages": [
-                    HumanMessage(
-                        content=(
-                            "Compare Alpha Pro and Beta Slim prices in Dubai for July "
-                            "2026 and July 2025 and convert them to Indian rupees"
-                        )
-                    )
-                ]
-            },
+        workflow_nodes.run_agent(
+            workflow_nodes.Agents.SHOPPING,
+            state,
             {},
+            "shopping",
         )
     )
 
-    assert captured["required_tools"] == (
-        "product_prices",
-        "fiat_exchange_rate",
-        "web_search",
+    assert captured["complexity"] == "complex"
+    assert captured["max_tool_calls"] == 12
+    assert captured["invoke_config"]["recursion_limit"] == 60
+    assert "independent evidence tasks" in captured["extra_system"]
+
+
+def test_complex_execution_is_not_limited_by_instant_mode():
+    context = agent_context(
+        {"configurable": {"mode": "general"}},
+        complexity="complex",
     )
+
+    assert "SPEED:" not in context
+
+
+def test_custom_agent_uses_shared_execution_plan(monkeypatch):
+    captured = {}
+
+    class Client:
+        pass
+
+    class Agent:
+        async def ainvoke(self, payload, config=None):
+            captured["invoke_config"] = config
+            return {"messages": [*payload["messages"], AIMessage(content="answer")]}
+
+    async def memory(*_args, **_kwargs):
+        return "", {}
+
+    def client(**kwargs):
+        captured["client"] = kwargs
+        return Client()
+
+    def create(**kwargs):
+        captured["system_prompt"] = kwargs["system_prompt"]
+        return Agent()
+
+    monkeypatch.setattr(
+        workflow_nodes,
+        "load_custom_agent",
+        lambda _: {
+            "system_prompt": "Custom agent",
+        },
+    )
+    monkeypatch.setattr(workflow_nodes, "memory_context", memory)
+    monkeypatch.setattr(workflow_nodes, "get_chat_client", client)
+    monkeypatch.setattr(workflow_nodes, "auto_fallback_clients", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(workflow_nodes, "effective_tool_names", lambda *_: [])
+    monkeypatch.setattr(workflow_nodes, "resolve_tool_instances", lambda _: [])
+    monkeypatch.setattr(workflow_nodes, "subagent_tools", lambda *_: [])
+    monkeypatch.setattr(workflow_nodes, "create_agent", create)
+    state = {
+        "messages": [
+            HumanMessage(content="Perform a detailed architecture review"),
+            AIMessage(
+                content="coding_task",
+                additional_kwargs={
+                    "routing": {
+                        "intent": "coding_task",
+                        "agent": "Architecture Reviewer",
+                        "complexity": "complex",
+                        "execution_tier": "deliberate",
+                        "evidence_dimensions": [],
+                        "required_tools": [],
+                    }
+                },
+            ),
+        ]
+    }
+
+    result = asyncio.run(workflow_nodes.custom_agent(state, {}))
+
+    assert captured["client"]["auto_intent"] == "coding_task"
+    assert captured["client"]["complexity"] == "complex"
+    assert captured["invoke_config"]["recursion_limit"] == 40
+    assert result["messages"][-1].additional_kwargs["execution_tier"] == "deliberate"
 
 
 def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
@@ -338,7 +443,7 @@ def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
                     "messages": [
                         *payload["messages"],
                         ToolMessage(
-                            content='{"offers": []}',
+                            content='{"offers": [{"price": "AED 1"}]}',
                             name="product_prices",
                             tool_call_id="prices",
                         ),
@@ -368,10 +473,28 @@ def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
     result = asyncio.run(
         workflow_nodes.run_agent(
             workflow_nodes.Agents.SHOPPING,
-            {"messages": [HumanMessage(content="Convert this price to INR")]},
+            {
+                "messages": [
+                    HumanMessage(content="Convert this price to INR"),
+                    AIMessage(
+                        content="shopping",
+                        additional_kwargs={
+                            "routing": {
+                                "intent": "shopping",
+                                "complexity": "standard",
+                                "execution_tier": "grounded",
+                                "evidence_dimensions": ["conversion"],
+                                "required_tools": [
+                                    "product_prices",
+                                    "fiat_exchange_rate",
+                                ],
+                            }
+                        },
+                    ),
+                ]
+            },
             {},
             "shopping",
-            required_tools=("product_prices", "fiat_exchange_rate"),
         )
     )
 
@@ -388,6 +511,11 @@ def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
         if isinstance(message, ToolMessage)
     } == {"product_prices", "fiat_exchange_rate"}
     assert all("Required tools" not in str(message.content) for message in result["messages"])
+    assert result["messages"][-1].additional_kwargs["tool_execution"] == {
+        "status": "complete",
+        "required": ["product_prices", "fiat_exchange_rate"],
+        "used": ["product_prices", "fiat_exchange_rate"],
+    }
 
 
 @pytest.mark.parametrize(

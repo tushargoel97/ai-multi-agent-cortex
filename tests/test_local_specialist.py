@@ -3,10 +3,12 @@ import importlib
 import inspect
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from cortex import local_grounding
 from cortex.db.services import knowledge_gaps
+from cortex.db.services import auto_mode
 from cortex.workflow import routing as workflow_routing
 from cortex.workflow.types import INTENT_TO_NODE, Intent, RouterIntent
 
@@ -64,6 +66,196 @@ def test_named_trained_entity_does_not_override_shopping_intent(monkeypatch):
     route = result["messages"][0].additional_kwargs["routing"]
     assert route["intent"] == Intent.SHOPPING.value
     assert route["reasoning"] == "Current retailer prices requested"
+
+
+def test_compound_shopping_request_is_promoted_to_research(monkeypatch):
+    resolved = []
+
+    class Agent:
+        async def ainvoke(self, _input):
+            return {
+                "structured_response": RouterIntent(
+                    intent=Intent.SHOPPING,
+                    reasoning="Retail prices requested",
+                )
+            }
+
+    monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
+    monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
+    monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
+    monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
+    monkeypatch.setattr(auto_mode, "is_auto", lambda _: True)
+    monkeypatch.setattr(
+        auto_mode,
+        "resolve_auto_model",
+        lambda intent, profile=None: resolved.append((intent, profile))
+        or SimpleNamespace(model_id="quality-model"),
+    )
+
+    result = asyncio.run(
+        workflow_routing.router(
+            {
+                "messages": [
+                    HumanMessage(
+                        content=(
+                            "Compare Alpha Pro and Beta Slim prices in Dubai for "
+                            "July 2026 and July 2025 and convert them to INR"
+                        )
+                    )
+                ]
+            },
+            {"configurable": {"model_id": "auto"}},
+        )
+    )
+
+    route = result["messages"][0].additional_kwargs["routing"]
+    assert route["complexity"] == "complex"
+    assert route["execution_tier"] == "research"
+    assert route["evidence_dimensions"] == [
+        "current",
+        "historical",
+        "comparison",
+        "conversion",
+    ]
+    assert route["required_tools"] == [
+        "product_prices",
+        "web_search",
+        "fiat_exchange_rate",
+    ]
+    assert resolved[-1] == (Intent.SHOPPING.value, "quality")
+
+
+def test_single_current_price_stays_on_grounded_tier(monkeypatch):
+    class Agent:
+        async def ainvoke(self, _input):
+            return {
+                "structured_response": RouterIntent(
+                    intent=Intent.SHOPPING,
+                    reasoning="One current price requested",
+                )
+            }
+
+    monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
+    monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
+    monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
+    monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
+
+    result = asyncio.run(
+        workflow_routing.router(
+            {"messages": [HumanMessage(content="Current price of Alpha Pro in India")]},
+            {"configurable": {"model_id": "manual-model"}},
+        )
+    )
+
+    route = result["messages"][0].additional_kwargs["routing"]
+    assert route["complexity"] == "standard"
+    assert route["execution_tier"] == "grounded"
+    assert route["evidence_dimensions"] == ["current"]
+    assert route["required_tools"] == ["product_prices"]
+
+
+@pytest.mark.parametrize(
+    ("intent", "complexity", "question", "tier", "required_tools"),
+    [
+        (
+            Intent.KNOWLEDGE_QUERY,
+            "standard",
+            "Compare the 2024 and 2025 results using current sources",
+            "research",
+            ["web_search"],
+        ),
+        (
+            Intent.KNOWLEDGE_QUERY,
+            "simple",
+            "Who won the 2025 Belgian Grand Prix?",
+            "grounded",
+            ["web_search"],
+        ),
+        (
+            Intent.BOOKING,
+            "standard",
+            "Compare flights on two dates under my budget",
+            "research",
+            ["find_bookings", "web_search"],
+        ),
+        (
+            Intent.CODING_TASK,
+            "complex",
+            "Refactor this service architecture and verify the edge cases",
+            "deliberate",
+            [],
+        ),
+        (
+            Intent.REASONING_TASK,
+            "complex",
+            "Work through this multi-step logic problem",
+            "deliberate",
+            [],
+        ),
+        (
+            Intent.REASONING_TASK,
+            "simple",
+            "Calculate 18 * 27",
+            "direct",
+            ["calculator"],
+        ),
+        (
+            Intent.CODING_TASK,
+            "standard",
+            "Check the latest FastAPI documentation for this API",
+            "grounded",
+            ["web_search"],
+        ),
+        (
+            Intent.GENERAL_CHAT,
+            "simple",
+            "What time is it now?",
+            "direct",
+            ["get_current_time"],
+        ),
+        (
+            Intent.GENERAL_CHAT,
+            "simple",
+            "Write a short birthday message",
+            "direct",
+            [],
+        ),
+    ],
+)
+def test_execution_policy_applies_across_capabilities(
+    monkeypatch, intent, complexity, question, tier, required_tools
+):
+    class Agent:
+        async def ainvoke(self, _input):
+            return {
+                "structured_response": RouterIntent(
+                    intent=intent,
+                    reasoning="Test route",
+                    complexity=complexity,
+                )
+            }
+
+    monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
+    monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
+    monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
+    monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
+
+    result = asyncio.run(
+        workflow_routing.router(
+            {"messages": [HumanMessage(content=question)]},
+            {"configurable": {"model_id": "manual-model"}},
+        )
+    )
+
+    route = result["messages"][0].additional_kwargs["routing"]
+    assert route["execution_tier"] == tier
+    assert route["required_tools"] == required_tools
 
 
 def test_auto_routes_described_local_model_without_domain_rules(monkeypatch):
@@ -166,6 +358,8 @@ def test_local_specialist_receives_recent_conversation(monkeypatch):
                     "routing": {
                         "intent": "local_specialist",
                         "local_model": "local-model",
+                        "complexity": "complex",
+                        "execution_tier": "deliberate",
                     }
                 },
             ),
@@ -182,6 +376,7 @@ def test_local_specialist_receives_recent_conversation(monkeypatch):
         "Which database did I mention?",
     ]
     assert result["messages"][0].content == "answer"
+    assert result["messages"][0].additional_kwargs["execution_tier"] == "deliberate"
 
 
 def test_specialist_without_a_routed_model_is_domain_neutral():

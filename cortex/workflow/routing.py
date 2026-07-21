@@ -15,7 +15,8 @@ from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients
-from cortex.workflow.context import has_image, last_human, message_window
+from cortex.workflow.context import has_image, last_human, message_window, text_content
+from cortex.workflow.planning import plan_execution
 from cortex.workflow.runtime import (
     agent_static_prompt,
     custom_agents_for_routing,
@@ -80,19 +81,28 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             "research": Intent.KNOWLEDGE_QUERY,
             "engineer": Intent.CODING_TASK,
         }[mode]
+        latest = last_human(state["messages"])
+        initial_complexity = (
+            "complex" if mode in ("thinking", "research", "engineer") else "standard"
+        )
+        plan = plan_execution(
+            forced.value,
+            text_content(latest) if latest is not None else "",
+            initial_complexity,
+        )
         routing: dict[str, Any] = {
             "intent": forced.value,
             "reasoning": f"{mode.capitalize()} mode",
             "agent": None,
             "local_model": None,
-            "complexity": "standard",
+            **plan.routing_fields(),
         }
         try:
             from cortex.db.services.auto_mode import resolve_auto_model
 
             resolved = resolve_auto_model(
                 "engineer" if mode == "engineer" else forced.value,
-                profile="quality" if mode == "thinking" else None,
+                profile="quality",
             )
             if resolved is not None:
                 routing["model"] = resolved.model_id
@@ -202,6 +212,17 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
                     report_model_failure(primary.model_id)
         except Exception:  # noqa: BLE001
             pass
+
+    latest = last_human(chat_messages)
+    plan = plan_execution(
+        intent_value,
+        text_content(latest) if latest is not None else "",
+        routing.get("complexity"),
+    )
+    fields = plan.routing_fields()
+    if routing.get("agent"):
+        fields["required_tools"] = []
+    routing.update(fields)
 
     from cortex.db.services.auto_mode import profile_for_complexity, resolve_auto_model
 

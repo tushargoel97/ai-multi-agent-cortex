@@ -144,6 +144,7 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         extra_system=extra,
         auto_intent=Intent.KNOWLEDGE_QUERY.value,
         max_tool_calls=10,
+        complexity="complex",
     )
     try:
         result = await agent.ainvoke(
