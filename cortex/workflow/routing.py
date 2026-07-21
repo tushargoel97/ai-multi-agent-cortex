@@ -11,12 +11,11 @@ from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from cortex.db.services.llm_registry import FINE_TUNED_PREFIX, resolve_with_session
 from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients
-from cortex.workflow.context import has_image, last_human, message_window, text_content
+from cortex.workflow.context import has_image, last_human, message_window
 from cortex.workflow.runtime import (
     agent_static_prompt,
     custom_agents_for_routing,
@@ -28,13 +27,9 @@ from cortex.workflow.types import INTENT_TO_NODE, ChatState, Intent, RouterInten
 
 logger = logging.getLogger("cortex.workflow")
 
-_HARDWARE_RE = re.compile(
-    r"ps5|playstation|xbox|steam ?deck|nintendo|switch\s?2?|"
-    r"rtx|gtx|geforce|radeon|\brx\s?\d|\barc\b|"
-    r"ryzen|threadripper|epyc|xeon|intel\s+core|core\s+ultra|i[3579]-\d|"
-    r"snapdragon|exynos|mediatek|dimensity|apple\s+silicone?|bionic|"
-    r"\bm[1-9]\b|\ba1[0-9]\b|\bchips?\b|chipset|\bsoc\b|processor|"
-    r"tflops|\bgpu\b|\bcpu\b|graphics\s+card|nvidia|\bamd\b|h100|h200|b200",
+_SPEC_RE = re.compile(
+    r"\b(spec|specs|specification|specifications|technical details|capabilities|"
+    r"features|compare|comparison|versus|vs\.?|difference between|benchmark|benchmarks)\b",
     re.IGNORECASE,
 )
 _SHOPPING_RE = re.compile(
@@ -56,43 +51,14 @@ def heuristic_intent(messages: list) -> Intent:
         return Intent.BOOKING
     if _SHOPPING_RE.search(text):
         return Intent.SHOPPING
-    if _HARDWARE_RE.search(text):
+    if _SPEC_RE.search(text):
         return Intent.PRODUCT_SPECS
-    try:
-        from cortex.facts import match_products
-
-        if text and match_products(text):
-            return Intent.PRODUCT_SPECS
-    except Exception:  # noqa: BLE001
-        pass
     return Intent.GENERAL_CHAT
 
 
 def route_from_start(
     state: ChatState, config: RunnableConfig
-) -> Literal["router", "specialist"]:
-    configurable = (config or {}).get("configurable") or {}
-    if configurable.get("local_base_url"):
-        return "router"
-    if str(configurable.get("mode") or "").lower() in (
-        "thinking",
-        "research",
-        "engineer",
-    ):
-        return "router"
-    from cortex.db.services.auto_mode import is_auto
-
-    if is_auto(configurable.get("model_id")):
-        return "router"
-    last = last_human(state["messages"])
-    if last is not None and has_image(last):
-        return "router"
-    try:
-        resolved = resolve_with_session(configurable.get("model_id"))
-        if resolved and resolved.model_id.startswith(FINE_TUNED_PREFIX):
-            return "specialist"
-    except Exception:  # noqa: BLE001
-        logger.exception("route_from_start model resolution failed")
+) -> Literal["router"]:
     return "router"
 
 
@@ -234,22 +200,6 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
                 primary = resolve_auto_model(FAST_TIER)
                 if primary is not None:
                     report_model_failure(primary.model_id)
-        except Exception:  # noqa: BLE001
-            pass
-
-    if not routing.get("agent") and intent_value != Intent.PRODUCT_SPECS.value:
-        try:
-            message = last_human(chat_messages)
-            question = text_content(message) if message is not None else ""
-            from cortex.facts import match_products
-
-            if question and match_products(question):
-                intent_value = Intent.PRODUCT_SPECS.value
-                routing.update(
-                    intent=intent_value,
-                    local_model=None,
-                    reasoning="override: named product is in the fine-tuned training facts",
-                )
         except Exception:  # noqa: BLE001
             pass
 

@@ -18,7 +18,7 @@ from cortex.workflow.nodes import (
 )
 from cortex.workflow.research import researcher
 from cortex.workflow.routing import route_by_intent, route_from_start, router
-from cortex.workflow.specialist import route_after_spec_review, spec_review, specialist
+from cortex.workflow.specialist import specialist
 from cortex.workflow.synthesis import synthesize
 from cortex.workflow.types import ChatState, Intent, RouterIntent
 
@@ -34,7 +34,6 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
     builder.add_node("booking", booking)
     builder.add_node("prompt_cacher", prompt_cacher)
     builder.add_node("specialist", specialist)
-    builder.add_node("spec_review", spec_review)
     builder.add_node("imagegen", imagegen)
     builder.add_node("custom_agent", custom_agent)
     builder.add_node("synthesize", synthesize)
@@ -51,12 +50,7 @@ def build_workflow(*, checkpointer: Any = None, store: Any = None):
         builder.add_edge(node, END)
     for node in ("researcher", "reasoner", "coder"):
         builder.add_edge(node, "synthesize")
-    builder.add_edge("specialist", "spec_review")
-    builder.add_conditional_edges(
-        "spec_review",
-        route_after_spec_review,
-        {"researcher": "researcher", "__end__": END},
-    )
+    builder.add_edge("specialist", END)
     builder.add_edge("synthesize", END)
     return builder.compile(checkpointer=checkpointer, store=store)
 

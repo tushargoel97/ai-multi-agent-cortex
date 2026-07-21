@@ -79,6 +79,20 @@ def selected_local_model(config: RunnableConfig | None):
     return resolved if resolved is not None and resolved.kind.value == "local" else None
 
 
+def _capability_instruction(model_id: str) -> str | None:
+    try:
+        profile = local_specialist_profile(model_id)
+    except Exception:
+        return None
+    if profile is None:
+        return None
+    return (
+        f"You are {profile.display_name}, a self-hosted specialist model. "
+        f"Capabilities: {profile.description}\n"
+        "Answer directly and accurately within those capabilities."
+    )
+
+
 async def collect_evidence(
     intent: str, question: str, config: RunnableConfig | None
 ) -> Evidence:
@@ -267,11 +281,7 @@ async def answer_with_local_specialist(
         messages,
         request_context,
         intent="local_specialist",
-        instruction=(
-            f"You are {profile.display_name}, a self-hosted specialist model. "
-            f"Capabilities: {profile.description}\n"
-            "Answer directly and accurately within those capabilities."
-        ),
+        instruction=_capability_instruction(model_id),
     )
 
 
@@ -291,6 +301,7 @@ async def run_local_answer(
         request_context,
         intent=intent,
         evidence=_previous_evidence(messages),
+        instruction=_capability_instruction(resolved.model_id),
     )
 
 
@@ -321,4 +332,5 @@ async def run_grounded_local(
         request_context,
         intent=intent,
         evidence=evidence,
+        instruction=_capability_instruction(resolved.model_id),
     )

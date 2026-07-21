@@ -4,7 +4,6 @@ import {
   BrainCircuit,
   Clock,
   Code2,
-  Cpu,
   Database,
   Globe,
   Link2,
@@ -43,7 +42,7 @@ export function prettyModel(id: string): string {
 }
 
 const INTENT_AGENTS: Record<string, { label: string; icon: LucideIcon }> = {
-  product_specs: { label: "Hardware Specialist", icon: Cpu },
+  product_specs: { label: "Product Specialist", icon: BookOpen },
   knowledge_query: { label: "Researcher", icon: Search },
   reasoning_task: { label: "Reasoner", icon: BrainCircuit },
   coding_task: { label: "Coder", icon: Code2 },

@@ -57,7 +57,7 @@ class PromptSourceRequest(BaseModel):
 
 class ConvertRequest(BaseModel):
     output_name: str = Field(
-        default="finetuned-gemma3-1b-hardware",
+        default="finetuned-gemma3-1b",
         pattern=r"^finetuned-[a-z0-9][a-z0-9._-]{0,180}$",
     )
 

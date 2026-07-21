@@ -179,12 +179,11 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
   }
 
   function labelFor(id: string): string {
-    if (id === "finetuned") return "finetuned · newest fine-tuned model";
     const m = models.find((x) => x.model_id === id);
     return m ? `${id} · ${m.display_name}` : id;
   }
   function isKnown(id: string): boolean {
-    return id === "finetuned" || models.some((m) => m.model_id === id);
+    return models.some((m) => m.model_id === id);
   }
 
   return (
@@ -341,20 +340,12 @@ export default function AutoModeCandidatesEditor({ refreshKey = 0 }: { refreshKe
                         placeholder="Select a model"
                         ariaLabel={`Add model to ${INTENT_LABELS[intent] || intent}`}
                         className="h-8 text-xs"
-                        options={[
-                          {
-                            value: "finetuned",
-                            label: "finetuned",
-                            hint: "Newest fine-tuned model",
-                            disabled: list.includes("finetuned"),
-                          },
-                          ...models.map((model) => ({
-                            value: model.model_id,
-                            label: model.model_id,
-                            hint: model.display_name,
-                            disabled: list.includes(model.model_id),
-                          })),
-                        ]}
+                        options={models.map((model) => ({
+                          value: model.model_id,
+                          label: model.model_id,
+                          hint: model.display_name,
+                          disabled: list.includes(model.model_id),
+                        }))}
                       />
                       <button
                         type="button"

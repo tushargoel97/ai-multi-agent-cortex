@@ -27,7 +27,7 @@ _BUILTIN_DESCRIPTIONS = {
     "coder": "Writes, explains, reviews, and debugs code.",
     "debugger": "Root-cause analysis subagent for failing code (Engineer mode).",
     "prompt_cacher": "LLM prompt-caching expertise.",
-    "specialist": "Self-trained hardware-spec specialist.",
+    "specialist": "Description-routed self-trained specialist.",
     "synthesizer": "Formats factual answers into clean tables / structure.",
     "shopping": "Region-aware product prices and buying advice.",
     "booking": "Flights, hotels, movies, concerts, and events.",
@@ -73,10 +73,8 @@ def publish_agents() -> None:
                         )
                     )
                 elif row.kind == AgentKind.BUILTIN.value and not row.edited:
-                    # keep unedited built-ins in sync with code
                     row.system_prompt = prompt
-                    if not row.description:
-                        row.description = _BUILTIN_DESCRIPTIONS.get(name, "")
+                    row.description = _BUILTIN_DESCRIPTIONS.get(name, "")
         _publish_agent_defaults()
         _seed_builtin_grants()
     except Exception:  # noqa: BLE001, agent mirror is best-effort

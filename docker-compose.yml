@@ -34,8 +34,6 @@ services:
       LANGFUSE_HOST: http://langfuse-web:3000
     volumes:
       - ./generated_images:/app/generated_images
-      # Ground-truth specs for the synthesizer's fact grounding (cortex/facts.py)
-      - ./trainer/data:/app/trainer_data:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 15s

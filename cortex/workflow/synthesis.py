@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from cortex.config import get_settings
-from cortex.db.services.llm_registry import FINE_TUNED_PREFIX, build_client_from_resolved
+from cortex.db.services.llm_registry import build_client_from_resolved
 from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.local_grounding import selected_local_model
@@ -21,9 +21,7 @@ from cortex.workflow.context import is_router_marker, last_human, text_content
 
 logger = logging.getLogger("cortex.workflow")
 
-GAP_NOTE_PREFIX = "*I've logged this as a knowledge gap"
-FALLBACK_NOTE_PREFIX = "*Fact-checked"
-NOTE_PREFIXES = (GAP_NOTE_PREFIX, FALLBACK_NOTE_PREFIX)
+NOTE_PREFIXES = ("*I've logged this as a knowledge gap",)
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 _TABLE_RE = re.compile(r"^\s*\|.+\|\s*\n\s*\|[\s:|-]+\|", re.MULTILINE)
@@ -125,7 +123,7 @@ async def _render_spec_answer(
             model=model,
             tools=[],
             system_prompt=(
-                "Extract product, hardware, or software specs into a comparison "
+                "Extract product or software specs into a comparison "
                 "table. Copy values verbatim, prefer the authoritative reference "
                 "on conflicts, leave missing cells blank, and never invent values."
             ),
@@ -146,16 +144,6 @@ async def _render_spec_answer(
         if rendered and _no_invented_numbers(draft, rendered, reference)
         else None
     )
-
-
-def _facts_reference(question: str) -> tuple[str, bool]:
-    try:
-        from cortex.facts import is_prose_products, match_products, reference_block
-
-        matched = match_products(question)
-        return reference_block(matched), is_prose_products(matched)
-    except Exception:  # noqa: BLE001
-        return "", False
 
 
 def _format_model(
@@ -200,10 +188,8 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
 
     human = last_human(messages)
     question = text_content(human) if human is not None else ""
-    model_name = str((final.response_metadata or {}).get("model_name", ""))
     is_spec = (
         intent == "product_specs"
-        or model_name.startswith(FINE_TUNED_PREFIX)
         or bool(_SPEC_QUERY_RE.search(question))
     )
     if is_spec and _has_markdown_table(final.content):
@@ -213,17 +199,12 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
         model = _format_model(config, final, is_spec)
         if model is None:
             return {}
-        reference, prose_domain = _facts_reference(question)
-        if is_spec and not prose_domain:
-            rendered = await _render_spec_answer(
-                question, final.content, reference, model
-            )
+        if is_spec:
+            rendered = await _render_spec_answer(question, final.content, "", model)
             if rendered:
                 return _replacement(final, _carry_notes(final.content, rendered))
 
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
-        if reference:
-            prompt += f"\n\nAuthoritative reference:\n{reference}"
         spec = get_agent_spec(Agents.SYNTHESIZER)
 
         async def reformat(extra: str = "") -> str:
@@ -242,17 +223,17 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
         text = await reformat()
         if is_spec and (
             not _has_markdown_table(text)
-            or not _numbers_preserved(final.content, text, reference)
+            or not _numbers_preserved(final.content, text)
         ):
             forced = await reformat(
                 "\n\nOutput only a GitHub markdown table. Copy every number "
                 "verbatim and never add, drop, round, or invent a number."
             )
             if _has_markdown_table(forced) and _numbers_preserved(
-                final.content, forced, reference
+                final.content, forced
             ):
                 text = forced
-        if not text or not _numbers_preserved(final.content, text, reference):
+        if not text or not _numbers_preserved(final.content, text):
             return {}
         return _replacement(final, _carry_notes(final.content, text))
     except Exception:  # noqa: BLE001

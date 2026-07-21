@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { checkAdmin } from "@/lib/admin-auth";
-import { getFinetunedLifecycle, remove, saveFinetunedLifecycle } from "@/lib/finetuned-lifecycle";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthed = checkAdmin(req);
@@ -34,13 +33,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const unauthed = checkAdmin(req);
   if (unauthed) return unauthed;
   const { id } = await params;
-  const { rows } = await query<{ model_id: string }>(
-    "DELETE FROM llm_models WHERE id = $1 RETURNING model_id",
-    [id],
-  );
-  if (rows[0]?.model_id.startsWith("finetuned-")) {
-    const state = await getFinetunedLifecycle();
-    await saveFinetunedLifecycle(remove(state, rows[0].model_id));
-  }
+  await query("DELETE FROM llm_models WHERE id = $1", [id]);
   return NextResponse.json({ ok: true });
 }

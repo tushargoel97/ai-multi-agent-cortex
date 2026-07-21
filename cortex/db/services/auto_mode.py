@@ -19,7 +19,6 @@ from cortex.db.services.app_settings import get_setting, set_setting
 from cortex.db.services.llm_registry import (
     ResolvedModel,
     resolve_by_model_id,
-    resolve_fine_tuned_model,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,10 +124,7 @@ def resolve_auto_candidates(
     seen: set[str] = set()
     for model_id in candidates:
         try:
-            if model_id == "finetuned":
-                resolved = resolve_fine_tuned_model()
-            else:
-                resolved = resolve_by_model_id(model_id)
+            resolved = resolve_by_model_id(model_id)
         except Exception:  # noqa: BLE001, registry hiccup: try next candidate
             logger.exception("auto-mode candidate %r failed to resolve", model_id)
             continue

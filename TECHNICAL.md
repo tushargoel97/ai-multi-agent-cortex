@@ -17,7 +17,7 @@ design solves**.
 4. [Run lifecycle & the background run broker](#4-run-lifecycle--the-background-run-broker)
 5. [The graph (`cortex/workflow/__init__.py`)](#5-the-graph-cortexworkflowinitpy)
 6. [Agents & routing](#6-agents--routing)
-7. [The self-trained specialist & `spec_review`](#7-the-self-trained-specialist--spec_review)
+7. [Capability-routed local specialists](#7-capability-routed-local-specialists)
 8. [The synthesizer](#8-the-synthesizer)
 9. [Model selection, auto mode & providers](#9-model-selection-auto-mode--providers)
 10. [Chat modes & extended thinking](#10-chat-modes--extended-thinking)
@@ -54,8 +54,7 @@ keeping three trust pillars: **observability**, **evaluation**, and
        ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ Custom durable server (:2024) - cortex graph                          │
-│ START ─▶ route ─┬─ specialist  (fine-tuned local model - bypass)      │
-│                 └─ router ─┬─ generalist     ───────────────▶ END     │
+│ START ─▶ router ─┬─ generalist     ─────────────────────────▶ END     │
 │                            ├─ prompt_cacher ──────────────────▶ END   │
 │                            ├─ imagegen      ──────────────────▶ END   │
 │                            ├─ shopping      ──────────────────▶ END   │
@@ -64,8 +63,7 @@ keeping three trust pillars: **observability**, **evaluation**, and
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END  │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ▶ spec_review ─▶ synthesize  │
-│                                (untrained/wrong ▶ researcher web-RAG) │
+│                            └─ specialist (description-routed) ─▶ END  │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -205,10 +203,9 @@ flags (`assistants: true`, `crons: false`).
 
 A single shared pool caused psycopg **"another command is already in progress"**
 errors. Within one graph step the checkpointer write and the store's semantic
-recall can run concurrently (more so now that `spec_review` fans out with
-`asyncio.gather`), and sharing one pinned connection interleaves two commands on
-it. Dedicated pools isolate the checkpointer, store, and threads-table access so
-they can never collide.
+recall can run concurrently, and sharing one pinned connection interleaves two
+commands on it. Dedicated pools isolate the checkpointer, store, and
+threads-table access so they can never collide.
 
 ### 3.4 Persistence model
 
@@ -458,7 +455,7 @@ layer is in-process by design.
 | `reasoner`      | Math, logic puzzles, step-by-step problem solving                | `calculator`, memory                                                      |
 | `coder`         | Writing, explaining, reviewing, refactoring, and debugging code  | `web_search`, `fetch_url`, memory                                         |
 | `prompt_cacher` | LLM prompt-caching expert (large stable system prompt)           | none (large prompt demonstrates caching savings)                          |
-| `specialist`    | Specs & knowledge in any **trained domain** (hardware built-in; add your own) from a **self-trained** model (silent draft) | none; `spec_review` emits the answer, self-critiques (heuristics + LLM fact-check) and, on a gap, hands off to `researcher` web-RAG, logging it |
+| `specialist`    | Questions that squarely match an enabled local model's capability description | none; answers directly from the selected local model and logs explicit off-domain refusals |
 | `imagegen`      | Generates images behind a two-layer safety gate                  | none; calls Google / OpenAI image APIs directly                           |
 | `shopping`      | Product shopping: direct product-page links with live price & in-stock, region-aware, rendered as cards | `product_prices`, `web_search`, `fetch_url`, `search_memories`          |
 | `booking`       | Booking: flights, hotels, movies, concerts, events, shows; dated deep-link cards | `find_bookings`, `web_search`, `fetch_url`, `search_memories`             |
@@ -471,7 +468,7 @@ router by their description, with no restart and no code (§11).
 ### 6.2 Routing
 
 The router emits a structured `RouterIntent` (via provider strategies) with one
-of nine labels, each mapped to a node in `_INTENT_TO_NODE`:
+of ten labels, each mapped to a node in `INTENT_TO_NODE`:
 
 | Label | Node |
 | --- | --- |
@@ -480,7 +477,8 @@ of nine labels, each mapped to a node in `_INTENT_TO_NODE`:
 | `reasoning_task` | `reasoner` |
 | `coding_task` | `coder` |
 | `prompt_caching` | `prompt_cacher` |
-| `product_specs` | `specialist` |
+| `product_specs` | `researcher` |
+| `local_specialist` | `specialist` |
 | `image_generation` | `imagegen` |
 | `shopping` | `shopping` |
 | `booking` | `booking` |
@@ -498,12 +496,10 @@ of nine labels, each mapped to a node in `_INTENT_TO_NODE`:
   a custom agent best fits the message, the turn routes to the generic
   `custom_agent` node that runs it. Custom agents register live, with no graph
   rebuild.
-- **Deterministic trained-entity guard** (runs **before** the classifier is
-  trusted): if the message names an entity in **any trained domain**
-  ([`cortex/facts.py`](cortex/facts.py) `match_products`, alias-aware with
-  longest-match-wins over every domain's facts), the router **forces
-  `product_specs`** so a trained entity always reaches the fine-tuned
-  `specialist` rather than web search.
+- **Capability routing**: every enabled local model with a non-empty
+  description is listed to the router. A query uses `local_specialist` only
+  when it clearly matches that description; the model ID is carried in the
+  routing metadata. There is no global active model or domain keyword override.
 - **Context-aware follow-ups**: the router reads a **recent window** of the
   conversation, not just the last message. When the previous turn offered to
   find flights/hotels/tickets (or to compare a product's prices) and the user
@@ -520,48 +516,31 @@ of nine labels, each mapped to a node in `_INTENT_TO_NODE`:
 
 ---
 
-## 7. The self-trained specialist & `spec_review`
+## 7. Capability-routed local specialists
 
-The `specialist` is a small model (**Gemma 3 1B**) fine-tuned on curated data
-across the **domains you choose** (a built-in **hardware** domain, gaming
-consoles + PC + mobile/laptop processors, ships ready to train; you can add your
-own domains/subdomains from the UI). Implementation details that matter:
+Any enabled local model with a detailed registry description can act as a
+specialist. The router receives each model ID and description at runtime and
+selects one only for a clear capability match. This works for every trained
+domain without product-name lists, a global promoted model, or a hardware-only
+review pipeline.
 
-- **No system prompt.** The LoRA training data is bare user/assistant pairs; a
-  system prompt corrupts recall. Temperature 0, latest question only, as plain
-  text.
-- **Never receives images.** `route_by_intent` reroutes image questions to the
-  researcher.
-- **Silent draft.** The specialist produces a `spec_draft` in state and **never
-  speaks to the user directly**. Don't expect its own message in the transcript.
-- **Domain-aware identity + off-domain refusals.** These are built from the
-  subdomains you trained on, not a fixed hardware framing.
+Dataset generation derives a routing description from the selected domains and
+subdomains. The admin can review or edit it before GGUF registration. Explicitly
+selected local models receive the same capability context, while Auto mode uses
+the description to choose among all eligible local models.
 
-The terminal **`spec_review`** node emits the single visible answer and runs two
-things **in parallel** (`asyncio.gather`, so the table is instant rather than
-waiting for two serial LLM calls):
-
-1. **Self-critique**, cheap heuristics (refusal phrases, a product not in the
-   training facts) **plus** a strict **LLM fact-check** that flags confidently
-   wrong answers, wrong manufacturer, an impossible architecture (e.g. "CUDA
-   cores" on an Apple chip), or an implausible figure.
-2. **Table extraction**, structured columns + rows for the deterministic table.
-
-On a **gap** (refusal / untrained / LLM fact-check fail) `spec_review` **logs the
-gap** ([`cortex/db/services/knowledge_gaps.py`](cortex/db/services/knowledge_gaps.py))
-and hands off to the `researcher`, which re-answers with **live web-RAG** so the
-user gets a correct, sourced answer instead of the wrong one. Otherwise it emits
-the deterministically-rendered spec table. Logged gaps drive the retraining loop
-(§14): statuses run `new → researched → trained`.
+The specialist answers directly. Explicit off-domain refusals are logged for
+the retraining loop (`new → researched → trained`); the runtime does not silently
+replace the result with a domain-specific correction.
 
 ---
 
 ## 8. The synthesizer
 
 The `researcher`, `reasoner`, and `coder` answers pass through the **`synthesize`**
-node (the specialist's table is already rendered in `spec_review`).
+node. Local-specialist answers remain unchanged.
 
-- **Deterministic spec/comparison tables**: for product/hardware/**software**
+- **Deterministic spec/comparison tables**: for product or software
   spec & comparison answers, a model only *extracts* the structured data
   (columns + rows, copied verbatim, `SpecTable` structured output) and **code**
   renders the markdown through `render_spec_table`
@@ -569,10 +548,8 @@ node (the specialist's table is already rendered in `spec_review`).
   comes out as a valid table instead of relying on the model to format one. A
   `_no_invented_numbers` guard blocks fabrication, and the node **skips** when the
   answer is already a table.
-- **Grounding pass**: other factual answers get a lighter presentation pass that
-  grounds drifted numbers against the authoritative spec YAMLs
-  ([`cortex/facts.py`](cortex/facts.py), scanning `domains/hardware/` +
-  `domains/<domain>/<subdomain>/`, bind-mounted read-only).
+- **Presentation pass**: other factual answers get a lighter formatting pass;
+  guards prevent it from adding or changing numbers.
 - **Code safety**: for `coder` answers it never lets the fast model touch the
   code; it runs a deterministic, parse-only syntax check (Python via `ast`, JSON
   via `json`) and appends a heads-up when a complete code block is broken.
@@ -1160,7 +1137,6 @@ ai-multi-agent-cortex/
 │   ├── guardrails.py         # Opt-in ToolAllowlistMiddleware
 │   ├── errors.py             # Model-error classification + graceful fallback messages
 │   ├── observability.py      # OpenTelemetry / Langfuse wiring
-│   ├── facts.py              # Authoritative specs for synthesizer grounding
 │   ├── imagegen.py           # Image generation + two-layer safety gate
 │   ├── memory.py             # Store embedding hook + memory namespace
 │   ├── config.py             # Settings (Pydantic) + settings.yaml/.env loader
@@ -1238,11 +1214,9 @@ ai-multi-agent-cortex/
 - **Switching threads / starting a new chat no longer cancels** the running turn
   (it's detached); only the explicit Cancel button / SDK stop (→ `…/runs/cancel`)
   does. A run whose client vanished still finishes and persists its checkpoint.
-- **The specialist emits a silent draft**; `spec_review` is the terminal node
-  that speaks. Don't expect the specialist's own message in the transcript.
-- **Trained entities in any domain** are force-routed to the specialist via
-  `match_products` (scans the `domains/` tree: hardware + user packs); untrained
-  ones fall through to researcher web-RAG.
+- **Local specialists are description-routed.** Keep each model description
+  specific enough to avoid overlap; enabled described models become eligible
+  immediately without promotion or a graph rebuild.
 - **Google free tier**: flash-only, ~20 req/day; pro model rows are disabled in
   the DB. On a paid key, re-enable them and consider promoting them in auto mode.
 - **A registry provider with an empty `api_key`** silently falls back to the

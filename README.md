@@ -73,8 +73,7 @@ CLI for day-to-day use.
        ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ Custom durable server (:2024) - cortex graph                          │
-│ START ─▶ route ─┬─ specialist  (fine-tuned local model - bypass)      │
-│                 └─ router ─┬─ generalist     ───────────────▶ END     │
+│ START ─▶ router ─┬─ generalist     ─────────────────────────▶ END     │
 │                            ├─ prompt_cacher ──────────────────▶ END   │
 │                            ├─ imagegen      ──────────────────▶ END   │
 │                            ├─ shopping      ──────────────────▶ END   │
@@ -83,8 +82,7 @@ CLI for day-to-day use.
 │                            ├─ researcher ─┐                           │
 │                            ├─ reasoner   ─┼─▶ synthesize ──────▶ END  │
 │                            ├─ coder      ─┘                           │
-│                            └─ specialist ▶ spec_review ─▶ synthesize  │
-│                                (untrained/wrong ▶ researcher web-RAG) │
+│                            └─ specialist (description-routed) ─▶ END  │
 │                                                                       │
 │  Guardrails: PII redaction • image safety gate • tool allowlist       │
 │  Memory: rolling summary (short-term) + semantic store (long-term)    │
@@ -168,7 +166,7 @@ for the job.
   and [run lifecycle / background broker](TECHNICAL.md#4-run-lifecycle--the-background-run-broker),
   the [graph](TECHNICAL.md#5-the-graph-cortexworkflowinitpy),
   [agents & routing](TECHNICAL.md#6-agents--routing),
-  the [self-trained specialist](TECHNICAL.md#7-the-self-trained-specialist--spec_review),
+  the [self-trained specialist](TECHNICAL.md#7-capability-routed-local-specialists),
   [auto mode & providers](TECHNICAL.md#9-model-selection-auto-mode--providers),
   [chat modes & thinking](TECHNICAL.md#10-chat-modes--extended-thinking),
   [tools / MCP / agents](TECHNICAL.md#11-tools-mcp--admin-managed-agents),

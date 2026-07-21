@@ -25,7 +25,6 @@ class KnowledgeGap(Base):
     )
     question: Mapped[str] = mapped_column(Text, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=True)
-    # why it was flagged: "refusal" | "product_not_addressed"
     reason: Mapped[str] = mapped_column(String(40), nullable=False, default="refusal")
     # new → researched → trained (or dismissed)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")

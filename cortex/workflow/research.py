@@ -164,36 +164,13 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
 
 async def researcher(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     configurable = (config or {}).get("configurable") or {}
-    gap = (state.get("spec_gap") or "").strip()
-    if not gap:
-        local = await selected_local_response(
-            Intent.KNOWLEDGE_QUERY.value, state, config, grounded=True
-        )
-        if local is not None:
-            return local
-    if str(configurable.get("mode") or "").lower() == "research" and not gap:
+    local = await selected_local_response(
+        Intent.KNOWLEDGE_QUERY.value, state, config, grounded=True
+    )
+    if local is not None:
+        return local
+    if str(configurable.get("mode") or "").lower() == "research":
         return await deep_research(state, config)
-    output = await run_agent(
+    return await run_agent(
         Agents.RESEARCHER, state, config, Intent.KNOWLEDGE_QUERY.value
     )
-    if not gap:
-        return output
-    output["spec_gap"] = ""
-    messages = output.get("messages") or []
-    final = messages[-1] if messages else None
-    if (
-        isinstance(final, AIMessage)
-        and isinstance(final.content, str)
-        and final.content.strip()
-        and not (final.additional_kwargs or {}).get("model_error")
-    ):
-        note = (
-            "\n\n*Fact-checked, my fine-tuned model had some of these specs "
-            "wrong, so I've corrected them against verified web sources and "
-            "logged it for retraining.*"
-            if gap.startswith("fact_error")
-            else "\n\n*This hardware isn't in my fine-tuned knowledge yet, so "
-            "I answered from verified web sources and logged it for future training.*"
-        )
-        final.content += note
-    return output

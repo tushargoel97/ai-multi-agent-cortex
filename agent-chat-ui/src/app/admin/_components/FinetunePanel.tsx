@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { getAdminToken } from "../token";
@@ -191,12 +192,12 @@ const BASE_MODELS: BaseModelOption[] = [
   {
     id: "unsloth/gemma-3-1b-it",
     label: "Gemma 3 1B, recommended (~2 GB, fast train + serve, no HF login)",
-    output: "finetuned-gemma3-1b-hardware",
+    output: "finetuned-gemma3-1b",
   },
   {
     id: "google/gemma-4-e2b-it",
     label: "Gemma 4 E2B, highest quality, 9.5 GB, slow on CPU",
-    output: "finetuned-gemma4-e2b-hardware",
+    output: "finetuned-gemma4-e2b",
   },
 ];
 
@@ -293,6 +294,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
   const [iters, setIters] = useState(600);
   const [batchSize, setBatchSize] = useState(4);
   const [modelName, setModelName] = useState(DEFAULT_MODEL_NAME);
+  const [modelDescription, setModelDescription] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [registered, setRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -313,10 +315,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     { id: string; model_id: string; display_name: string }[]
   >([]);
   const [runs, setRuns] = useState<TrainerRun[]>([]);
-  const [lifecycle, setLifecycle] = useState<{ active: string | null; previous: string[] }>({
-    active: null,
-    previous: [],
-  });
   const [preview, setPreview] = useState<DatasetPreview | null>(null);
   const [previewSplit, setPreviewSplit] = useState("train");
   const [showPreview, setShowPreview] = useState(false);
@@ -548,9 +546,10 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
     setBusy("dataset");
     setError(null);
     try {
-      await post("dataset/generate", {
+      const result = await post("dataset/generate", {
         subdomains: selectedSubs,
       });
+      setModelDescription(result.description ?? "");
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -719,6 +718,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       : requestedName;
     setModelName(name);
     try {
+      if (!modelDescription.trim()) throw new Error("Add a routing description for this model.");
       await post("convert", { output_name: name });
       let filename = "";
       for (;;) {
@@ -734,8 +734,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         if (s.phase === "error") throw new Error(s.error ?? "conversion failed");
       }
 
-      const finetuneDescription =
-        "Self-trained LoRA fine-tune; answers questions in its trained domain from learned knowledge.";
+      const finetuneDescription = modelDescription.trim();
       const imp = await fetch("/api/v1/admin/local/import-local", {
         method: "POST",
         headers: headers(),
@@ -800,7 +799,7 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    setModelName(`finetuned-${slug}-hardware`);
+    setModelName(`finetuned-${slug}`);
     setShowHf(false);
   };
 
@@ -826,12 +825,8 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
   const refreshRuns = useCallback(async () => {
     try {
-      const [runResponse, lifecycleResponse] = await Promise.all([
-        fetch("/api/v1/admin/trainer/runs", { headers: headers() }),
-        fetch("/api/v1/admin/models/lifecycle", { headers: headers() }),
-      ]);
+      const runResponse = await fetch("/api/v1/admin/trainer/runs", { headers: headers() });
       if (runResponse.ok) setRuns((await runResponse.json()).runs ?? []);
-      if (lifecycleResponse.ok) setLifecycle(await lifecycleResponse.json());
     } catch {
       return;
     }
@@ -866,25 +861,6 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
         }
       }
       await refreshRuns();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const updateLifecycle = async (body: object) => {
-    setBusy("lifecycle");
-    setError(null);
-    try {
-      const response = await fetch("/api/v1/admin/models/lifecycle", {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? `lifecycle ${response.status}`);
-      setLifecycle(data);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1439,8 +1415,8 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
           </ul>
         ) : (
           <p className="text-muted-foreground/70 mt-3 text-sm">
-            No gaps captured yet, they appear when users ask about hardware the model doesn&apos;t
-            know.
+            No gaps captured yet. They appear when a specialist declines something outside its
+            trained capabilities.
           </p>
         )}
         {gaps.some((g) => g.status === "researched") && (
@@ -1747,7 +1723,11 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
             <PackageCheck className="text-muted-foreground size-4" />
             <h2 className="font-medium">3 · Convert to GGUF &amp; register</h2>
           </div>
-          <Button size="sm" onClick={convertAndRegister} disabled={jobRunning || training}>
+          <Button
+            size="sm"
+            onClick={convertAndRegister}
+            disabled={jobRunning || training || !modelDescription.trim()}
+          >
             {busy === "convert" || converting ? (
               <Loader2 className="mr-1 size-4 animate-spin" />
             ) : null}
@@ -1768,6 +1748,16 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
               value={modelName}
               disabled={jobRunning}
               onChange={(e) => setModelName(e.target.value)}
+            />
+          </label>
+          <label className="mt-3 block max-w-2xl text-sm">
+            <span className="text-muted-foreground mb-1 block">Routing description</span>
+            <Textarea
+              value={modelDescription}
+              maxLength={600}
+              disabled={jobRunning}
+              onChange={(event) => setModelDescription(event.target.value)}
+              placeholder="Generate the dataset to derive capabilities, then review them here."
             />
           </label>
         </div>
@@ -1791,13 +1781,13 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
           <div className="mt-3 space-y-1 text-sm">
             <p className="text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="mr-1 inline size-4" />
-              Registered as a draft. <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> is
-              available for evaluation.
+              Registered. <code>{status.gguf_filename ?? `${modelName}.gguf`}</code> is available
+              for evaluation and description-based routing.
             </p>
             <p className="text-muted-foreground">
               The GGUF lives in the <code>./models</code> host mount, so it persists across{" "}
-              <code>ai</code> restarts and image rebuilds. Automatic specialist routing changes only
-              after evaluation passes and you promote the draft.
+              <code>ai</code> restarts and image rebuilds. Enabled models with a routing description
+              are immediately eligible for automatic specialist routing.
             </p>
           </div>
         )}
@@ -1805,26 +1795,17 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
 
       {/* 4, Fine-tuned models */}
       <section className="rounded-lg border p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             <Database className="text-muted-foreground size-4" />
             <h2 className="font-medium">4 · Fine-tuned models</h2>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!lifecycle.previous.length || busy !== null}
-            onClick={() => updateLifecycle({ action: "rollback" })}
-          >
-            Roll back
-          </Button>
         </div>
         {finetuned.length > 0 ? (
           <ul className="mt-3 space-y-1">
             {finetuned.map((m) => {
               const run = runForModel(m.model_id);
               const evaluation = run?.evaluation;
-              const active = lifecycle.active === m.model_id;
               return (
                 <li
                   key={m.id}
@@ -1834,46 +1815,27 @@ export default function FinetunePanel({ onChanged }: { onChanged?: () => void })
                     <div className="text-foreground flex items-center gap-2 truncate">
                       {m.display_name}
                       <span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase">
-                        {active
-                          ? "active"
-                          : evaluation?.passed
-                            ? `passed ${Math.round(evaluation.pass_rate * 100)}%`
-                            : evaluation
-                              ? `failed ${Math.round(evaluation.pass_rate * 100)}%`
-                              : "draft"}
+                        {evaluation?.passed
+                          ? `passed ${Math.round(evaluation.pass_rate * 100)}%`
+                          : evaluation
+                            ? `failed ${Math.round(evaluation.pass_rate * 100)}%`
+                            : "not evaluated"}
                       </span>
                     </div>
                     <code className="text-muted-foreground text-xs">{m.model_id}</code>
                   </div>
                   <div className="flex items-center gap-1">
-                    {!active && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!run || jobRunning}
-                        onClick={() => evaluateModel(m.model_id)}
-                      >
-                        {busy === `eval-${m.model_id}` ? (
-                          <Loader2 className="mr-1 size-4 animate-spin" />
-                        ) : null}
-                        Evaluate
-                      </Button>
-                    )}
-                    {!active && evaluation?.passed && (
-                      <Button
-                        size="sm"
-                        disabled={jobRunning}
-                        onClick={() =>
-                          updateLifecycle({
-                            action: "promote",
-                            model_id: m.model_id,
-                            run_id: run?.run_id,
-                          })
-                        }
-                      >
-                        Promote
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!run || jobRunning}
+                      onClick={() => evaluateModel(m.model_id)}
+                    >
+                      {busy === `eval-${m.model_id}` ? (
+                        <Loader2 className="mr-1 size-4 animate-spin" />
+                      ) : null}
+                      Evaluate
+                    </Button>
                     <DeleteButton
                       onClick={() => deleteFinetuned(m)}
                       disabled={jobRunning}

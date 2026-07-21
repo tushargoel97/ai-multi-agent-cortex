@@ -83,12 +83,12 @@ def capabilities(
             {
                 "id": "unsloth/gemma-3-1b-it",
                 "label": "Gemma 3 1B, recommended (~2 GB, fast train + serve, no HF login)",
-                "output": "finetuned-gemma3-1b-hardware",
+                "output": "finetuned-gemma3-1b",
             },
             {
                 "id": "google/gemma-4-e2b-it",
                 "label": "Gemma 4 E2B, highest quality, 9.5 GB, slow on CPU",
-                "output": "finetuned-gemma4-e2b-hardware",
+                "output": "finetuned-gemma4-e2b",
             },
         ],
     }

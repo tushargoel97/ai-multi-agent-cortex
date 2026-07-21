@@ -1007,9 +1007,32 @@ def _identity_examples(keys: set[str]) -> list[dict]:
     return [_example(q, answer) for q in questions]
 
 
+def _capability_description(keys: set[str]) -> str:
+    catalog = {
+        f"{domain['name']}/{subdomain['name']}": (domain, subdomain)
+        for domain in available_domains()
+        for subdomain in domain.get("subdomains", [])
+    }
+    topics = []
+    for key in sorted(keys):
+        domain_name, _, subdomain_name = key.partition("/")
+        domain, subdomain = catalog.get(
+            key,
+            ({"name": domain_name}, {"name": subdomain_name}),
+        )
+        label = subdomain.get("label") or subdomain.get("name") or subdomain_name
+        detail = (subdomain.get("description") or domain.get("description") or "").strip()
+        topics.append(
+            f"{label} in {domain.get('name') or domain_name}"
+            + (f": {detail}" if detail else "")
+        )
+    text = "Fine-tuned specialist for " + "; ".join(topics)
+    return text if len(text) <= 600 else text[:597].rsplit(" ", 1)[0] + "..."
+
+
 def generate(
     subdomains: list[str] | None = None, domains: list[str] | None = None
-) -> dict[str, int]:
+) -> dict[str, int | str]:
     """Build train/valid JSONL for the selected subdomains. Each token is
     'domain/subdomain' (e.g. 'hardware/consoles', 'software/games'); `domains`
     selects every subdomain of a domain. Defaults to all hardware."""
@@ -1031,7 +1054,7 @@ def generate(
         if key in pack_by_key:
             examples += _subdomain_examples(pack_by_key[key])
     examples += _identity_examples(keys)
-    return write_splits(examples)
+    return {**write_splits(examples), "description": _capability_description(keys)}
 
 
 if __name__ == "__main__":
