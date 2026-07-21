@@ -51,13 +51,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ name: 
     );
     let prompt = "";
     let description = "";
+    let defaults: Record<string, { system_prompt?: unknown; description?: unknown }>;
     try {
-      const d = JSON.parse(rows[0]?.value ?? "{}")[name];
-      if (d) {
-        prompt = String(d.system_prompt ?? "");
-        description = String(d.description ?? "");
-      }
-    } catch {}
+      defaults = JSON.parse(rows[0]?.value ?? "{}");
+    } catch {
+      return NextResponse.json({ error: "invalid agent defaults" }, { status: 500 });
+    }
+    const agentDefaults = defaults[name];
+    if (agentDefaults) {
+      prompt = String(agentDefaults.system_prompt ?? "");
+      description = String(agentDefaults.description ?? "");
+    }
     await query(
       `UPDATE agents SET system_prompt = $1, description = $2, edited = false
         WHERE name = $3`,

@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
         .slice(0, 12)
         .map((c: string) => c.replace(/\s+/g, " ").slice(0, 220));
     }
-  } catch {}
+  } catch {
+    return NextResponse.json({ suggestions: [] });
+  }
   if (context.length === 0) return NextResponse.json({ suggestions: [] });
 
   const key = context.join("|");
