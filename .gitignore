@@ -8,9 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+env
 
 # Environment variables
-/.env
+.env
+
+# Package manager caches
+.pnpm-store/
 
 # Fine-tuning artifacts (host trainer)
 /models/*
@@ -34,27 +38,11 @@ trainer/data/sources/
 project_context
 .pytest_cache
 .vscode
-env
 .DS_Store
 .idea
 *.log
-
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-# Virtual environments
-.venv
-
-# Python environment variables
-.env
 .python-version
 
-# Environment variables
-/.env
 # AI-generated chat images (bind-mounted into langgraph + ui)
 generated_images/*
 !generated_images/.gitkeep
