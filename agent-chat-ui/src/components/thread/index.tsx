@@ -637,6 +637,9 @@ export function Thread() {
                 })()}
                 footer={
                   <div className="sticky bottom-0 flex flex-col items-center gap-8">
+                    {chatStarted && (
+                      <div className="from-background pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-gradient-to-t from-75% to-transparent" />
+                    )}
                     {!chatStarted && <Greeting />}
 
                     <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 z-20 mb-4 -translate-x-1/2" />
