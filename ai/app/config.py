@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     default_local_model: str = ""  # empty = nothing pre-loaded
     local_llm_threads: int = 4
     n_ctx: int = 4096
+    idle_ttl_minutes: int = 60
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -55,3 +56,93 @@ def test_model_sessions_are_serialized(monkeypatch):
         assert second_entered.is_set()
 
     asyncio.run(scenario())
+
+
+def test_context_overflow_is_returned_as_a_client_error():
+    from app.api.v1.endpoints.inference import inference_error
+
+    error = inference_error(
+        ValueError("Requested tokens (4419) exceed context window of 4096")
+    )
+
+    assert error.status_code == 400
+    assert "context window" in error.detail.lower()
+
+
+def test_cancel_removes_a_paused_partial_download(tmp_path, monkeypatch):
+    name = "paused-model"
+    filename = "paused.gguf"
+    partial = tmp_path / f"{filename}.part"
+    partial.write_bytes(b"partial")
+    monkeypatch.setattr(mm, "MODELS_DIR", str(tmp_path))
+    monkeypatch.setitem(
+        mm.MODEL_CATALOG,
+        name,
+        {
+            "filename": filename,
+            "repo_id": "test/repo",
+            "tags": [],
+            "size_mb": 1,
+        },
+    )
+    mm._download_progress.pop(name, None)
+
+    async def scenario():
+        assert mm.request_download_control(name, "cancel")
+        assert mm._download_progress[name]["status"] == "cancelled"
+
+    asyncio.run(scenario())
+
+    assert not partial.exists()
+
+
+def test_partial_download_is_reported_after_process_restart(tmp_path, monkeypatch):
+    name = "restarted-model"
+    filename = "restarted.gguf"
+    Path(f"{tmp_path / filename}.part").write_bytes(b"x" * 1024 * 1024)
+    monkeypatch.setattr(mm, "MODELS_DIR", str(tmp_path))
+    monkeypatch.setitem(
+        mm.MODEL_CATALOG,
+        name,
+        {
+            "filename": filename,
+            "repo_id": "test/repo",
+            "tags": [],
+            "size_mb": 10,
+        },
+    )
+    mm._download_progress.pop(name, None)
+
+    progress = mm.download_progress()[name]
+
+    assert progress["status"] == "paused"
+    assert progress["downloaded_mb"] > 0
+
+
+def test_completed_tool_stream_adds_tool_call_indexes():
+    from app.api.v1.endpoints.inference import _completed_stream
+
+    result = {
+        "id": "result",
+        "created": 1,
+        "model": "local",
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{}"},
+                        }
+                    ]
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    event = next(_completed_stream(result))
+    payload = json.loads(event.removeprefix("data: "))
+
+    assert payload["choices"][0]["delta"]["tool_calls"][0]["index"] == 0
