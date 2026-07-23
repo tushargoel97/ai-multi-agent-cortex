@@ -8,9 +8,8 @@ Two paths:
    Optional ``local_base_url`` and ``local_api_key`` keys let an end-user plug
    their own local LLM endpoint without editing the registry.
 
-2. **Fallback**: if no model_id is supplied (or DB lookup fails), fall back to
-   the default ``LLMModel`` row marked ``is_default=True``. If no default row
-   exists either, fall back to the static ``settings.yaml`` provider.
+2. **Fallback**: if no model_id is supplied, use the default ``LLMModel`` row,
+   then the static ``settings.yaml`` provider.
 """
 
 from __future__ import annotations
@@ -112,11 +111,15 @@ def get_chat_client(
     ``"auto"`` sentinel), ``local_base_url``, ``local_api_key``, and
     ``local_model_name`` overrides. In auto mode the model is picked per
     ``auto_intent`` (fast tier when None). Falls back to the DB default
-    model, then to ``settings.yaml``.
+    model, then to ``settings.yaml``. An unavailable explicit selection fails
+    instead of silently changing models.
     """
     settings = settings or load_settings()
     configurable: dict[str, Any] = (config or {}).get("configurable", {}) or {}
     model_uuid = configurable.get("model_id")
+    from cortex.db.services.auto_mode import is_auto
+
+    explicit_model = bool(model_uuid) and not is_auto(model_uuid)
     # Thinking mode (chat-UI slider) raises the reasoner to the quality tier and
     # turns on the provider's extended thinking, only for the reasoning agent.
     mode = str(configurable.get("mode") or "").lower()
@@ -126,7 +129,6 @@ def get_chat_client(
         try:
             from cortex.db.services.auto_mode import (
                 FAST_TIER,
-                is_auto,
                 profile_for_complexity,
                 resolve_auto_model,
             )
@@ -181,8 +183,12 @@ def get_chat_client(
                 effort=effort,
                 max_output_tokens=max_output_tokens,
             )
-    except Exception:  # noqa: BLE001, registry is optional, fall through
-        pass
+    except Exception:
+        if explicit_model:
+            raise
+
+    if explicit_model:
+        raise ValueError("Selected model is unavailable or disabled")
 
     return _from_settings(
         settings,

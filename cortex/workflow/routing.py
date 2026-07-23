@@ -55,11 +55,19 @@ _GREETING_RE = re.compile(
     r"(?:[\s,!.-]+(?:there|how\s+are\s+you|what(?:'s|\s+is)\s+up))?[\s!?.]*$",
     re.IGNORECASE,
 )
+_IMAGE_RE = re.compile(
+    r"\b(?:generate|create|make|draw|render|design)\s+(?:me\s+)?"
+    r"(?:an?\s+|the\s+)?(?:image|picture|illustration|artwork|photo|poster|logo)"
+    r"(?=\s+(?:of|showing|depicting|featuring|with|for)\b|[.!?]?\s*$)",
+    re.IGNORECASE,
+)
 
 
 def heuristic_intent(messages: list) -> Intent:
     last = next((m for m in reversed(messages) if isinstance(m, HumanMessage)), None)
     text = str(last.content) if last is not None else ""
+    if _IMAGE_RE.search(text):
+        return Intent.IMAGE_GENERATION
     if _BOOKING_RE.search(text):
         return Intent.BOOKING
     if _SHOPPING_RE.search(text):
@@ -70,6 +78,8 @@ def heuristic_intent(messages: list) -> Intent:
 
 
 def fast_intent(text: str) -> Intent | None:
+    if _IMAGE_RE.search(text):
+        return Intent.IMAGE_GENERATION
     if _GREETING_RE.fullmatch(text):
         return Intent.GENERAL_CHAT
     if "get_current_time" in plan_execution(
@@ -81,6 +91,33 @@ def fast_intent(text: str) -> Intent | None:
     ).required_tools:
         return Intent.REASONING_TASK
     return None
+
+
+def route_model(
+    configurable: dict[str, Any],
+    intent: str,
+    profile: str | None = None,
+) -> str | None:
+    from cortex.db.services.auto_mode import (
+        image_model_candidates,
+        is_auto,
+        resolve_auto_model,
+    )
+    from cortex.db.services.llm_registry import resolve_with_session
+
+    model_id = configurable.get("model_id")
+    try:
+        if not is_auto(model_id):
+            resolved = resolve_with_session(model_id) if model_id else None
+            return resolved.model_id if resolved is not None else None
+        if intent == Intent.IMAGE_GENERATION.value:
+            candidates = image_model_candidates()
+            return candidates[0] if candidates else None
+        resolved = resolve_auto_model(intent, profile=profile)
+        return resolved.model_id if resolved is not None else None
+    except Exception:
+        logger.exception("Route model resolution failed")
+        return None
 
 
 def route_from_start(
@@ -102,13 +139,15 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
     emit_progress("routing")
     configurable = (config or {}).get("configurable") or {}
     mode = str(configurable.get("mode") or "").lower()
-    if mode in ("thinking", "research", "engineer"):
+    latest = last_human(state["messages"])
+    latest_text = text_content(latest) if latest is not None else ""
+    fast = fast_intent(latest_text)
+    if mode in ("thinking", "research", "engineer") and fast != Intent.IMAGE_GENERATION:
         forced = {
             "thinking": Intent.REASONING_TASK,
             "research": Intent.KNOWLEDGE_QUERY,
             "engineer": Intent.CODING_TASK,
         }[mode]
-        latest = last_human(state["messages"])
         initial_complexity = (
             "complex" if mode in ("thinking", "research", "engineer") else "standard"
         )
@@ -124,26 +163,20 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             "local_model": None,
             **plan.routing_fields(),
         }
-        try:
-            from cortex.db.services.auto_mode import resolve_auto_model
-
-            resolved = resolve_auto_model(
-                "engineer" if mode == "engineer" else forced.value,
-                profile="quality",
-            )
-            if resolved is not None:
-                routing["model"] = resolved.model_id
-        except Exception:  # noqa: BLE001
-            pass
+        model = route_model(
+            configurable,
+            "engineer" if mode == "engineer" else forced.value,
+            "quality",
+        )
+        if model:
+            routing["model"] = model
         return {
             "messages": [
                 AIMessage(content=forced.value, additional_kwargs={"routing": routing})
             ]
         }
 
-    latest = last_human(state["messages"])
-    latest_text = text_content(latest) if latest is not None else ""
-    if intent := fast_intent(latest_text):
+    if intent := fast:
         plan = plan_execution(intent.value, latest_text, "simple")
         routing = {
             "intent": intent.value,
@@ -152,6 +185,8 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             "local_model": None,
             **plan.routing_fields(),
         }
+        if model := route_model(configurable, intent.value):
+            routing["model"] = model
         return {
             "messages": [
                 AIMessage(content=intent.value, additional_kwargs={"routing": routing})
@@ -274,20 +309,16 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         fields["required_tools"] = []
     routing.update(fields)
 
-    from cortex.db.services.auto_mode import profile_for_complexity, resolve_auto_model
+    from cortex.db.services.auto_mode import profile_for_complexity
 
     if intent_value == Intent.LOCAL_SPECIALIST.value and routing.get("local_model"):
         routing["model"] = routing["local_model"]
-    elif is_auto(configurable.get("model_id")) and intent_value != Intent.IMAGE_GENERATION.value:
-        try:
-            resolved = resolve_auto_model(
-                intent_value,
-                profile=profile_for_complexity(routing.get("complexity")),
-            )
-            if resolved is not None:
-                routing["model"] = resolved.model_id
-        except Exception:  # noqa: BLE001
-            logger.exception("auto-mode chip model resolution failed")
+    elif model := route_model(
+        configurable,
+        intent_value,
+        profile_for_complexity(routing.get("complexity")),
+    ):
+        routing["model"] = model
     return {
         "messages": [
             AIMessage(

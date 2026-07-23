@@ -27,6 +27,7 @@ import httpx
 from cortex.db.models import ProviderKind
 from cortex.db.services.auto_mode import image_model_candidates, resolve_auto_model
 from cortex.db.services.llm_registry import (
+    ResolvedModel,
     build_client_from_resolved,
     get_provider_api_key,
 )
@@ -110,7 +111,11 @@ def _save_png(filename: str, image_b64: str) -> None:
 
 
 async def generate_image(
-    prompt: str, thread_id: str, *, unrestricted: bool = False
+    prompt: str,
+    thread_id: str,
+    *,
+    unrestricted: bool = False,
+    selected_model: ResolvedModel | None = None,
 ) -> ImageResult:
     # Layer A: the app's own LLM pre-screen. Unrestricted mode skips it; the
     # provider-level safety (Layer B) below is always applied and enforces the
@@ -128,27 +133,49 @@ async def generate_image(
                 ),
             )
 
-    google_key = get_provider_api_key(ProviderKind.GOOGLE)
-    openai_key = get_provider_api_key(ProviderKind.OPENAI)
-    if not google_key and not openai_key:
-        return ImageResult(
-            status="error",
-            detail=(
-                "No Google or OpenAI API key is configured, image generation "
-                "needs one. Add a key in Admin → Providers."
-            ),
-        )
+    if selected_model is not None:
+        if selected_model.kind not in (ProviderKind.GOOGLE, ProviderKind.OPENAI):
+            return ImageResult(
+                status="error",
+                detail=(
+                    f"The selected model '{selected_model.model_id}' does not use "
+                    "a supported image provider."
+                ),
+                model_used=selected_model.model_id,
+            )
+        candidates = [
+            (selected_model.model_id, selected_model.kind, selected_model.api_key)
+        ]
+    else:
+        keys = {
+            ProviderKind.GOOGLE: get_provider_api_key(ProviderKind.GOOGLE),
+            ProviderKind.OPENAI: get_provider_api_key(ProviderKind.OPENAI),
+        }
+        if not any(keys.values()):
+            return ImageResult(
+                status="error",
+                detail=(
+                    "No Google or OpenAI API key is configured, image generation "
+                    "needs one. Add a key in Admin → Providers."
+                ),
+            )
+        candidates = []
+        for model_id in image_model_candidates():
+            kind = (
+                ProviderKind.OPENAI
+                if model_id.startswith(("gpt-image", "dall-e", "chatgpt-image"))
+                else ProviderKind.GOOGLE
+            )
+            candidates.append((model_id, kind, keys[kind]))
 
     last_error = "no image model candidates configured"
     async with httpx.AsyncClient(timeout=180) as client:
-        for model_id in image_model_candidates():
-            is_openai = model_id.startswith(("gpt-image", "dall-e", "chatgpt-image"))
-            key = openai_key if is_openai else google_key
+        for model_id, kind, key in candidates:
             if not key:
                 last_error = f"{model_id}: no API key for its provider"
                 continue
             try:
-                if is_openai:
+                if kind == ProviderKind.OPENAI:
                     outcome = await _generate_openai(
                         client, model_id, prompt, key, unrestricted=unrestricted
                     )

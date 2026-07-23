@@ -433,14 +433,32 @@ async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         (message for message in reversed(state["messages"]) if isinstance(message, HumanMessage)),
         None,
     )
-    prompt = str(last.content) if last is not None else ""
+    prompt = text_content(last) if last is not None else ""
     configurable = (config or {}).get("configurable") or {}
+    from cortex.db.services.auto_mode import is_auto
+    from cortex.db.services.llm_registry import resolve_with_session
     from cortex.imagegen import generate_image
 
+    model_id = configurable.get("model_id")
+    explicit_model = bool(model_id) and not is_auto(model_id)
+    selected_model = resolve_with_session(model_id) if explicit_model else None
+    if explicit_model and selected_model is None:
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The selected model is unavailable or disabled. Choose another "
+                        "model or switch to Auto."
+                    ),
+                    additional_kwargs={"model_error": True},
+                )
+            ]
+        }
     result = await generate_image(
         prompt,
         str(configurable.get("thread_id") or "thread"),
         unrestricted=bool(configurable.get("unrestricted")),
+        selected_model=selected_model,
     )
     if result.status == "ok":
         message = AIMessage(

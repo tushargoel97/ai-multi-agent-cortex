@@ -410,12 +410,9 @@ def get_provider_api_key(kind: ProviderKind) -> str | None:
 
 
 def resolve_with_session(model_uuid: str | uuid.UUID | None) -> ResolvedModel | None:
-    """Open a session, resolve, and return (None on miss)."""
+    """Resolve an explicit row, or the default only when no row was selected."""
     if not model_uuid:
         with get_session() as s:
             return get_default_resolved_model(s)
     with get_session() as s:
-        resolved = resolve_model(model_uuid, s)
-        if resolved is None:
-            return get_default_resolved_model(s)
-        return resolved
+        return resolve_model(model_uuid, s)
