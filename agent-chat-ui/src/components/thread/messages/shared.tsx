@@ -155,6 +155,7 @@ export function CommandBar({
   setIsEditing,
   handleSubmitEdit,
   handleRegenerate,
+  handleRetry,
   isLoading,
 }: {
   content: string;
@@ -164,6 +165,7 @@ export function CommandBar({
   setIsEditing?: React.Dispatch<React.SetStateAction<boolean>>;
   handleSubmitEdit?: () => void;
   handleRegenerate?: () => void;
+  handleRetry?: () => void;
   isLoading: boolean;
 }) {
   if (isHumanMessage && isAiMessage) {
@@ -214,6 +216,16 @@ export function CommandBar({
   return (
     <div className="flex items-center gap-2">
       <ContentCopyable content={content} disabled={isLoading} />
+      {isHumanMessage && !!handleRetry && (
+        <TooltipIconButton
+          disabled={isLoading}
+          tooltip="Retry"
+          variant="ghost"
+          onClick={handleRetry}
+        >
+          <RefreshCcw />
+        </TooltipIconButton>
+      )}
       {isAiMessage && !!handleRegenerate && (
         <TooltipIconButton
           disabled={isLoading}

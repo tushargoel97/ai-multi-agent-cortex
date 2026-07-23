@@ -44,10 +44,7 @@ export function HumanMessage({ message, isLoading }: { message: Message; isLoadi
   const [value, setValue] = useState("");
   const contentString = getContentString(message.content);
 
-  const handleSubmitEdit = () => {
-    setIsEditing(false);
-
-    const newMessage: Message = { type: "human", content: value };
+  const resubmit = (newMessage: Message) => {
     thread.submit(
       { messages: [newMessage] },
       {
@@ -67,6 +64,14 @@ export function HumanMessage({ message, isLoading }: { message: Message; isLoadi
       },
     );
   };
+
+  const handleSubmitEdit = () => {
+    setIsEditing(false);
+    resubmit({ type: "human", content: value });
+  };
+
+  // Same prompt, fresh branch: re-runs the turn without opening the editor.
+  const handleRetry = () => resubmit({ type: "human", content: message.content });
 
   return (
     <div className={cn("group ml-auto flex items-center gap-2", isEditing && "w-full max-w-xl")}>
@@ -124,6 +129,7 @@ export function HumanMessage({ message, isLoading }: { message: Message; isLoadi
               setIsEditing(c);
             }}
             handleSubmitEdit={handleSubmitEdit}
+            handleRetry={handleRetry}
             isHumanMessage={true}
           />
         </div>
