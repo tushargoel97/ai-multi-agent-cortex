@@ -52,13 +52,13 @@ export interface ModelSelection {
   local_base_url: string;
   local_api_key: string;
   local_model_name: string;
-  /** Relax the image safety pre-screen + configurable provider thresholds. */
   unrestricted: boolean;
-  /** Response mode: general/instant (default) | thinking | research | engineer. */
   mode: "general" | "thinking" | "research" | "engineer";
-  /** Model ids pinned in the picker (UI-only, never sent to the graph). */
+  effort: "adaptive" | "low" | "medium" | "high" | "xhigh" | "max";
   pinned_models: string[];
 }
+
+export type Effort = ModelSelection["effort"];
 
 interface ToggleDef {
   id: string;
@@ -66,13 +66,11 @@ interface ToggleDef {
   description?: string;
   active: boolean;
   onToggle: (v: boolean) => void;
-  /** "warn" tints the control amber to flag a safety-relaxing toggle. */
   tone?: "default" | "warn";
 }
 
 const STORAGE_KEY = "cortex:model-selection";
 
-/** Sentinel understood by the graph: pick the model per intent (auto mode). */
 const AUTO_MODEL_ID = "auto";
 
 export const DEFAULT_SELECTION: ModelSelection = {
@@ -83,6 +81,7 @@ export const DEFAULT_SELECTION: ModelSelection = {
   local_model_name: "local-model",
   unrestricted: false,
   mode: "general",
+  effort: "adaptive",
   pinned_models: [],
 };
 
@@ -111,17 +110,17 @@ export function selectionToConfigurable(sel: ModelSelection): Record<string, unk
       local_model_name: sel.local_model_name,
       unrestricted: sel.unrestricted,
       mode: sel.mode,
+      effort: sel.effort,
     };
   }
   return {
     model_id: sel.model_id,
     unrestricted: sel.unrestricted,
     mode: sel.mode,
+    effort: sel.effort,
   };
 }
 
-/** Browser locale + timezone, sent with each run so agents default to the
- *  user's country/region (shopping, booking, local results). */
 export function browserContext(): Record<string, unknown> {
   if (typeof window === "undefined") return {};
   try {
@@ -141,9 +140,6 @@ const MODEL_NAME_ACRONYMS: Record<string, string> = {
   xai: "xAI",
 };
 
-/** Turn a raw model id ("gpt-4o-mini") into a readable name ("GPT 4o Mini").
- *  Names that already read naturally (contain a space) are left untouched, so
- *  an admin-set display name is never mangled. */
 function formatModelName(raw: string): string {
   const name = (raw || "").trim();
   if (!name || /\s/.test(name)) return name || "model";
@@ -153,7 +149,7 @@ function formatModelName(raw: string): string {
     .map((part) => {
       const low = part.toLowerCase();
       if (MODEL_NAME_ACRONYMS[low]) return MODEL_NAME_ACRONYMS[low];
-      if (/\d/.test(part)) return part; // version tokens: 4o, 3.5, 5
+      if (/\d/.test(part)) return part;
       return part.charAt(0).toUpperCase() + part.slice(1);
     })
     .join(" ");
@@ -161,8 +157,21 @@ function formatModelName(raw: string): string {
 
 type Mode = ModelSelection["mode"];
 
-/** Pin the composer's hover zoom while a toolbar menu is open: the portaled
- *  menu is positioned from the zoomed rect, so shrinking would misalign it. */
+export const EFFORT_META: Record<Effort, { label: string; hint: string }> = {
+  adaptive: {
+    label: "Adaptive",
+    hint: "Uses the smallest sufficient budget for each request.",
+  },
+  low: { label: "Low", hint: "Routine answers with the leanest context." },
+  medium: { label: "Medium", hint: "Balanced depth, evidence, and speed." },
+  high: { label: "High", hint: "More reasoning and source verification." },
+  xhigh: {
+    label: "Extra High",
+    hint: "Deeper analysis for difficult multi-step work.",
+  },
+  max: { label: "Max", hint: "Maximum supported depth for critical work." },
+};
+
 function pinComposerZoom(el: HTMLElement | null, open: boolean) {
   const composer = el?.closest("[data-prompt-composer]");
   if (!composer) return;
@@ -179,7 +188,7 @@ const MODE_META: Record<Mode, { label: string; hint: string; icon: LucideIcon }>
   },
   research: {
     label: "Research",
-    hint: "Deep web/KB research; clarifies first.",
+    hint: "Deep multi-source research.",
     icon: Globe,
   },
   engineer: {
@@ -275,11 +284,6 @@ function MenuRow({
   );
 }
 
-/**
- * Claude-style consolidated prompt-box menu: a single pill that opens the top
- * models, provider submenus, and a nested "Options" panel (Local LLM / Hide
- * tools / Unrestricted). Response mode lives in its own toolbar dropdown.
- */
 function PromptToolbarMenu({
   triggerLabel,
   useLocal,
@@ -291,6 +295,8 @@ function PromptToolbarMenu({
   onSelectModel,
   onTogglePin,
   onReorderPinned,
+  effort,
+  onEffortChange,
   toggles,
 }: {
   triggerLabel: string;
@@ -303,6 +309,8 @@ function PromptToolbarMenu({
   onSelectModel: (id: string) => void;
   onTogglePin: (id: string) => void;
   onReorderPinned: (source: string, target: string, after: boolean) => void;
+  effort: Effort;
+  onEffortChange: (effort: Effort) => void;
   toggles: ToggleDef[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -315,11 +323,10 @@ function PromptToolbarMenu({
     bottom?: number;
     maxH: number;
   }>({ left: 0, maxH: 400 });
-  // Range the menu + submenus stay within, so they never cover the composer.
   const [band, setBand] = useState({ top: 8, bottom: 600 });
   const [sub, setSub] = useState<
     | { kind: "provider"; name: string; anchorTop: number; left: number }
-    | { kind: "mode"; anchorTop: number; left: number }
+    | { kind: "effort" | "options"; anchorTop: number; left: number }
     | null
   >(null);
   const [subTop, setSubTop] = useState<number | null>(null);
@@ -332,16 +339,15 @@ function PromptToolbarMenu({
   };
 
   useEffect(() => {
+    const root = rootRef.current;
     if (!open) {
       clearHoverTimer();
       setSub(null);
     }
-    pinComposerZoom(rootRef.current, open);
-    return () => pinComposerZoom(rootRef.current, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    pinComposerZoom(root, open);
+    return () => pinComposerZoom(root, false);
   }, [open]);
 
-  // Top-align the submenu to its row, nudged up only enough to fit the band.
   useLayoutEffect(() => {
     if (!sub) {
       setSubTop(null);
@@ -354,7 +360,6 @@ function PromptToolbarMenu({
     setSubTop((t) => (t !== null && Math.abs(t - top) < 1 ? t : top));
   }, [sub, band]);
 
-  // Close on outside click / Escape / resize (menu + submenu are portaled).
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -382,9 +387,8 @@ function PromptToolbarMenu({
   const panel = "glass rounded-xl border p-1 text-popover-foreground shadow-xl";
   const sectionLabel =
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
-  const MW = 256; // menu / submenu width (w-64)
+  const MW = 256;
 
-  // Open toward whichever side of the composer has room; that side is the band.
   const toggle = () => {
     if (open) {
       setOpen(false);
@@ -422,7 +426,7 @@ function PromptToolbarMenu({
   };
 
   const openSubNow = (
-    s: { kind: "provider"; name: string } | { kind: "mode" },
+    s: { kind: "provider"; name: string } | { kind: "effort" | "options" },
     anchor: HTMLElement,
   ) => {
     clearHoverTimer();
@@ -437,9 +441,8 @@ function PromptToolbarMenu({
     });
   };
 
-  // Hover intent: delay the switch so a diagonal move toward the panel holds.
   const openSubSoon = (
-    s: { kind: "provider"; name: string } | { kind: "mode" },
+    s: { kind: "provider"; name: string } | { kind: "effort" | "options" },
     anchor: HTMLElement,
   ) => {
     const same =
@@ -519,7 +522,6 @@ function PromptToolbarMenu({
               panel,
             )}
           >
-            {/* Auto */}
             <div className="shrink-0" onMouseEnter={closeSubSoon}>
               <MenuRow checked={autoSelected} onClick={() => choose(AUTO_MODEL_ID)}>
                 <span className="flex flex-col">
@@ -573,7 +575,6 @@ function PromptToolbarMenu({
               </div>
             )}
 
-            {/* Models grouped by provider */}
             {providers.length > 0 && (
               <div className="shrink-0">
                 <div className="bg-border my-1 h-px" />
@@ -600,9 +601,22 @@ function PromptToolbarMenu({
               <div className="bg-border my-1 h-px" />
               <MenuRow
                 chevron
-                active={sub?.kind === "mode"}
-                onClick={(e) => openSubNow({ kind: "mode" }, e.currentTarget)}
-                onMouseEnter={(e) => openSubSoon({ kind: "mode" }, e.currentTarget)}
+                active={sub?.kind === "effort"}
+                onClick={(e) => openSubNow({ kind: "effort" }, e.currentTarget)}
+                onMouseEnter={(e) => openSubSoon({ kind: "effort" }, e.currentTarget)}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span>Effort</span>
+                  <span className="text-muted-foreground truncate">
+                    {EFFORT_META[effort].label}
+                  </span>
+                </span>
+              </MenuRow>
+              <MenuRow
+                chevron
+                active={sub?.kind === "options"}
+                onClick={(e) => openSubNow({ kind: "options" }, e.currentTarget)}
+                onMouseEnter={(e) => openSubSoon({ kind: "options" }, e.currentTarget)}
               >
                 Options
               </MenuRow>
@@ -629,11 +643,41 @@ function PromptToolbarMenu({
             className={cn(
               "animate-in fade-in-0 zoom-in-95 z-[100] w-64 overflow-y-auto",
               panel,
-              sub.kind === "mode" && "p-1.5",
+              sub.kind !== "provider" && "p-1.5",
             )}
           >
             {sub.kind === "provider" ? (
               (subProvider?.models ?? []).map((m) => modelRow(m))
+            ) : sub.kind === "effort" ? (
+              <>
+                <div className="text-muted-foreground px-1 pb-1 text-[10px] font-semibold tracking-wide uppercase">
+                  Effort
+                </div>
+                {(Object.entries(EFFORT_META) as [Effort, (typeof EFFORT_META)[Effort]][]).map(
+                  ([value, item]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        onEffortChange(value);
+                        setOpen(false);
+                      }}
+                      className="hover:bg-accent/60 flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left transition-colors"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{item.label}</span>
+                        <span className="text-muted-foreground block text-[11px]">{item.hint}</span>
+                      </span>
+                      <Check
+                        className={cn(
+                          "text-primary mt-0.5 size-4 shrink-0",
+                          effort === value ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </button>
+                  ),
+                )}
+              </>
             ) : (
               <>
                 <div className="text-muted-foreground px-1 pb-1 text-[10px] font-semibold tracking-wide uppercase">
@@ -676,10 +720,6 @@ function PromptToolbarMenu({
   );
 }
 
-/**
- * Response-mode dropdown for the composer toolbar (left of Send): shows the
- * active mode and opens a small menu to switch General / Thinking / Research.
- */
 export function ModeSelector({
   mode,
   onModeChange,
@@ -728,9 +768,9 @@ export function ModeSelector({
   };
 
   useEffect(() => {
-    pinComposerZoom(rootRef.current, open);
-    return () => pinComposerZoom(rootRef.current, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const root = rootRef.current;
+    pinComposerZoom(root, open);
+    return () => pinComposerZoom(root, false);
   }, [open]);
 
   useEffect(() => {
@@ -821,10 +861,6 @@ export function ModeSelector({
   );
 }
 
-/**
- * Model picker pill for the chat input toolbar; the Local LLM toggle opens an
- * endpoint config dialog.
- */
 export default function ModelSelector({
   selection,
   onChange,
@@ -840,7 +876,6 @@ export default function ModelSelector({
   const [loaded, setLoaded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Local draft so editing in the dialog doesn't immediately mutate live state.
   const [draft, setDraft] = useState({
     local_base_url: selection.local_base_url,
     local_api_key: selection.local_api_key,
@@ -861,7 +896,6 @@ export default function ModelSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-sync draft when dialog opens
   useEffect(() => {
     if (dialogOpen) {
       setDraft({
@@ -884,6 +918,8 @@ export default function ModelSelector({
               ? "No models"
               : "Select model";
         })();
+  const effort = selection.effort ?? "adaptive";
+  const effortLabel = EFFORT_META[effort].label;
 
   const pinnedIds = selection.pinned_models ?? [];
   const selectedId = selection.use_local ? null : (selection.model_id ?? AUTO_MODEL_ID);
@@ -949,7 +985,7 @@ export default function ModelSelector({
     <>
       <div className="flex items-center gap-1.5">
         <PromptToolbarMenu
-          triggerLabel={activeLabel}
+          triggerLabel={`${activeLabel} · ${effortLabel}`}
           useLocal={selection.use_local}
           autoSelected={selectedId === AUTO_MODEL_ID}
           pinnedModels={pinnedModels}
@@ -965,6 +1001,8 @@ export default function ModelSelector({
           }
           onTogglePin={togglePin}
           onReorderPinned={reorderPinned}
+          effort={effort}
+          onEffortChange={(value) => onChange({ ...selection, effort: value })}
           toggles={toggles}
         />
         {selection.unrestricted && (

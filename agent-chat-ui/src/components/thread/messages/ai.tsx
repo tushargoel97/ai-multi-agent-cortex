@@ -4,8 +4,8 @@ import {
   formatTokens,
   getRoutingIntent,
   getRoutingModel,
-  getUsage,
   RoutingChip,
+  turnUsage,
 } from "../agent-activity";
 import { useStreamContext } from "@/providers/Stream";
 import { AIMessage, Checkpoint, Message } from "@langchain/langgraph-sdk";
@@ -183,7 +183,10 @@ export function AssistantMessage({
             )}
 
             {(() => {
-              const usage = getUsage(message);
+              const usage =
+                contentString.length > 0 && !hasToolCalls
+                  ? turnUsage(thread.messages, message)
+                  : null;
               if (!usage) return null;
               const model = (message as { response_metadata?: { model_name?: string } })
                 .response_metadata?.model_name;

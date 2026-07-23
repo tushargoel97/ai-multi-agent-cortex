@@ -183,6 +183,45 @@ export function getUsage(message: Message | undefined): TokenUsage | null {
   return usage && (usage.input_tokens || usage.output_tokens) ? usage : null;
 }
 
+export function turnUsage(messages: Message[], current: Message | undefined): TokenUsage | null {
+  if (!current) return null;
+  const end = current.id
+    ? messages.findIndex((message) => message.id === current.id)
+    : messages.indexOf(current);
+  if (end < 0) return getUsage(current);
+  let start = end;
+  while (start > 0 && messages[start - 1].type !== "human") start--;
+  if (start > 0) start--;
+
+  const total: TokenUsage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+  };
+  let cacheRead = 0;
+  let cacheCreation = 0;
+  let found = false;
+  for (const message of messages.slice(start, end + 1)) {
+    if (message.type !== "ai") continue;
+    const usage = getUsage(message);
+    if (!usage) continue;
+    found = true;
+    total.input_tokens! += usage.input_tokens ?? 0;
+    total.output_tokens! += usage.output_tokens ?? 0;
+    total.total_tokens! += usage.total_tokens ?? 0;
+    cacheRead += usage.input_token_details?.cache_read ?? 0;
+    cacheCreation += usage.input_token_details?.cache_creation ?? 0;
+  }
+  if (!found) return null;
+  if (cacheRead || cacheCreation) {
+    total.input_token_details = {
+      ...(cacheRead ? { cache_read: cacheRead } : {}),
+      ...(cacheCreation ? { cache_creation: cacheCreation } : {}),
+    };
+  }
+  return total;
+}
+
 /** Rough client-side estimate for user queries (~4 chars/token). */
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
