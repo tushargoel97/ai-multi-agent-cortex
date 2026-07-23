@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    try:
+        await asyncio.to_thread(mm.sweep_stale_downloads)
+    except Exception:
+        logger.exception("Stale download sweep failed")
     if settings.default_local_model:
         try:
             await mm.load_model(settings.default_local_model)

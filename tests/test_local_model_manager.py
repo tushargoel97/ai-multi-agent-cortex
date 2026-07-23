@@ -206,3 +206,55 @@ def test_completed_tool_stream_adds_tool_call_indexes():
     payload = json.loads(event.removeprefix("data: "))
 
     assert payload["choices"][0]["delta"]["tool_calls"][0]["index"] == 0
+
+
+def test_failed_download_keeps_partial_for_resume(tmp_path, monkeypatch):
+    name = "flaky-model"
+    filename = "flaky.gguf"
+    partial = tmp_path / f"{filename}.part"
+    partial.write_bytes(b"x" * 1024 * 1024)
+    monkeypatch.setattr(mm, "MODELS_DIR", str(tmp_path))
+    monkeypatch.setitem(
+        mm.MODEL_CATALOG,
+        name,
+        {"filename": filename, "repo_id": "test/repo", "tags": ["community"], "size_mb": 10},
+    )
+    mm._download_progress.pop(name, None)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("network dropped")
+
+    monkeypatch.setattr(mm, "download_file", boom)
+    with pytest.raises(RuntimeError):
+        asyncio.run(mm.download_model(name))
+
+    assert partial.exists()  # paused bytes survive the failure
+    assert mm._download_progress[name]["status"] == "error"
+    mm._download_progress.pop(name, None)
+    assert mm.download_progress()[name]["status"] == "paused"  # resumable again
+
+
+def test_sweep_removes_orphans_but_keeps_catalog_partials(tmp_path, monkeypatch):
+    monkeypatch.setattr(mm, "MODELS_DIR", str(tmp_path))
+    monkeypatch.setitem(
+        mm.MODEL_CATALOG,
+        "resumable-model",
+        {"filename": "resumable.gguf", "repo_id": "test/repo", "tags": [], "size_mb": 1},
+    )
+    owned = tmp_path / "resumable.gguf.part"
+    owned.write_bytes(b"resume me")
+    orphan = tmp_path / "deleted-model.gguf.part"
+    orphan.write_bytes(b"zombie")
+    legacy_blob = tmp_path / ".cache" / "huggingface" / "download"
+    legacy_blob.mkdir(parents=True)
+    (legacy_blob / "abc.incomplete").write_bytes(b"zombie blob")
+    untracked_gguf = tmp_path / "hand-copied.gguf"
+    untracked_gguf.write_bytes(b"import me later")
+
+    removed = mm.sweep_stale_downloads()
+
+    assert owned.exists()  # catalog-owned partial stays resumable
+    assert untracked_gguf.exists()  # importable local file is not debris
+    assert not orphan.exists()
+    assert not (tmp_path / ".cache").exists()
+    assert ".cache/" in removed and "deleted-model.gguf.part" in removed

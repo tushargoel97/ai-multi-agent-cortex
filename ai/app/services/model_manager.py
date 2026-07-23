@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import tempfile
 import threading
 import time
@@ -595,7 +596,11 @@ async def download_model(
                 }
             return {"name": name, "status": ab.mode}
         except Exception:
+            # Keep the partial bytes: once the error entry expires the download
+            # reappears as resumable "paused" (reconstructed from disk), so no
+            # progress is lost. Only explicit cancel or the orphan sweep deletes.
             _download_progress[name]["status"] = "error"
+            _schedule_progress_cleanup(name, 30, generation)
             raise
         finally:
             _download_control.pop(name, None)
@@ -651,6 +656,40 @@ def _purge_partial_download(name: str) -> None:
     if "community" in (info.get("tags") or []):
         _remove_custom_entry(name)
         MODEL_CATALOG.pop(name, None)
+
+
+def sweep_stale_downloads() -> list[str]:
+    """Startup sweep for download debris nothing tracks anymore: the legacy
+    HF blob cache dir and ``.part``/``.incomplete`` files that belong to no
+    catalog entry (catalog-owned partials are kept — they surface as resumable
+    paused downloads). Returns what was removed, for the boot log."""
+    removed: list[str] = []
+    if not os.path.isdir(MODELS_DIR):
+        return removed
+    legacy_cache = os.path.join(MODELS_DIR, ".cache")
+    if os.path.isdir(legacy_cache):
+        shutil.rmtree(legacy_cache, ignore_errors=True)
+        removed.append(".cache/")
+    owned: set[str] = set()
+    for info in MODEL_CATALOG.values():
+        try:
+            owned.update(_download_targets(info))
+        except (KeyError, ValueError):
+            continue
+    for entry in sorted(os.listdir(MODELS_DIR)):
+        path = os.path.join(MODELS_DIR, entry)
+        if not os.path.isfile(path):
+            continue
+        is_partial = entry.endswith(".part") or entry.endswith(".incomplete")
+        if is_partial and path.removesuffix(".part") not in owned:
+            try:
+                os.remove(path)
+                removed.append(entry)
+            except OSError:
+                pass
+    if removed:
+        logger.info("Swept stale download debris: %s", ", ".join(removed))
+    return removed
 
 
 def _download_filenames(filename: str) -> list[str]:
