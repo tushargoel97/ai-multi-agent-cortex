@@ -21,7 +21,7 @@ from cortex.workflow.context import (
 )
 from cortex.workflow.memory import memory_context
 from cortex.workflow.nodes import model_error_message, run_agent, selected_local_response
-from cortex.workflow.runtime import build_agent
+from cortex.workflow.runtime import build_agent, invoke_agent
 from cortex.workflow.types import ChatState, Intent
 
 logger = logging.getLogger("cortex.workflow")
@@ -147,7 +147,8 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         complexity="complex",
     )
     try:
-        result = await agent.ainvoke(
+        result = await invoke_agent(
+            agent,
             {"messages": message_window(messages)},
             config=invoke_config(config, DEEP_RESEARCH_RECURSION_LIMIT),
         )

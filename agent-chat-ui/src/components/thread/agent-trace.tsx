@@ -11,11 +11,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { AgentProgressEvent } from "@/lib/agent-progress";
 import { getContentString, getThinkingString } from "./utils";
 import { LiveAgentStatus } from "./live-agent-status";
 import {
   TOOL_ACTIVITY,
   RoutingChip,
+  activityFromProgress,
   agentForIntent,
   deriveLiveActivity,
   getRoutingIntent,
@@ -131,9 +133,21 @@ function ImageGenLoader() {
   );
 }
 
-export function AgentTrace({ messages, live }: { messages: Message[]; live: boolean }) {
+export function AgentTrace({
+  messages,
+  live,
+  progress,
+}: {
+  messages: Message[];
+  live: boolean;
+  progress?: AgentProgressEvent | null;
+}) {
   const [open, setOpen] = useState(false);
-  const liveActivity = live ? deriveLiveActivity(messages, true) : null;
+  const liveActivity = live
+    ? progress
+      ? activityFromProgress(progress)
+      : deriveLiveActivity(messages, true)
+    : null;
 
   if (live && messages.some((m) => getRoutingIntent(m) === "image_generation")) {
     return <ImageGenLoader />;

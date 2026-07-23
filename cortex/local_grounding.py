@@ -17,6 +17,7 @@ from cortex.db.services.llm_registry import (
 )
 from cortex.tools.commerce import find_bookings, product_prices, region_from_browser
 from cortex.tools.web import web_search
+from cortex.workflow.progress import emit_progress
 
 
 @dataclass(frozen=True)
@@ -99,10 +100,13 @@ async def collect_evidence(
     tool_name = _INTENT_TO_TOOL.get(intent)
     if tool_name is None:
         raise ValueError(f"Unsupported grounded intent: {intent}")
+    emit_progress("researching", tool=tool_name)
     cfg = _config(config)
     region = region_from_browser(str(cfg.get("locale") or ""), str(cfg.get("timezone") or ""))
     result = _TOOL_RUNNERS[tool_name](question, region)
-    return Evidence(tool_name, str(await result if isawaitable(result) else result))
+    content = await result if isawaitable(result) else result
+    emit_progress("collating")
+    return Evidence(tool_name, str(content))
 
 
 def _text(content: Any) -> str:
@@ -246,6 +250,7 @@ async def _invoke_local(
     evidence: Evidence | None = None,
     instruction: str | None = None,
 ) -> AIMessage:
+    emit_progress("refining" if evidence else "thinking")
     client = build_client_from_resolved(resolved).bind(max_tokens=768)
     result = await client.ainvoke(
         local_messages(

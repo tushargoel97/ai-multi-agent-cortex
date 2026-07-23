@@ -20,6 +20,7 @@ import { getApiKey } from "@/lib/api-key";
 import { useThreads } from "./Thread";
 import { toast } from "sonner";
 import { createClient, resolveApiUrl } from "./client";
+import { isAgentProgressEvent, type AgentProgressEvent } from "@/lib/agent-progress";
 
 export type StateType = { messages: Message[]; ui?: UIMessage[] };
 
@@ -31,11 +32,13 @@ const useTypedStream = useStream<
       ui?: (UIMessage | RemoveUIMessage)[] | UIMessage | RemoveUIMessage;
       context?: Record<string, unknown>;
     };
-    CustomEventType: UIMessage | RemoveUIMessage;
+    CustomEventType: UIMessage | RemoveUIMessage | AgentProgressEvent;
   }
 >;
 
-type StreamContextType = ReturnType<typeof useTypedStream>;
+type StreamContextType = ReturnType<typeof useTypedStream> & {
+  agentProgress: AgentProgressEvent | null;
+};
 const StreamContext = createContext<StreamContextType | undefined>(undefined);
 
 async function sleep(ms = 4000) {
@@ -144,6 +147,7 @@ const StreamSession = ({
   authScheme?: string;
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
+  const [agentProgress, setAgentProgress] = useState<AgentProgressEvent | null>(null);
   const { getThreads, setThreads } = useThreads();
   const resolvedApiUrl = resolveApiUrl(apiUrl);
   const streamValue = useTypedStream({
@@ -161,13 +165,18 @@ const StreamSession = ({
     // an answer still being generated (pairs with the server's join endpoint).
     reconnectOnMount: true,
     onCustomEvent: (event, options) => {
-      if (isUIMessage(event) || isRemoveUIMessage(event)) {
+      if (isAgentProgressEvent(event)) {
+        setAgentProgress(event);
+      } else if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
           const ui = uiMessageReducer(prev.ui ?? [], event);
           return { ...prev, ui };
         });
       }
     },
+    onCreated: () => setAgentProgress(null),
+    onFinish: () => setAgentProgress(null),
+    onStop: () => setAgentProgress(null),
     onThreadId: (id) => {
       setThreadId(id);
       // Refetch threads list when thread ID changes.
@@ -180,6 +189,7 @@ const StreamSession = ({
       }).catch((e) => console.warn("[stream] auto-title failed:", e));
     },
     onError: (err: unknown) => {
+      setAgentProgress(null);
       console.error("[stream] error:", err);
       let title = "Chat error";
       let description = "An error occurred while streaming the response.";
@@ -262,7 +272,11 @@ const StreamSession = ({
     });
   }, [apiKey, authScheme, resolvedApiUrl]);
 
-  return <StreamContext.Provider value={streamValue}>{children}</StreamContext.Provider>;
+  return (
+    <StreamContext.Provider value={{ ...streamValue, agentProgress }}>
+      {children}
+    </StreamContext.Provider>
+  );
 };
 
 // Default values for the form

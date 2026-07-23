@@ -8,6 +8,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware, ToolCallLimitMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_stream_writer
 
 from cortex.config import get_settings
 from cortex.db.services.llm_registry import (
@@ -20,9 +21,33 @@ from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients, get_chat_client
 from cortex.workflow.context import agent_context, invoke_config, text_content
 from cortex.workflow.memory import recall_memories
+from cortex.workflow.progress import ProgressMiddleware
 from cortex.workflow.types import NODE_TO_INTENT
 
 logger = logging.getLogger("cortex.workflow")
+
+
+async def invoke_agent(
+    agent: Any,
+    input: dict[str, Any],
+    config: RunnableConfig | None = None,
+) -> dict[str, Any]:
+    try:
+        writer = get_stream_writer()
+    except RuntimeError:
+        writer = None
+    result: dict[str, Any] = {}
+    async for mode, chunk in agent.astream(
+        input,
+        config=config,
+        stream_mode=["values", "custom"],
+    ):
+        if mode == "custom":
+            if writer is not None:
+                writer(chunk)
+        elif mode == "values":
+            result = chunk
+    return result
 
 
 def assistant_name() -> str:
@@ -175,8 +200,10 @@ def subagent_tool(
                 model=get_chat_client(config=config, auto_intent=intent),
                 tools=tools,
                 system_prompt=system,
+                middleware=agent_middleware(config, with_pii=False),
             )
-            result = await agent.ainvoke(
+            result = await invoke_agent(
+                agent,
                 {"messages": [HumanMessage(task)]},
                 config=invoke_config(config),
             )
@@ -213,19 +240,14 @@ def subagent_tools(agent_name: str, config: RunnableConfig | None) -> list[Any]:
     ]
 
 
-def build_agent(
-    agent_id: Agents,
+def agent_middleware(
+    config: RunnableConfig | None,
     *,
-    config: RunnableConfig | None = None,
     with_pii: bool = True,
-    extra_system: str | None = None,
-    auto_intent: str | None = None,
     max_tool_calls: int | None = None,
-    complexity: str | None = None,
-):
-    spec = get_agent_spec(agent_id)
+) -> list[Any]:
     cfg = (config or {}).get("configurable") or {}
-    middleware: list[Any] = []
+    middleware: list[Any] = [ProgressMiddleware()]
     if with_pii and not bool(cfg.get("unrestricted")):
         middleware.extend(
             [
@@ -240,6 +262,25 @@ def build_agent(
                 exit_behavior="continue",
             )
         )
+    return middleware
+
+
+def build_agent(
+    agent_id: Agents,
+    *,
+    config: RunnableConfig | None = None,
+    with_pii: bool = True,
+    extra_system: str | None = None,
+    auto_intent: str | None = None,
+    max_tool_calls: int | None = None,
+    complexity: str | None = None,
+):
+    spec = get_agent_spec(agent_id)
+    middleware = agent_middleware(
+        config,
+        with_pii=with_pii,
+        max_tool_calls=max_tool_calls,
+    )
     model = get_chat_client(
         config=config,
         auto_intent=auto_intent,

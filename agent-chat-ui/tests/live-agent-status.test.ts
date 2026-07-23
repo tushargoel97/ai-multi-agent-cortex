@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { createElement } from "react";
+import React, { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import * as activity from "../src/components/thread/agent-activity";
+import * as progress from "../src/lib/agent-progress";
 import { AgentActivity } from "../src/components/thread/agent-activity";
 import { AgentTrace } from "../src/components/thread/agent-trace";
+
+Object.assign(globalThis, { React });
 
 type Resolver = (
   messages: unknown[],
@@ -18,9 +21,67 @@ type Resolver = (
 };
 
 const resolve = () => Reflect.get(activity, "deriveLiveActivity") as Resolver;
+const fromProgress = () =>
+  Reflect.get(activity, "activityFromProgress") as (event: {
+    type: string;
+    phase: string;
+    tool?: string;
+  }) => {
+    key?: string;
+    label?: string;
+    phrases?: string[];
+  };
+const isProgressEvent = () =>
+  Reflect.get(progress, "isAgentProgressEvent") as (value: unknown) => boolean;
 
 test("exports a live activity resolver", () => {
   assert.equal(typeof Reflect.get(activity, "deriveLiveActivity"), "function");
+});
+
+test("exports a workflow progress resolver", () => {
+  assert.equal(typeof Reflect.get(activity, "activityFromProgress"), "function");
+});
+
+test("accepts only valid workflow progress events", () => {
+  assert.equal(typeof Reflect.get(progress, "isAgentProgressEvent"), "function");
+  assert.equal(
+    isProgressEvent()({ type: "agent_progress", phase: "researching", tool: "web_search" }),
+    true,
+  );
+  assert.equal(isProgressEvent()({ type: "agent_progress", phase: "waiting" }), false);
+  assert.equal(isProgressEvent()({ type: "other", phase: "thinking" }), false);
+});
+
+test("maps workflow phases to distinct truthful status sequences", () => {
+  const expected = {
+    routing: "Routing",
+    thinking: "Thinking",
+    researching: "Researching",
+    collating: "Collating answers",
+    refining: "Refining the response",
+  };
+
+  for (const [phase, label] of Object.entries(expected)) {
+    const status = fromProgress()({ type: "agent_progress", phase });
+    assert.equal(status.label, label);
+    assert.ok((status.phrases?.length ?? 0) >= 3);
+  }
+});
+
+test("uses tool context while the workflow is researching", () => {
+  const status = fromProgress()({
+    type: "agent_progress",
+    phase: "researching",
+    tool: "web_search",
+  });
+
+  assert.equal(status.label, "Researching");
+  assert.deepEqual(status.phrases, [
+    "Researching",
+    "Searching the web",
+    "Looking for stronger sources",
+    "Following promising leads",
+  ]);
 });
 
 test("starts routing with the canonical action and truthful follow-ups", () => {
@@ -119,6 +180,27 @@ test("renders live activity as a collapsed canonical status", () => {
   assert.match(html, />Routing</);
   assert.match(html, /aria-expanded="false"/);
   assert.doesNotMatch(html, /Working through it|<ol/);
+});
+
+test("prefers explicit workflow progress over the earlier routing marker", () => {
+  const html = renderToStaticMarkup(
+    createElement(AgentTrace as ComponentType<any>, {
+      live: true,
+      progress: { type: "agent_progress", phase: "collating" },
+      messages: [
+        {
+          type: "ai",
+          content: "knowledge_query",
+          additional_kwargs: {
+            routing: { intent: "knowledge_query", model: "quality-model" },
+          },
+        },
+      ],
+    }),
+  );
+
+  assert.match(html, />Collating answers</);
+  assert.doesNotMatch(html, /role="status" aria-live="polite">Routing</);
 });
 
 test("renders the blooming Cortex mark and accessible live status", () => {

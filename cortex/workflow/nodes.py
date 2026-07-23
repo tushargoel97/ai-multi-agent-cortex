@@ -7,7 +7,6 @@ import logging
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware, ToolCallLimitMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -28,7 +27,15 @@ from cortex.workflow.context import (
 )
 from cortex.workflow.memory import memory_context, update_summary
 from cortex.workflow.planning import ExecutionPlan, plan_from_messages
-from cortex.workflow.runtime import assistant_name, build_agent, subagent_tools, system_prompt_for
+from cortex.workflow.progress import emit_progress
+from cortex.workflow.runtime import (
+    agent_middleware,
+    assistant_name,
+    build_agent,
+    invoke_agent,
+    subagent_tools,
+    system_prompt_for,
+)
 from cortex.workflow.types import ChatState, Intent
 
 logger = logging.getLogger("cortex.workflow")
@@ -162,7 +169,8 @@ async def run_agent(
             complexity=complexity,
             max_tool_calls=plan.max_tool_calls,
         )
-        result = await agent.ainvoke(
+        result = await invoke_agent(
+            agent,
             {"messages": message_window(state["messages"])},
             config=invoke_config(config, plan.recursion_limit),
         )
@@ -187,7 +195,8 @@ async def run_agent(
                 ),
                 id="required-tools-retry",
             )
-            result = await agent.ainvoke(
+            result = await invoke_agent(
+                agent,
                 {"messages": [*result.get("messages", []), correction]},
                 config=invoke_config(config),
             )
@@ -336,19 +345,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
     except Exception:  # noqa: BLE001
         tools = []
     tools += subagent_tools(name, config)
-    middleware: list[Any] = []
-    if not bool(((config or {}).get("configurable") or {}).get("unrestricted")):
-        middleware = [
-            PIIMiddleware("credit_card", strategy="redact", apply_to_output=True),
-            PIIMiddleware("email", strategy="redact", apply_to_output=True),
-        ]
-    if plan.max_tool_calls:
-        middleware.append(
-            ToolCallLimitMiddleware(
-                run_limit=plan.max_tool_calls,
-                exit_behavior="continue",
-            )
-        )
+    middleware = agent_middleware(config, max_tool_calls=plan.max_tool_calls)
 
     def make_agent(client: Any):
         return create_agent(
@@ -370,7 +367,8 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
             exceptions_to_handle=retryable_model_exceptions(),
         )
     try:
-        result = await agent.ainvoke(
+        result = await invoke_agent(
+            agent,
             {"messages": message_window(state["messages"])},
             config=invoke_config(config, plan.recursion_limit),
         )
@@ -388,6 +386,7 @@ async def prompt_cacher(state: ChatState, config: RunnableConfig) -> dict[str, A
 
 
 async def imagegen(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    emit_progress("generating_image")
     last = next(
         (message for message in reversed(state["messages"]) if isinstance(message, HumanMessage)),
         None,

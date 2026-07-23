@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { getContentString } from "./utils";
 import { LiveAgentStatus } from "./live-agent-status";
+import type { AgentProgressEvent } from "@/lib/agent-progress";
 
 /** The router node emits a marker AIMessage with additional_kwargs.routing. */
 export function getRoutingIntent(message: Message | undefined): string | null {
@@ -231,6 +232,62 @@ const COMPOSING_PHRASES = [
   "Pulling everything together",
   "Giving it one last check",
 ];
+const PROGRESS_ACTIVITY: Record<
+  AgentProgressEvent["phase"],
+  { label: string; phrases: string[]; icon: LucideIcon; intent?: string }
+> = {
+  routing: {
+    label: "Routing",
+    phrases: ROUTING_PHRASES,
+    icon: Zap,
+  },
+  thinking: {
+    label: "Thinking",
+    phrases: ["Thinking", "Mapping the request", "Working through the details"],
+    icon: BrainCircuit,
+  },
+  researching: {
+    label: "Researching",
+    phrases: ["Researching", "Checking strong sources", "Following the evidence"],
+    icon: Search,
+  },
+  collating: {
+    label: "Collating answers",
+    phrases: [
+      "Collating answers",
+      "Connecting the evidence",
+      "Organizing the findings",
+      "Sorting the strongest signals",
+    ],
+    icon: BookOpen,
+  },
+  refining: {
+    label: "Refining the response",
+    phrases: ["Refining the response", "Checking the final details", "Polishing the answer"],
+    icon: Sparkles,
+  },
+  generating_image: {
+    label: "Generating your image",
+    phrases: ["Generating your image", "Shaping the composition", "Finishing the details"],
+    icon: Palette,
+    intent: "image_generation",
+  },
+};
+
+export function activityFromProgress(event: AgentProgressEvent): Activity {
+  const activity = PROGRESS_ACTIVITY[event.phase];
+  const tool = event.tool ? TOOL_ACTIVITY[event.tool] : undefined;
+  return {
+    ...activity,
+    key: `progress:${event.phase}:${event.tool ?? ""}`,
+    ...(tool
+      ? {
+          phrases: [activity.label, tool.label, ...(tool.followUps ?? [])],
+          icon: tool.icon,
+        }
+      : {}),
+  };
+}
 
 /** The most recent routing marker's intent, scanning newest-first. */
 function lastRoutingIntent(messages: Message[]): string | null {
@@ -345,8 +402,14 @@ function deriveActivity(messages: Message[], live = false): Activity | null {
 export const deriveLiveActivity = deriveActivity;
 
 /** Live status row rendered under the transcript while a run is in flight. */
-export function AgentActivity({ messages }: { messages: Message[] }) {
-  const activity = deriveActivity(messages);
+export function AgentActivity({
+  messages,
+  progress,
+}: {
+  messages: Message[];
+  progress?: AgentProgressEvent | null;
+}) {
+  const activity = progress ? activityFromProgress(progress) : deriveActivity(messages);
   if (!activity) return null;
 
   if (activity.intent === "image_generation") {

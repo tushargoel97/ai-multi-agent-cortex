@@ -17,6 +17,7 @@ from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients
 from cortex.workflow.context import has_image, last_human, message_window, text_content
 from cortex.workflow.planning import plan_execution
+from cortex.workflow.progress import emit_progress
 from cortex.workflow.runtime import (
     agent_static_prompt,
     custom_agents_for_routing,
@@ -73,6 +74,7 @@ def strip_notes(text: str) -> str:
 
 
 async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    emit_progress("routing")
     configurable = (config or {}).get("configurable") or {}
     mode = str(configurable.get("mode") or "").lower()
     if mode in ("thinking", "research", "engineer"):

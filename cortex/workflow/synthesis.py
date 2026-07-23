@@ -18,6 +18,7 @@ from cortex.enums import Agents
 from cortex.local_grounding import selected_local_model
 from cortex.model_client import get_chat_client
 from cortex.workflow.context import is_router_marker, last_human, text_content
+from cortex.workflow.progress import emit_progress
 
 logger = logging.getLogger("cortex.workflow")
 
@@ -199,6 +200,7 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
         model = _format_model(config, final, is_spec)
         if model is None:
             return {}
+        emit_progress("refining")
         if is_spec:
             rendered = await _render_spec_answer(question, final.content, "", model)
             if rendered:

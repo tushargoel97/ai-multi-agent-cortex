@@ -308,6 +308,9 @@ def test_complex_shopping_uses_bounded_research_execution(monkeypatch):
                 ]
             }
 
+        async def astream(self, payload, config=None, **_):
+            yield "values", await self.ainvoke(payload, config)
+
     async def memory(*_args, **_kwargs):
         return "", {}
 
@@ -378,6 +381,9 @@ def test_custom_agent_uses_shared_execution_plan(monkeypatch):
         async def ainvoke(self, payload, config=None):
             captured["invoke_config"] = config
             return {"messages": [*payload["messages"], AIMessage(content="answer")]}
+
+        async def astream(self, payload, config=None, **_):
+            yield "values", await self.ainvoke(payload, config)
 
     async def memory(*_args, **_kwargs):
         return "", {}
@@ -461,6 +467,9 @@ def test_run_agent_retries_when_required_tools_are_missing(monkeypatch):
                     AIMessage(content="verified conversion"),
                 ]
             }
+
+        async def astream(self, payload, config=None, **_):
+            yield "values", await self.ainvoke(payload, config)
 
     agent = Agent()
 

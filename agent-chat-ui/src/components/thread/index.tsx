@@ -599,6 +599,9 @@ export function Thread() {
                             key={item.messages[0]?.id || `trace-${index}`}
                             messages={item.messages}
                             live={isLoading && index === items.length - 1}
+                            progress={
+                              isLoading && index === items.length - 1 ? stream.agentProgress : null
+                            }
                           />
                         ) : item.message.type === "human" ? (
                           <HumanMessage
@@ -629,7 +632,7 @@ export function Thread() {
                       {/* Initial "routing" beat, before the first activity
                         message arrives; the live trace covers the rest. */}
                       {isLoading && lastVisible?.type === "human" && (
-                        <AgentActivity messages={messages} />
+                        <AgentActivity messages={messages} progress={stream.agentProgress} />
                       )}
                     </div>
                   );
