@@ -30,7 +30,8 @@ async def update_summary(
     folded = transcript(messages[covered : len(messages) - WINDOW_KEEP])
     if not folded:
         return {"summary_upto": len(messages) - WINDOW_KEEP}
-    current = state.get("summary", "")
+    folded = folded[-12_000:]
+    current = state.get("summary", "")[-4_000:]
     prompt = (
         "Maintain a compact running summary of a conversation. Preserve concrete "
         "facts, names, numbers, decisions, and open questions; drop pleasantries.\n\n"
@@ -39,7 +40,11 @@ async def update_summary(
         "Return only the updated summary, max ~200 words."
     )
     try:
-        result = await get_chat_client(config=config).ainvoke(
+        result = await get_chat_client(
+            config=config,
+            effort="low",
+            max_output_tokens=350,
+        ).ainvoke(
             prompt,
             config={"tags": ["langsmith:nostream"]},
         )
@@ -65,7 +70,9 @@ async def recall_memories(messages: list) -> str:
             query=str(latest.content),
             limit=4,
         )
-        return "\n".join(f"- {hit.value.get('content', '')}" for hit in hits)
+        return "\n".join(
+            f"- {str(hit.value.get('content', ''))[:500]}" for hit in hits
+        )
     except Exception:  # noqa: BLE001
         return ""
 

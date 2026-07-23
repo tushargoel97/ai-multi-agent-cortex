@@ -243,10 +243,15 @@ async def test_synthesizer_emits_refining_while_model_pass_runs(monkeypatch):
     )
     state = {
         "messages": [
-            HumanMessage("Explain the result"),
+            HumanMessage("Compare the results"),
             AIMessage(
                 "knowledge_query",
-                additional_kwargs={"routing": {"intent": "knowledge_query"}},
+                additional_kwargs={
+                    "routing": {
+                        "intent": "knowledge_query",
+                        "evidence_dimensions": ["comparison"],
+                    }
+                },
             ),
             AIMessage("Draft answer"),
         ]

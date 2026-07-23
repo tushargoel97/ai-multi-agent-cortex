@@ -360,7 +360,7 @@ class WebSearchInput(BaseModel):
         description="Number of search results to return (1-8).",
     )
     fetch_pages: bool = Field(
-        default=True,
+        default=False,
         description=(
             "If true, fetch and extract readable text from the top results "
             "so the agent has actual page content (not just snippets)."
@@ -464,7 +464,7 @@ def _provider_search(query: str, max_results: int) -> list[dict[str, str]]:
 
 
 @register_tool(args_schema=WebSearchInput)
-def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> str:
+def web_search(query: str, max_results: int = 5, fetch_pages: bool = False) -> str:
     """Search the live internet and return combined results.
 
     Use this for ANY question that needs **current / up-to-date / recent**
@@ -502,7 +502,7 @@ def web_search(query: str, max_results: int = 5, fetch_pages: bool = True) -> st
         {
             "title": r.get("title", ""),
             "url": r.get("url", ""),
-            "snippet": r.get("snippet", ""),
+            "snippet": re.sub(r"\s+", " ", str(r.get("snippet", ""))).strip()[:800],
         }
         for r in results
     ]

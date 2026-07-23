@@ -43,6 +43,27 @@ _TIME_RE = re.compile(
     r"\b(?:current|local)?\s*(?:date|time|day\s+of\s+the\s+week)\b",
     re.IGNORECASE,
 )
+_MEMORY_READ_RE = re.compile(
+    r"\b(?:what|do)\s+(?:you\s+)?remember\b|"
+    r"\bwhat\s+did\s+i\s+(?:tell|say|ask)\b|"
+    r"\bprevious\s+conversation\b",
+    re.IGNORECASE,
+)
+_MEMORY_WRITE_RE = re.compile(
+    r"\bremember\s+(?:that|this)\b|\bsave\s+(?:that|this)\b|"
+    r"\bmy\s+name\s+is\b|\bi\s+prefer\b|"
+    r"\bi\s+(?:use|run|work\s+with)\b|"
+    r"\bmy\s+(?:role|job|project|goal|computer|laptop|gpu|cpu|os)\s+is\b",
+    re.IGNORECASE,
+)
+_CRYPTO_RE = re.compile(
+    r"\b(?:crypto(?:currency)?|bitcoin|ethereum|solana|ripple|dogecoin|"
+    r"btc|eth|sol|xrp|doge)\b.*\b(?:price|market\s+cap|24h|change|quote)\b|"
+    r"\b(?:price|market\s+cap|24h|change|quote)\b.*\b(?:bitcoin|ethereum|"
+    r"solana|ripple|dogecoin|btc|eth|sol|xrp|doge)\b",
+    re.IGNORECASE,
+)
+_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 _CONSTRAINT_RE = re.compile(
     r"\b(budget|constraint|requirement|must|only|without|under|at\s+least|"
     r"no\s+more\s+than|specific\s+(?:source|site|retailer|provider))\b",
@@ -73,10 +94,6 @@ class ExecutionPlan:
     complexity: Literal["simple", "standard", "complex"]
     dimensions: tuple[str, ...] = ()
     required_tools: tuple[str, ...] = ()
-
-    @property
-    def max_tool_calls(self) -> int | None:
-        return 12 if self.tier == "research" else None
 
     @property
     def recursion_limit(self) -> int:
@@ -146,23 +163,44 @@ def _required_tools(
     intent: str,
     dimensions: tuple[str, ...],
     tier: ExecutionTier,
+    text: str,
 ) -> tuple[str, ...]:
     required = []
     if intent == Intent.SHOPPING.value:
         required.append("product_prices")
     elif intent == Intent.BOOKING.value:
         required.append("find_bookings")
-    elif intent in (Intent.KNOWLEDGE_QUERY.value, Intent.PRODUCT_SPECS.value):
+    elif intent == Intent.PRODUCT_SPECS.value:
         required.append("web_search")
+    elif intent == Intent.KNOWLEDGE_QUERY.value:
+        if _URL_RE.search(text):
+            required.append("fetch_url")
+        elif _CRYPTO_RE.search(text):
+            required.append("crypto_price")
+        elif {"current", "historical", "research"}.intersection(dimensions):
+            required.append("web_search")
+        elif "conversion" in dimensions:
+            required.append("fiat_exchange_rate")
+        else:
+            required.append("search_knowledge_base")
     elif intent == Intent.CODING_TASK.value and tier in ("grounded", "research"):
         required.append("web_search")
     elif intent == Intent.REASONING_TASK.value and "calculation" in dimensions:
         required.append("calculator")
-    elif intent == Intent.GENERAL_CHAT.value and "time" in dimensions:
-        required.append("get_current_time")
+    elif intent == Intent.GENERAL_CHAT.value:
+        if _MEMORY_READ_RE.search(text):
+            required.append("search_memories")
+        elif _MEMORY_WRITE_RE.search(text):
+            required.append("save_memory")
+        elif "time" in dimensions:
+            required.append("get_current_time")
     if tier == "research" and intent in (Intent.SHOPPING.value, Intent.BOOKING.value):
         required.append("web_search")
-    if "conversion" in dimensions and intent in _ALWAYS_GROUNDED:
+    if (
+        "conversion" in dimensions
+        and intent in _ALWAYS_GROUNDED
+        and "fiat_exchange_rate" not in required
+    ):
         required.append("fiat_exchange_rate")
     return tuple(dict.fromkeys(required))
 
@@ -206,7 +244,7 @@ def plan_execution(
         tier,
         final_complexity,
         dimensions,
-        _required_tools(intent, dimensions, tier),
+        _required_tools(intent, dimensions, tier, text),
     )
 
 

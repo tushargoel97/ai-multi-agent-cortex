@@ -30,9 +30,12 @@ async def test_deep_research_currency_conversion_is_reformatted_as_a_table(
 ):
     async def render_table(*_args):
         return (
-            "| Price | USD | INR |\n"
-            "| --- | --- | --- |\n"
-            "| Base MSRP | $42,025 | ₹40,55,412 |"
+            (
+                "| Price | USD | INR |\n"
+                "| --- | --- | --- |\n"
+                "| Base MSRP | $42,025 | ₹40,55,412 |"
+            ),
+            [],
         )
 
     monkeypatch.setattr(synthesis, "selected_local_model", lambda _: None)

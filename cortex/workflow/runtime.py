@@ -5,7 +5,12 @@ import re
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware, ToolCallLimitMiddleware
+from langchain.agents.middleware import (
+    ClearToolUsesEdit,
+    ContextEditingMiddleware,
+    PIIMiddleware,
+    ToolCallLimitMiddleware,
+)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
@@ -20,7 +25,13 @@ from cortex.enums import Agents
 from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients, get_chat_client
 from cortex.workflow.context import agent_context, invoke_config, text_content
+from cortex.workflow.effort import (
+    effort_budget,
+    select_tools,
+    tool_budget_middleware,
+)
 from cortex.workflow.memory import recall_memories
+from cortex.workflow.planning import ExecutionPlan, plan_execution
 from cortex.workflow.progress import ProgressMiddleware
 from cortex.workflow.types import NODE_TO_INTENT
 
@@ -120,10 +131,18 @@ def router_classifier_client(config: RunnableConfig | None) -> Any:
             if resolved is not None and resolved.kind.value == "local":
                 fast = resolve_auto_model(FAST_TIER)
                 if fast is not None:
-                    return build_client_from_resolved(fast)
+                    return build_client_from_resolved(
+                        fast,
+                        effort="low",
+                        max_output_tokens=300,
+                    )
     except Exception:  # noqa: BLE001
         pass
-    return get_chat_client(config=config)
+    return get_chat_client(
+        config=config,
+        effort="low",
+        max_output_tokens=300,
+    )
 
 
 def effective_agent_tools(spec: Any) -> list[Any]:
@@ -191,21 +210,28 @@ def subagent_tool(
             return f"The '{subagent_name}' subagent is unavailable."
         static, tools, intent = runtime
         tools = [tool for tool in tools if getattr(tool, "name", "") != "save_memory"]
+        plan = plan_execution(intent or "general_chat", task)
+        budget = effort_budget(config, plan)
         recalled = await recall_memories([HumanMessage(task)])
         system = f"{static}\n\n{agent_context(config)}"
         if recalled:
             system += f"\n\nShared long-term memory (read-only):\n{recalled}"
         try:
             agent = create_agent(
-                model=get_chat_client(config=config, auto_intent=intent),
+                model=get_chat_client(
+                    config=config,
+                    auto_intent=intent,
+                    effort=budget.level,
+                    max_output_tokens=budget.max_output_tokens,
+                ),
                 tools=tools,
                 system_prompt=system,
-                middleware=agent_middleware(config, with_pii=False),
+                middleware=agent_middleware(config, with_pii=False, plan=plan),
             )
             result = await invoke_agent(
                 agent,
                 {"messages": [HumanMessage(task)]},
-                config=invoke_config(config),
+                config=invoke_config(config, plan.recursion_limit),
             )
         except Exception:  # noqa: BLE001
             logger.exception("Subagent %r failed", subagent_name)
@@ -245,9 +271,38 @@ def agent_middleware(
     *,
     with_pii: bool = True,
     max_tool_calls: int | None = None,
+    plan: ExecutionPlan | None = None,
 ) -> list[Any]:
     cfg = (config or {}).get("configurable") or {}
     middleware: list[Any] = [ProgressMiddleware()]
+    budget = effort_budget(config, plan) if plan is not None else None
+    if budget is not None and max_tool_calls is None:
+        max_tool_calls = budget.max_tool_calls
+    if budget is not None and {"web_search", "fetch_url"}.intersection(
+        plan.required_tools
+    ):
+        middleware.append(tool_budget_middleware(budget))
+    if budget is not None and plan.tier in ("grounded", "research"):
+        keep = {"low": 1, "medium": 2, "high": 3, "xhigh": 4, "max": 5}[
+            budget.level
+        ]
+        middleware.append(
+            ContextEditingMiddleware(
+                edits=[
+                    ClearToolUsesEdit(
+                        trigger=budget.history_tokens
+                        + budget.tool_result_chars // 4,
+                        keep=keep,
+                        exclude_tools=(
+                            "calculator",
+                            "fiat_exchange_rate",
+                            "find_bookings",
+                            "product_prices",
+                        ),
+                    )
+                ]
+            )
+        )
     if with_pii and not bool(cfg.get("unrestricted")):
         middleware.extend(
             [
@@ -274,22 +329,29 @@ def build_agent(
     auto_intent: str | None = None,
     max_tool_calls: int | None = None,
     complexity: str | None = None,
+    plan: ExecutionPlan | None = None,
 ):
     spec = get_agent_spec(agent_id)
+    budget = effort_budget(config, plan) if plan is not None else None
     middleware = agent_middleware(
         config,
         with_pii=with_pii,
         max_tool_calls=max_tool_calls,
+        plan=plan,
     )
     model = get_chat_client(
         config=config,
         auto_intent=auto_intent,
         complexity=complexity,
+        effort=budget.level if budget else None,
+        max_output_tokens=budget.max_output_tokens if budget else None,
     )
     fallbacks = auto_fallback_clients(
         config,
         auto_intent=auto_intent,
         complexity=complexity,
+        effort=budget.level if budget else None,
+        max_output_tokens=budget.max_output_tokens if budget else None,
     )
     static = agent_static_prompt(agent_id.value, spec)
     dynamic = agent_context(
@@ -299,7 +361,10 @@ def build_agent(
     )
     if extra_system:
         dynamic += f"\n\n{extra_system}"
-    tools = effective_agent_tools(spec) + subagent_tools(agent_id.value, config)
+    tools = effective_agent_tools(spec)
+    if plan is not None and agent_id not in (Agents.DEBUGGER, Agents.PROMPT_CACHER):
+        tools = select_tools(tools, plan)
+    tools += subagent_tools(agent_id.value, config)
     if any(getattr(tool, "name", "") == "consult_local_specialist" for tool in tools):
         specialists = local_specialists()
         if specialists:

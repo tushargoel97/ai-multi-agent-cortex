@@ -10,7 +10,6 @@ from cortex.tools.commerce import region_from_browser
 
 WINDOW_KEEP = 12
 AGENT_RECURSION_LIMIT = 40
-DEEP_RESEARCH_RECURSION_LIMIT = 60
 
 UNRESTRICTED_DIRECTIVE = (
     "Direct mode is ON: answer the user's request straightforwardly and in "
@@ -79,13 +78,31 @@ def last_human(messages: list) -> HumanMessage | None:
     )
 
 
-def message_window(messages: list) -> list:
-    window = [message for message in messages if not is_router_marker(message)][
-        -WINDOW_KEEP:
-    ]
-    while window and isinstance(window[0], ToolMessage):
-        window.pop(0)
-    return window
+def message_window(messages: list, token_budget: int | None = None) -> list:
+    candidates = [
+        message
+        for message in messages
+        if not is_router_marker(message)
+        and not isinstance(message, ToolMessage)
+        and not getattr(message, "tool_calls", None)
+    ][-WINDOW_KEEP:]
+    if token_budget is None:
+        return candidates
+    remaining = max(token_budget, 1) * 4
+    turns: list[list] = []
+    for message in candidates:
+        if isinstance(message, HumanMessage):
+            turns.append([message])
+        elif turns:
+            turns[-1].append(message)
+    selected = []
+    for turn in reversed(turns):
+        size = sum(max(len(text_content(message)), 1) for message in turn)
+        if selected and size > remaining:
+            continue
+        selected.append(turn)
+        remaining -= size
+    return [message for turn in reversed(selected) for message in turn]
 
 
 def transcript(messages: list) -> str:
@@ -104,6 +121,33 @@ def transcript(messages: list) -> str:
         if text:
             lines.append(f"{role}: {text}")
     return "\n".join(lines)
+
+
+def aggregate_usage(messages: list) -> dict[str, Any] | None:
+    totals: dict[str, Any] = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+    }
+    details: dict[str, int] = {}
+    found = False
+    for message in messages:
+        usage = getattr(message, "usage_metadata", None) or {}
+        if not usage:
+            continue
+        found = True
+        for key in totals:
+            value = usage.get(key)
+            if isinstance(value, int):
+                totals[key] += value
+        for key, value in (usage.get("input_token_details") or {}).items():
+            if isinstance(value, int):
+                details[key] = details.get(key, 0) + value
+    if not found:
+        return None
+    if details:
+        totals["input_token_details"] = details
+    return totals
 
 
 def request_context(config: RunnableConfig | None) -> str:
@@ -131,7 +175,12 @@ def agent_context(
     if bool(cfg.get("unrestricted")):
         context += f"\n\n{UNRESTRICTED_DIRECTIVE}"
     mode = str(cfg.get("mode") or "general").lower()
-    if mode == "general" and complexity != "complex":
+    effort = str(cfg.get("effort") or "adaptive").lower()
+    if (
+        mode == "general"
+        and complexity != "complex"
+        and effort in ("adaptive", "low")
+    ):
         context += f"\n\n{INSTANT_DIRECTIVE}"
     elif mode == "engineer" and engineer:
         context += f"\n\n{ENGINEER_DIRECTIVE}"

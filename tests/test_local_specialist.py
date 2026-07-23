@@ -43,7 +43,7 @@ def test_named_trained_entity_does_not_override_shopping_intent(monkeypatch):
 
     monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
     monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
-    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda *_, **__: [])
     monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
     monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
     monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
@@ -82,7 +82,7 @@ def test_compound_shopping_request_is_promoted_to_research(monkeypatch):
 
     monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
     monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
-    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda *_, **__: [])
     monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
     monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
     monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
@@ -139,7 +139,7 @@ def test_single_current_price_stays_on_grounded_tier(monkeypatch):
 
     monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
     monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
-    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda *_, **__: [])
     monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
     monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
     monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
@@ -241,7 +241,7 @@ def test_execution_policy_applies_across_capabilities(
 
     monkeypatch.setattr(workflow_routing, "create_agent", lambda **_: Agent())
     monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
-    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda *_, **__: [])
     monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "")
     monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
     monkeypatch.setattr(workflow_routing, "local_specialists", lambda: [])
@@ -277,7 +277,7 @@ def test_auto_routes_described_local_model_without_domain_rules(monkeypatch):
 
     monkeypatch.setattr(workflow_routing, "create_agent", create)
     monkeypatch.setattr(workflow_routing, "router_classifier_client", lambda _: object())
-    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda _: [])
+    monkeypatch.setattr(workflow_routing, "auto_fallback_clients", lambda *_, **__: [])
     monkeypatch.setattr(workflow_routing, "agent_static_prompt", lambda *_: "router")
     monkeypatch.setattr(workflow_routing, "custom_agents_for_routing", lambda: [])
     monkeypatch.setattr(

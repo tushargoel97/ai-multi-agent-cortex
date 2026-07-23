@@ -17,7 +17,12 @@ from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.local_grounding import selected_local_model
 from cortex.model_client import get_chat_client
-from cortex.workflow.context import is_router_marker, last_human, text_content
+from cortex.workflow.context import (
+    aggregate_usage,
+    is_router_marker,
+    last_human,
+    text_content,
+)
 from cortex.workflow.progress import emit_progress
 
 logger = logging.getLogger("cortex.workflow")
@@ -105,7 +110,9 @@ def _code_syntax_notes(text: str) -> list[str]:
     return notes
 
 
-def _replacement(source: AIMessage, content: str) -> dict[str, list[AIMessage]]:
+def _replacement(
+    source: AIMessage, content: str, *usage_messages: AIMessage
+) -> dict[str, list[AIMessage]]:
     return {
         "messages": [
             AIMessage(
@@ -113,7 +120,7 @@ def _replacement(source: AIMessage, content: str) -> dict[str, list[AIMessage]]:
                 content=content,
                 additional_kwargs=source.additional_kwargs,
                 response_metadata=source.response_metadata,
-                usage_metadata=source.usage_metadata,
+                usage_metadata=aggregate_usage([source, *usage_messages]),
             )
         ]
     }
@@ -121,7 +128,7 @@ def _replacement(source: AIMessage, content: str) -> dict[str, list[AIMessage]]:
 
 async def _render_table_answer(
     question: str, draft: str, reference: str, model: Any
-) -> str | None:
+) -> tuple[str | None, list[AIMessage]]:
     from cortex.tools.spec_table import SpecTable, render_spec_markdown
 
     prompt = f"Question:\n{question}\n\nDraft:\n{draft}"
@@ -139,36 +146,48 @@ async def _render_table_answer(
             ),
             response_format=ProviderStrategy(SpecTable),
         )
-        table: SpecTable = (await agent.ainvoke({"messages": [HumanMessage(prompt)]}))[
-            "structured_response"
-        ]
+        result = await agent.ainvoke({"messages": [HumanMessage(prompt)]})
+        table: SpecTable = result["structured_response"]
     except Exception:  # noqa: BLE001
         logger.exception("Spec table extraction failed")
-        return None
+        return None, []
     rows = [{"spec": row.spec, "values": list(row.values)} for row in table.rows]
     rendered = render_spec_markdown(
         list(table.products), rows, table.verdict or ""
     )
+    usage_messages = [
+        message
+        for message in result.get("messages", [])
+        if isinstance(message, AIMessage)
+    ]
     return (
-        rendered
-        if rendered and _no_invented_numbers(draft, rendered, reference)
-        else None
+        rendered if _no_invented_numbers(draft, rendered, reference) else None,
+        usage_messages,
     )
 
 
-def _format_model(
-    config: RunnableConfig, final: AIMessage, table_required: bool
-) -> Any | None:
+def _format_model(config: RunnableConfig) -> Any | None:
     from cortex.db.services.auto_mode import FAST_TIER, is_auto, resolve_auto_model
 
     cfg = (config or {}).get("configurable") or {}
     explicit = bool(cfg.get("model_id")) and not is_auto(cfg.get("model_id"))
-    tier = "knowledge_query" if table_required else FAST_TIER
     if explicit or cfg.get("local_base_url"):
-        return get_chat_client(config=config, auto_intent=tier)
-    resolved = resolve_auto_model("knowledge_query") if table_required else None
-    resolved = resolved or resolve_auto_model(FAST_TIER)
-    return build_client_from_resolved(resolved) if resolved else None
+        return get_chat_client(
+            config=config,
+            auto_intent="knowledge_query",
+            effort="low",
+            max_output_tokens=2_500,
+        )
+    resolved = resolve_auto_model("knowledge_query") or resolve_auto_model(FAST_TIER)
+    return (
+        build_client_from_resolved(
+            resolved,
+            effort="low",
+            max_output_tokens=2_500,
+        )
+        if resolved
+        else None
+    )
 
 
 async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
@@ -208,19 +227,26 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
     )
     if metadata.get("deep_research") and not table_required:
         return {}
+    if not table_required:
+        return {}
     if table_required and _has_markdown_table(final.content):
         return {}
 
     try:
-        model = _format_model(config, final, table_required)
+        model = _format_model(config)
         if model is None:
             return {}
         emit_progress("refining")
-        if table_required:
-            rendered = await _render_table_answer(question, final.content, "", model)
-            if rendered:
-                rendered = _carry_sources(final.content, rendered)
-                return _replacement(final, _carry_notes(final.content, rendered))
+        rendered, formatter_messages = await _render_table_answer(
+            question, final.content, "", model
+        )
+        if rendered:
+            rendered = _carry_sources(final.content, rendered)
+            return _replacement(
+                final,
+                _carry_notes(final.content, rendered),
+                *formatter_messages,
+            )
 
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
         spec = get_agent_spec(Agents.SYNTHESIZER)
@@ -236,12 +262,12 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
                     HumanMessage(prompt + extra),
                 ]
             )
+            formatter_messages.append(result)
             return text_content(result).strip()
 
         text = await reformat()
-        if table_required and (
-            not _has_markdown_table(text)
-            or not _numbers_preserved(final.content, text)
+        if not _has_markdown_table(text) or not _numbers_preserved(
+            final.content, text
         ):
             forced = await reformat(
                 "\n\nOutput only a GitHub markdown table. Copy every number "
@@ -253,7 +279,11 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
                 text = forced
         if not text or not _numbers_preserved(final.content, text):
             return {}
-        return _replacement(final, _carry_notes(final.content, text))
+        return _replacement(
+            final,
+            _carry_notes(final.content, text),
+            *formatter_messages,
+        )
     except Exception:  # noqa: BLE001
         logger.exception("Synthesizer pass failed, keeping raw answer")
         return {}

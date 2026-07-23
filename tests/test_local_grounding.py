@@ -125,6 +125,39 @@ def test_run_grounded_local_uses_evidence_without_binding_tools(monkeypatch):
     assert all(not getattr(message, "tool_calls", None) for message in captured)
 
 
+def test_explicit_low_effort_reduces_local_model_context_and_output(monkeypatch):
+    captured = []
+    options = []
+
+    class Client:
+        def bind(self, **kwargs):
+            options.append(kwargs)
+            return self
+
+        async def ainvoke(self, messages, config=None):
+            captured.extend(messages)
+            return AIMessage(content="answer")
+
+    monkeypatch.setattr(
+        local_grounding,
+        "selected_local_model",
+        lambda _: SimpleNamespace(model_id="local"),
+    )
+    monkeypatch.setattr(local_grounding, "build_client_from_resolved", lambda _: Client())
+
+    asyncio.run(
+        local_grounding.run_local_answer(
+            "general_chat",
+            [HumanMessage(content="Answer this")],
+            {"configurable": {"model_id": "row-id", "effort": "low"}},
+            request_context="context",
+        )
+    )
+
+    assert options == [{"max_tokens": 600}]
+    assert sum(len(str(message.content)) for message in captured) <= 6_000
+
+
 def test_grounded_followup_search_uses_previous_user_context(monkeypatch):
     queries = []
     captured = []
@@ -357,7 +390,8 @@ def test_complex_shopping_uses_bounded_research_execution(monkeypatch):
     )
 
     assert captured["complexity"] == "complex"
-    assert captured["max_tool_calls"] == 12
+    assert captured["plan"].tier == "research"
+    assert "max_tool_calls" not in captured
     assert captured["invoke_config"]["recursion_limit"] == 60
     assert "independent evidence tasks" in captured["extra_system"]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
@@ -88,22 +89,16 @@ def get_default_resolved_model(session: Session) -> ResolvedModel | None:
 
 
 def _anthropic_adaptive_thinking(model: str) -> bool:
-    """True for Claude generations that use ``thinking:{type:adaptive}`` instead
-    of the older ``thinking:{type:enabled,budget_tokens}`` (Sonnet/Opus/Haiku
-    4.5 and the Claude 5 family). Sending the old shape to these 400s with
-    ``"thinking.type.enabled" is not supported for this model``.
-    """
-    m = model.lower().replace("_", "-")
-    return any(
-        tag in m
-        for tag in (
-            "sonnet-5",
-            "opus-5",
-            "haiku-5",
-            "claude-5",
-            "sonnet-4-5",
-            "opus-4-5",
-            "haiku-4-5",
+    normalized = model.lower().replace("_", "-").replace(".", "-")
+    return bool(
+        "claude-5" in normalized
+        or re.search(
+            r"(?:claude-)?(?:fable|mythos|opus|sonnet|haiku)-5",
+            normalized,
+        )
+        or re.search(
+            r"(?:claude-)?(?:opus|sonnet|haiku)-4-[5-9]",
+            normalized,
         )
     )
 
@@ -127,6 +122,42 @@ def _anthropic_supports_thinking(model: str) -> bool:
         "claude-3-sonnet",
     )
     return not any(tag in m for tag in unsupported)
+
+
+def _anthropic_supports_effort(model: str) -> bool:
+    normalized = model.lower().replace("_", "-").replace(".", "-")
+    return bool(
+        "claude-5" in normalized
+        or re.search(
+            r"(?:claude-)?(?:fable|mythos|opus|sonnet|haiku)-5",
+            normalized,
+        )
+        or re.search(r"(?:claude-)?(?:opus-4-5|(?:opus|sonnet)-4-[6-9])", normalized)
+    )
+
+
+def _anthropic_effort(model: str, effort: str | None) -> str | None:
+    if effort not in ("low", "medium", "high", "xhigh", "max"):
+        return None
+    normalized = model.lower().replace("_", "-").replace(".", "-")
+    if not _anthropic_supports_effort(normalized):
+        return None
+    if effort == "xhigh" and not (
+        re.search(
+            r"(?:claude-)?(?:fable|mythos|opus|sonnet|haiku)-5",
+            normalized,
+        )
+        or re.search(r"(?:claude-)?opus-4-[7-9]", normalized)
+    ):
+        return "high"
+    if effort == "max" and re.search(r"(?:claude-)?opus-4-5", normalized):
+        return "high"
+    return effort
+
+
+def _google_supports_thinking(model: str) -> bool:
+    normalized = model.lower().replace("_", "-")
+    return bool(re.search(r"\bgemini-(?:2-5|[3-9])", normalized))
 
 
 @lru_cache(maxsize=1)
@@ -174,20 +205,15 @@ def build_client_from_resolved(
     local_base_url_override: str | None = None,
     local_api_key_override: str | None = None,
     thinking: bool = False,
+    effort: str | None = None,
+    max_output_tokens: int | None = None,
 ) -> BaseChatModel:
     """Instantiate a LangChain chat client from a ResolvedModel."""
     from langchain_openai import AzureChatOpenAI, ChatOpenAI
-
-    def _needs_responses_api(model: str | None) -> bool:
-        if not model:
-            return False
-        m = model.lower()
-        return (
-            m.startswith("gpt-5")
-            or m.startswith("o1")
-            or m.startswith("o3")
-            or m.startswith("o4")
-        )
+    from cortex.model_client.chat_client import (
+        _needs_responses_api,
+        _openai_reasoning_effort,
+    )
 
     match resolved.kind:
         case ProviderKind.OPENAI:
@@ -198,8 +224,13 @@ def build_client_from_resolved(
                 kwargs["base_url"] = resolved.base_url
             if _needs_responses_api(resolved.model_id):
                 kwargs["use_responses_api"] = True
-                if thinking:
-                    kwargs["reasoning_effort"] = "high"
+                requested = effort or ("high" if thinking else None)
+                if provider_effort := _openai_reasoning_effort(
+                    resolved.model_id, requested
+                ):
+                    kwargs["reasoning_effort"] = provider_effort
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             return ChatOpenAI(**kwargs)
 
         case ProviderKind.AZURE_OPENAI:
@@ -213,17 +244,36 @@ def build_client_from_resolved(
                 kwargs["api_key"] = resolved.api_key
             if _needs_responses_api(resolved.model_id):
                 kwargs["use_responses_api"] = True
-                if thinking:
-                    kwargs["reasoning_effort"] = "high"
+                requested = effort or ("high" if thinking else None)
+                if provider_effort := _openai_reasoning_effort(
+                    resolved.model_id, requested
+                ):
+                    kwargs["reasoning_effort"] = provider_effort
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             return AzureChatOpenAI(**kwargs)
 
         case ProviderKind.ANTHROPIC:
             kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["api_key"] = resolved.api_key
+            if provider_effort := _anthropic_effort(resolved.model_id, effort):
+                kwargs["effort"] = provider_effort
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             if thinking and _anthropic_supports_thinking(resolved.model_id):
-                kwargs["max_tokens"] = 8000
-                kwargs["thinking"] = {"type": "enabled", "budget_tokens": 4000}
+                thinking_budget = {
+                    "low": 1_000,
+                    "medium": 2_000,
+                    "high": 4_000,
+                    "xhigh": 6_000,
+                    "max": 8_000,
+                }.get(effort or "high", 4_000)
+                kwargs["max_tokens"] = (max_output_tokens or 4_000) + thinking_budget
+                kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget,
+                }
             return _thinking_safe_anthropic_cls()(**kwargs)
 
         case ProviderKind.GOOGLE:
@@ -232,6 +282,12 @@ def build_client_from_resolved(
             kwargs = {"model": resolved.model_id, "max_retries": 4}
             if resolved.api_key:
                 kwargs["google_api_key"] = resolved.api_key
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
+            if effort and _google_supports_thinking(resolved.model_id):
+                kwargs["thinking_level"] = (
+                    effort if effort in ("low", "medium", "high") else "high"
+                )
             return ChatGoogleGenerativeAI(**kwargs)
 
         case ProviderKind.LOCAL:
@@ -241,6 +297,8 @@ def build_client_from_resolved(
                 "api_key": local_api_key_override or resolved.api_key or "not-needed",
                 "base_url": local_base_url_override or resolved.base_url,
             }
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             return ChatOpenAI(**kwargs)
 
         case _:

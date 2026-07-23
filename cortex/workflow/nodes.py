@@ -25,6 +25,7 @@ from cortex.workflow.context import (
     request_context,
     text_content,
 )
+from cortex.workflow.effort import effort_budget
 from cortex.workflow.memory import memory_context, update_summary
 from cortex.workflow.planning import ExecutionPlan, plan_from_messages
 from cortex.workflow.progress import emit_progress
@@ -39,6 +40,29 @@ from cortex.workflow.runtime import (
 from cortex.workflow.types import ChatState, Intent
 
 logger = logging.getLogger("cortex.workflow")
+
+
+def required_tool_retry_messages(
+    messages: list,
+    correction: HumanMessage,
+    *,
+    tool_result_chars: int,
+) -> list:
+    latest = last_human(messages)
+    if latest is None:
+        return [correction]
+    start = messages.index(latest)
+    remaining = max(tool_result_chars, 0)
+    retry = [latest]
+    for message in messages[start + 1 :]:
+        if isinstance(message, AIMessage) and getattr(message, "tool_calls", None):
+            retry.append(message)
+        elif isinstance(message, ToolMessage):
+            content = text_content(message)[:remaining]
+            remaining -= len(content)
+            retry.append(message.model_copy(update={"content": content}))
+    return [*retry, correction]
+
 
 def _missing_tools(messages: list, required: tuple[str, ...]) -> tuple[str, ...]:
     used = {
@@ -82,7 +106,11 @@ def _tool_metadata(messages: list, required: tuple[str, ...]) -> dict[str, Any]:
     return metadata
 
 
-def _mark_execution(messages: list, plan: ExecutionPlan) -> AIMessage | None:
+def _mark_execution(
+    messages: list,
+    plan: ExecutionPlan,
+    effort: str,
+) -> AIMessage | None:
     final = next(
         (
             message
@@ -96,6 +124,7 @@ def _mark_execution(messages: list, plan: ExecutionPlan) -> AIMessage | None:
     final.additional_kwargs = {
         **(final.additional_kwargs or {}),
         "execution_tier": plan.tier,
+        "effort": effort,
         **({"deep_research": True} if plan.tier == "research" else {}),
         **(
             {"tool_execution": _tool_metadata(messages, plan.required_tools)}
@@ -145,6 +174,7 @@ async def selected_local_response(
     message.additional_kwargs = {
         **(message.additional_kwargs or {}),
         "execution_tier": plan.tier,
+        "effort": effort_budget(config, plan).level,
     }
     return {"messages": [message], **(await update_summary(state, config))}
 
@@ -159,6 +189,7 @@ async def run_agent(
     plan = plan_from_messages(state["messages"], auto_intent or agent_id.value)
     complexity = plan.complexity
     required_tools = plan.required_tools
+    budget = effort_budget(config, plan)
     extra_system = plan.directive()
     if memory_suffix:
         extra_system = f"{extra_system}\n\n{memory_suffix}" if extra_system else memory_suffix
@@ -169,26 +200,20 @@ async def run_agent(
             extra_system=extra_system,
             auto_intent=auto_intent,
             complexity=complexity,
-            max_tool_calls=plan.max_tool_calls,
+            plan=plan,
         )
         result = await invoke_agent(
             agent,
-            {"messages": message_window(state["messages"])},
+            {
+                "messages": message_window(
+                    state["messages"],
+                    token_budget=budget.history_tokens,
+                )
+            },
             config=invoke_config(config, plan.recursion_limit),
         )
         missing = _missing_tools(result.get("messages", []), required_tools)
         if missing:
-            interim = next(
-                (
-                    message
-                    for message in reversed(result.get("messages", []))
-                    if isinstance(message, AIMessage)
-                    and not getattr(message, "tool_calls", None)
-                ),
-                None,
-            )
-            if interim is not None and not interim.id:
-                interim.id = "required-tools-interim"
             correction = HumanMessage(
                 content=(
                     "Required tools before answering: "
@@ -199,14 +224,19 @@ async def run_agent(
             )
             result = await invoke_agent(
                 agent,
-                {"messages": [*result.get("messages", []), correction]},
+                {
+                    "messages": required_tool_retry_messages(
+                        result.get("messages", []),
+                        correction,
+                        tool_result_chars=budget.tool_result_chars,
+                    )
+                },
                 config=invoke_config(config),
             )
             result["messages"] = [
                 message
                 for message in result.get("messages", [])
-                if getattr(message, "id", None)
-                not in {correction.id, getattr(interim, "id", None)}
+                if getattr(message, "id", None) != correction.id
             ]
             missing = _missing_tools(result["messages"], required_tools)
             if missing:
@@ -250,7 +280,7 @@ async def run_agent(
         except Exception:  # noqa: BLE001
             pass
         return {"messages": [model_error_message(exc, config)], **updates}
-    final = _mark_execution(result["messages"], plan)
+    final = _mark_execution(result["messages"], plan, budget.level)
     try:
         from cortex.model_client.model_health import report_model_success
 
@@ -326,11 +356,14 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         state["messages"],
         str((routing or {}).get("intent") or Intent.GENERAL_CHAT.value),
     )
+    budget = effort_budget(config, plan)
     intent = str((routing or {}).get("intent") or Intent.GENERAL_CHAT.value)
     model = get_chat_client(
         config=config,
         auto_intent=intent,
         complexity=plan.complexity,
+        effort=budget.level,
+        max_output_tokens=budget.max_output_tokens,
     )
     from jinja2 import Template
 
@@ -347,7 +380,7 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
     except Exception:  # noqa: BLE001
         tools = []
     tools += subagent_tools(name, config)
-    middleware = agent_middleware(config, max_tool_calls=plan.max_tool_calls)
+    middleware = agent_middleware(config, plan=plan)
 
     def make_agent(client: Any):
         return create_agent(
@@ -362,6 +395,8 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
         config,
         auto_intent=intent,
         complexity=plan.complexity,
+        effort=budget.level,
+        max_output_tokens=budget.max_output_tokens,
     )
     if fallbacks:
         agent = agent.with_fallbacks(
@@ -371,12 +406,17 @@ async def custom_agent(state: ChatState, config: RunnableConfig) -> dict[str, An
     try:
         result = await invoke_agent(
             agent,
-            {"messages": message_window(state["messages"])},
+            {
+                "messages": message_window(
+                    state["messages"],
+                    token_budget=budget.history_tokens,
+                )
+            },
             config=invoke_config(config, plan.recursion_limit),
         )
     except Exception as exc:  # noqa: BLE001
         return {"messages": [model_error_message(exc, config)], **updates}
-    _mark_execution(result["messages"], plan)
+    _mark_execution(result["messages"], plan, budget.level)
     return {"messages": result["messages"], **updates}
 
 

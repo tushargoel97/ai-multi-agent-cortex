@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -11,7 +12,6 @@ from langchain_core.runnables import RunnableConfig
 from cortex.enums import Agents
 from cortex.model_client import get_chat_client
 from cortex.workflow.context import (
-    DEEP_RESEARCH_RECURSION_LIMIT,
     invoke_config,
     last_human,
     message_window,
@@ -19,6 +19,7 @@ from cortex.workflow.context import (
     text_content,
     transcript,
 )
+from cortex.workflow.effort import effort_budget
 from cortex.workflow.memory import memory_context
 from cortex.workflow.nodes import model_error_message, run_agent, selected_local_response
 from cortex.workflow.planning import plan_from_messages
@@ -73,6 +74,16 @@ _DEFAULT_CLARIFY = (
     "2. Any timeframe, region, or sources to prioritize?\n"
     "3. How deep should I go, and what will you use the result for?"
 )
+_VAGUE_RESEARCH_RE = re.compile(
+    r"^(?:please\s+)?(?:research|investigate|compare|check|look\s+into|"
+    r"deep\s+dive(?:\s+into)?|tell\s+me\s+more(?:\s+about)?)"
+    r"(?:\s+(?:this|that|it|these|those|them|something|the\s+topic))?[?.!]*$",
+    re.IGNORECASE,
+)
+
+
+def needs_research_clarification(query: str, context: str) -> bool:
+    return bool(_VAGUE_RESEARCH_RE.fullmatch(query.strip())) and not context.strip()
 
 
 async def research_clarify_questions(
@@ -99,6 +110,8 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
     messages = state["messages"]
     latest = last_human(messages)
     query = text_content(latest) if latest is not None else ""
+    plan = plan_from_messages(messages, Intent.KNOWLEDGE_QUERY.value)
+    budget = effort_budget(config, plan)
     memory_suffix, updates = await memory_context(state, config)
     brief: str | None = None
     for message in reversed(messages):
@@ -120,7 +133,11 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
             if summary
             else recent
         )
-        questions = await research_clarify_questions(query, context, config)
+        questions = (
+            await research_clarify_questions(query, context, config)
+            if needs_research_clarification(query, context)
+            else None
+        )
         if questions:
             return {
                 "messages": [
@@ -138,10 +155,7 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         brief = query
 
     directive = _DEEP_RESEARCH_DIRECTIVE.format(brief=brief or query)
-    if presentation := plan_from_messages(
-        messages,
-        Intent.KNOWLEDGE_QUERY.value,
-    ).presentation_directive:
+    if presentation := plan.presentation_directive:
         directive += f"\n\n{presentation}"
     extra = f"{directive}\n\n{memory_suffix}" if memory_suffix else directive
     agent = build_agent(
@@ -149,14 +163,14 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         config=config,
         extra_system=extra,
         auto_intent=Intent.KNOWLEDGE_QUERY.value,
-        max_tool_calls=10,
         complexity="complex",
+        plan=plan,
     )
     try:
         result = await invoke_agent(
             agent,
-            {"messages": message_window(messages)},
-            config=invoke_config(config, DEEP_RESEARCH_RECURSION_LIMIT),
+            {"messages": message_window(messages, token_budget=budget.history_tokens)},
+            config=invoke_config(config, plan.recursion_limit),
         )
     except Exception as exc:  # noqa: BLE001
         return {"messages": [model_error_message(exc, config)], **updates}
@@ -166,6 +180,7 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         final.additional_kwargs = {
             **(final.additional_kwargs or {}),
             "deep_research": True,
+            "effort": budget.level,
         }
     return {"messages": output, **updates}
 

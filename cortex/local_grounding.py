@@ -17,7 +17,12 @@ from cortex.db.services.llm_registry import (
 )
 from cortex.tools.commerce import find_bookings, product_prices, region_from_browser
 from cortex.tools.web import web_search
-from cortex.workflow.progress import emit_progress
+
+
+def emit_progress(phase: str, **payload: Any) -> None:
+    from cortex.workflow.progress import emit_progress as write_progress
+
+    write_progress(phase, **payload)
 
 
 @dataclass(frozen=True)
@@ -249,9 +254,21 @@ async def _invoke_local(
     intent: str,
     evidence: Evidence | None = None,
     instruction: str | None = None,
+    config: RunnableConfig | None = None,
 ) -> AIMessage:
     emit_progress("refining" if evidence else "thinking")
-    client = build_client_from_resolved(resolved).bind(max_tokens=768)
+    max_tokens = 768
+    max_chars = 7_000
+    requested_effort = str(_config(config).get("effort") or "adaptive").lower()
+    if requested_effort != "adaptive":
+        from cortex.workflow.effort import effort_budget
+        from cortex.workflow.planning import plan_execution
+
+        plan = plan_execution(intent, _evidence_question(messages))
+        budget = effort_budget(config, plan)
+        max_tokens = min(budget.max_output_tokens, 1_500)
+        max_chars = min(budget.history_tokens * 4, 12_000)
+    client = build_client_from_resolved(resolved).bind(max_tokens=max_tokens)
     result = await client.ainvoke(
         local_messages(
             messages,
@@ -259,6 +276,7 @@ async def _invoke_local(
             evidence=evidence,
             intent=intent,
             instruction=instruction,
+            max_chars=max_chars,
         ),
         config={"tags": ["langsmith:nostream"]},
     )
@@ -276,6 +294,7 @@ async def answer_with_local_specialist(
     model_id: str,
     messages: list,
     request_context: str,
+    config: RunnableConfig | None = None,
 ) -> AIMessage | None:
     profile = local_specialist_profile(model_id)
     resolved = resolve_local_specialist(model_id) if profile else None
@@ -287,6 +306,7 @@ async def answer_with_local_specialist(
         request_context,
         intent="local_specialist",
         instruction=_capability_instruction(model_id),
+        config=config,
     )
 
 
@@ -307,6 +327,7 @@ async def run_local_answer(
         intent=intent,
         evidence=_previous_evidence(messages),
         instruction=_capability_instruction(resolved.model_id),
+        config=config,
     )
 
 
@@ -338,4 +359,5 @@ async def run_grounded_local(
         intent=intent,
         evidence=evidence,
         instruction=_capability_instruction(resolved.model_id),
+        config=config,
     )

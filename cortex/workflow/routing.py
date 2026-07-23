@@ -15,7 +15,13 @@ from cortex.declarative import get_agent_spec
 from cortex.enums import Agents
 from cortex.errors import retryable_model_exceptions
 from cortex.model_client import auto_fallback_clients
-from cortex.workflow.context import has_image, last_human, message_window, text_content
+from cortex.workflow.context import (
+    aggregate_usage,
+    has_image,
+    last_human,
+    message_window,
+    text_content,
+)
 from cortex.workflow.planning import plan_execution
 from cortex.workflow.progress import emit_progress
 from cortex.workflow.runtime import (
@@ -44,6 +50,11 @@ _BOOKING_RE = re.compile(
     r"tickets|concert|movie|movies|show|shows|event|events)\b",
     re.IGNORECASE,
 )
+_GREETING_RE = re.compile(
+    r"^\s*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening))"
+    r"(?:[\s,!.-]+(?:there|how\s+are\s+you|what(?:'s|\s+is)\s+up))?[\s!?.]*$",
+    re.IGNORECASE,
+)
 
 
 def heuristic_intent(messages: list) -> Intent:
@@ -56,6 +67,20 @@ def heuristic_intent(messages: list) -> Intent:
     if _SPEC_RE.search(text):
         return Intent.PRODUCT_SPECS
     return Intent.GENERAL_CHAT
+
+
+def fast_intent(text: str) -> Intent | None:
+    if _GREETING_RE.fullmatch(text):
+        return Intent.GENERAL_CHAT
+    if "get_current_time" in plan_execution(
+        Intent.GENERAL_CHAT.value, text
+    ).required_tools:
+        return Intent.GENERAL_CHAT
+    if "calculator" in plan_execution(
+        Intent.REASONING_TASK.value, text
+    ).required_tools:
+        return Intent.REASONING_TASK
+    return None
 
 
 def route_from_start(
@@ -116,9 +141,26 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             ]
         }
 
+    latest = last_human(state["messages"])
+    latest_text = text_content(latest) if latest is not None else ""
+    if intent := fast_intent(latest_text):
+        plan = plan_execution(intent.value, latest_text, "simple")
+        routing = {
+            "intent": intent.value,
+            "reasoning": "high-confidence local route",
+            "agent": None,
+            "local_model": None,
+            **plan.routing_fields(),
+        }
+        return {
+            "messages": [
+                AIMessage(content=intent.value, additional_kwargs={"routing": routing})
+            ]
+        }
+
     spec = get_agent_spec(Agents.ROUTER)
     chat_messages: list[Any] = []
-    for message in message_window(state["messages"]):
+    for message in message_window(state["messages"], token_budget=1_200):
         if not isinstance(message, (HumanMessage, AIMessage)) or getattr(
             message, "tool_calls", None
         ):
@@ -158,6 +200,7 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         )
     valid_agents = {agent["name"] for agent in custom}
     valid_specialists = {specialist.model_id for specialist in specialists}
+    router_usage = None
     try:
 
         def make_router(model: Any):
@@ -169,13 +212,18 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             )
 
         agent = make_router(router_classifier_client(config))
-        fallbacks = auto_fallback_clients(config)
+        fallbacks = auto_fallback_clients(
+            config,
+            effort="low",
+            max_output_tokens=300,
+        )
         if fallbacks:
             agent = agent.with_fallbacks(
                 [make_router(model) for model in fallbacks],
                 exceptions_to_handle=retryable_model_exceptions(),
             )
         result = await agent.ainvoke({"messages": chat_messages})
+        router_usage = aggregate_usage(result.get("messages", []))
         intent: RouterIntent = result["structured_response"]
         routing = intent.model_dump(mode="json")
         intent_value = intent.intent.value
@@ -242,7 +290,11 @@ async def router(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
             logger.exception("auto-mode chip model resolution failed")
     return {
         "messages": [
-            AIMessage(content=intent_value, additional_kwargs={"routing": routing})
+            AIMessage(
+                content=intent_value,
+                additional_kwargs={"routing": routing},
+                usage_metadata=router_usage,
+            )
         ]
     }
 

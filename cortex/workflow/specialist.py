@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from cortex.local_grounding import answer_with_local_specialist
 from cortex.workflow.context import agent_context, is_router_marker, last_human, text_content
+from cortex.workflow.effort import effort_budget
 from cortex.workflow.planning import plan_from_messages
 from cortex.workflow.types import ChatState
 
@@ -33,6 +34,7 @@ async def run_local_specialist(
             model_id,
             state["messages"],
             context,
+            config,
         )
     except Exception:  # noqa: BLE001
         logger.exception("Local specialist %r failed", model_id)
@@ -53,6 +55,7 @@ async def run_local_specialist(
     reply.additional_kwargs = {
         **(reply.additional_kwargs or {}),
         "execution_tier": plan.tier,
+        "effort": effort_budget(config, plan).level,
     }
     return {"messages": [reply]}
 

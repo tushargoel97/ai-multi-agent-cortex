@@ -15,6 +15,7 @@ Two paths:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -36,7 +37,28 @@ def _needs_responses_api(model: str | None) -> bool:
     )
 
 
-def _from_settings(settings: Settings) -> BaseChatModel:
+def _openai_reasoning_effort(model: str, effort: str | None) -> str | None:
+    if not effort:
+        return None
+    normalized = model.lower().replace("_", "-")
+    if "-pro" in normalized:
+        return "high"
+    version = re.search(r"\bgpt-(\d+)(?:[.-](\d+))?", normalized)
+    supports_xhigh = bool(
+        version
+        and (int(version.group(1)), int(version.group(2) or 0)) >= (5, 2)
+    )
+    if effort in ("xhigh", "max"):
+        return "xhigh" if supports_xhigh else "high"
+    return effort if effort in ("low", "medium", "high") else "high"
+
+
+def _from_settings(
+    settings: Settings,
+    *,
+    effort: str | None = None,
+    max_output_tokens: int | None = None,
+) -> BaseChatModel:
     match settings.provider:
         case Provider.OPENAI:
             cfg = settings.openai
@@ -47,6 +69,10 @@ def _from_settings(settings: Settings) -> BaseChatModel:
                 kwargs["base_url"] = cfg.base_url
             if _needs_responses_api(cfg.model):
                 kwargs["use_responses_api"] = True
+                if provider_effort := _openai_reasoning_effort(cfg.model, effort):
+                    kwargs["reasoning_effort"] = provider_effort
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             return ChatOpenAI(**kwargs)
 
         case Provider.AZURE_OPENAI:
@@ -61,6 +87,10 @@ def _from_settings(settings: Settings) -> BaseChatModel:
                 kwargs["api_key"] = cfg.api_key
             if _needs_responses_api(cfg.model):
                 kwargs["use_responses_api"] = True
+                if provider_effort := _openai_reasoning_effort(cfg.model, effort):
+                    kwargs["reasoning_effort"] = provider_effort
+            if max_output_tokens:
+                kwargs["max_tokens"] = max_output_tokens
             return AzureChatOpenAI(**kwargs)
 
         case _:
@@ -73,6 +103,8 @@ def get_chat_client(
     config: dict[str, Any] | None = None,
     auto_intent: str | None = None,
     complexity: str | None = None,
+    effort: str | None = None,
+    max_output_tokens: int | None = None,
 ) -> BaseChatModel:
     """Build the chat model for a request.
 
@@ -110,7 +142,12 @@ def get_chat_client(
                     else profile_for_complexity(complexity),
                 )
                 if resolved is not None:
-                    return build_client_from_resolved(resolved, thinking=thinking)
+                    return build_client_from_resolved(
+                        resolved,
+                        thinking=thinking,
+                        effort=effort,
+                        max_output_tokens=max_output_tokens,
+                    )
         except Exception:  # noqa: BLE001, auto mode must never kill a run
             pass
     local_base_url = configurable.get("local_base_url")
@@ -124,6 +161,8 @@ def get_chat_client(
             "api_key": local_api_key or "not-needed",
             "base_url": local_base_url,
         }
+        if max_output_tokens:
+            kwargs["max_tokens"] = max_output_tokens
         return ChatOpenAI(**kwargs)
 
     try:
@@ -139,11 +178,17 @@ def get_chat_client(
                 local_base_url_override=local_base_url,
                 local_api_key_override=local_api_key,
                 thinking=thinking,
+                effort=effort,
+                max_output_tokens=max_output_tokens,
             )
     except Exception:  # noqa: BLE001, registry is optional, fall through
         pass
 
-    return _from_settings(settings)
+    return _from_settings(
+        settings,
+        effort=effort,
+        max_output_tokens=max_output_tokens,
+    )
 
 
 def auto_fallback_clients(
@@ -151,6 +196,8 @@ def auto_fallback_clients(
     *,
     auto_intent: str | None = None,
     complexity: str | None = None,
+    effort: str | None = None,
+    max_output_tokens: int | None = None,
 ) -> list[BaseChatModel]:
     """Fallback chat clients for auto mode, tried when the primary is unavailable.
 
@@ -185,9 +232,13 @@ def auto_fallback_clients(
             profile="quality" if thinking else profile_for_complexity(complexity),
         )
         return [
-            build_client_from_resolved(r, thinking=thinking)
+            build_client_from_resolved(
+                r,
+                thinking=thinking,
+                effort=effort,
+                max_output_tokens=max_output_tokens,
+            )
             for r in candidates[1:]
         ]
     except Exception:  # noqa: BLE001, fallbacks are best-effort, never fatal
         return []
-
