@@ -95,6 +95,36 @@ function CheckboxFilterGroup({
   );
 }
 
+interface ModelMeta {
+  release_date?: string;
+  input_cost?: number;
+  output_cost?: number;
+  context?: number;
+  reasoning?: boolean;
+  capability?: number;
+}
+
+type SortKey = "default" | "latest" | "capability" | "cost";
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "default", label: "Default (provider, name)" },
+  { value: "latest", label: "Latest release" },
+  { value: "capability", label: "Best capability" },
+  { value: "cost", label: "Most cost-efficient" },
+];
+
+const fmtMeta = (meta: ModelMeta): string => {
+  const parts: string[] = [];
+  if (meta.input_cost != null || meta.output_cost != null)
+    parts.push(`$${meta.input_cost ?? "?"} / $${meta.output_cost ?? "?"} per M`);
+  if (meta.release_date) {
+    const d = new Date(meta.release_date);
+    if (!isNaN(+d))
+      parts.push(d.toLocaleDateString(undefined, { month: "short", year: "numeric" }));
+  }
+  return parts.join(" · ");
+};
+
 async function adminFetch(url: string, init: RequestInit = {}) {
   const token = getAdminToken();
   return fetch(url, {
@@ -118,6 +148,8 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
   const [providerFilters, setProviderFilters] = useState<string[]>([]);
   const [familyFilters, setFamilyFilters] = useState<string[]>([]);
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [metadata, setMetadata] = useState<Record<string, ModelMeta>>({});
+  const [sortKey, setSortKey] = useState<SortKey>("default");
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -147,6 +179,10 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
     ]);
     if (m.ok) setModels(await m.json());
     if (p.ok) setProviders(await p.json());
+    adminFetch("/api/v1/admin/models/metadata")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.metadata && setMetadata(d.metadata))
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -198,7 +234,35 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
         (!statusFilters.includes("default") || model.is_default),
     );
   }, [familyFilters, modelRows, providerFilters, query, statusFilters]);
-  const activeFilterCount = providerFilters.length + familyFilters.length + statusFilters.length;
+  // Sort runs on the filtered set, so filters and sort compose; rows without
+  // catalog metadata keep their relative order at the bottom.
+  const sortedModels = useMemo(() => {
+    if (sortKey === "default") return filteredModels;
+    const rank = (model: Model): number | null => {
+      const meta = metadata[model.model_id];
+      if (sortKey === "cost") {
+        if (model.provider_kind === "local") return 0;
+        return meta?.input_cost != null || meta?.output_cost != null
+          ? (meta.input_cost ?? 0) + (meta.output_cost ?? 0)
+          : null;
+      }
+      if (sortKey === "latest")
+        return meta?.release_date ? Date.parse(meta.release_date) || null : null;
+      return meta?.capability ?? null;
+    };
+    const direction = sortKey === "cost" ? 1 : -1;
+    return [...filteredModels].sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra == null || rb == null) return ra == null ? (rb == null ? 0 : 1) : -1;
+      return (ra - rb) * direction;
+    });
+  }, [filteredModels, metadata, sortKey]);
+  const activeFilterCount =
+    providerFilters.length +
+    familyFilters.length +
+    statusFilters.length +
+    (sortKey !== "default" ? 1 : 0);
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -260,7 +324,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
         )}
       >
         <div className="flex items-center justify-between px-2">
-          <span className="text-sm font-medium">Filters</span>
+          <span className="text-sm font-medium">Sort & filters</span>
           {activeFilterCount > 0 && (
             <button
               type="button"
@@ -269,12 +333,32 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
                 setProviderFilters([]);
                 setFamilyFilters([]);
                 setStatusFilters([]);
+                setSortKey("default");
               }}
             >
               Clear
             </button>
           )}
         </div>
+        <fieldset className="space-y-1">
+          <legend className="text-muted-foreground px-2 pb-1 text-xs font-medium">Sort by</legend>
+          {SORT_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="hover:bg-muted/60 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+            >
+              <input
+                type="radio"
+                name="model-sort"
+                className="accent-primary size-4"
+                checked={sortKey === option.value}
+                onChange={() => setSortKey(option.value)}
+              />
+              <span className="truncate">{option.label}</span>
+            </label>
+          ))}
+        </fieldset>
+        <div className="bg-border h-px" />
         <CheckboxFilterGroup
           label="Provider"
           options={providerOptions}
@@ -591,7 +675,7 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
               </tr>
             </thead>
             <tbody>
-              {filteredModels.map((m) => (
+              {sortedModels.map((m) => (
                 <tr key={m.id} className="border-t">
                   <td className="p-3 font-medium">
                     {m.display_name}
@@ -604,7 +688,14 @@ export default function ModelsPanel({ refreshKey = 0 }: { refreshKey?: number })
                       </div>
                     )}
                   </td>
-                  <td className="p-3 font-mono text-xs">{m.model_id}</td>
+                  <td className="p-3 font-mono text-xs">
+                    {m.model_id}
+                    {metadata[m.model_id] && fmtMeta(metadata[m.model_id]) && (
+                      <div className="text-muted-foreground/70 mt-0.5 font-sans text-[11px] tabular-nums">
+                        {fmtMeta(metadata[m.model_id])}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3">
                     <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs">
                       {m.family}
