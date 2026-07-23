@@ -128,6 +128,8 @@ async def selected_local_response(
     context = request_context(config)
     if summary := (state.get("summary") or "").strip():
         context += f"\n\nConversation summary:\n{summary}"
+    if directive := plan.presentation_directive:
+        context += f"\n\n{directive}"
     try:
         runner = run_grounded_local if grounded else run_local_answer
         message = await runner(

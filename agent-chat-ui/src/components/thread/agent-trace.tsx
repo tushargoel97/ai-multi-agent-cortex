@@ -111,13 +111,67 @@ export function deriveSteps(messages: Message[]): TraceStep[] {
   return steps;
 }
 
-function summarize(steps: TraceStep[]): string {
+export function summarizeSteps(steps: TraceStep[]): string {
   const route = steps.find((s) => s.label.startsWith("Routed to"));
   const actions = steps.filter((s) => !s.muted && !s.label.startsWith("Routed to")).length;
   const bits: string[] = [];
   if (route) bits.push(route.label.replace("Routed to ", ""));
   if (actions > 0) bits.push(`${actions} step${actions > 1 ? "s" : ""}`);
   return bits.join(" · ");
+}
+
+export function TraceStepList({
+  steps,
+  live = false,
+  className,
+  detailClassName = "truncate",
+}: {
+  steps: TraceStep[];
+  live?: boolean;
+  className?: string;
+  detailClassName?: string;
+}) {
+  return (
+    <ol
+      className={cn(
+        "border-border mt-1.5 ml-2 flex flex-col gap-1.5 border-l py-0.5 pl-4 text-xs",
+        className,
+      )}
+    >
+      {steps.map((step, i) => {
+        const Icon = step.icon;
+        const isLast = i === steps.length - 1;
+        return (
+          <li key={step.key} className="flex items-start gap-2">
+            <Icon
+              className={cn(
+                "mt-0.5 size-3.5 shrink-0",
+                live && isLast ? "text-amber-500" : "text-muted-foreground/60",
+              )}
+            />
+            <div className="flex min-w-0 flex-col">
+              <span
+                className={cn(
+                  live && isLast
+                    ? "shimmer-text"
+                    : step.muted
+                      ? "text-muted-foreground/70"
+                      : "text-foreground/80",
+                )}
+              >
+                {step.label}
+              </span>
+              {step.detail && (
+                <span className={cn("text-muted-foreground/55", detailClassName)}>
+                  {step.detail}
+                </span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 function ImageGenLoader() {
@@ -165,7 +219,7 @@ export function AgentTrace({
   }
 
   const expanded = open;
-  const summary = summarize(steps);
+  const summary = summarizeSteps(steps);
 
   return (
     <div className="mr-auto w-full max-w-3xl">
@@ -202,40 +256,7 @@ export function AgentTrace({
         {!live && summary && <span className="text-muted-foreground/60">· {summary}</span>}
       </button>
 
-      {expanded && (
-        <ol className="border-border mt-1.5 ml-2 flex flex-col gap-1.5 border-l py-0.5 pl-4 text-xs">
-          {steps.map((step, i) => {
-            const Icon = step.icon;
-            const isLast = i === steps.length - 1;
-            return (
-              <li key={step.key} className="flex items-start gap-2">
-                <Icon
-                  className={cn(
-                    "mt-0.5 size-3.5 shrink-0",
-                    live && isLast ? "text-amber-500" : "text-muted-foreground/60",
-                  )}
-                />
-                <div className="flex min-w-0 flex-col">
-                  <span
-                    className={cn(
-                      live && isLast
-                        ? "shimmer-text"
-                        : step.muted
-                          ? "text-muted-foreground/70"
-                          : "text-foreground/80",
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                  {step.detail && (
-                    <span className="text-muted-foreground/55 truncate">{step.detail}</span>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      {expanded && <TraceStepList steps={steps} live={live} />}
     </div>
   );
 }

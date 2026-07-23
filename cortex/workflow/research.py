@@ -21,6 +21,7 @@ from cortex.workflow.context import (
 )
 from cortex.workflow.memory import memory_context
 from cortex.workflow.nodes import model_error_message, run_agent, selected_local_response
+from cortex.workflow.planning import plan_from_messages
 from cortex.workflow.runtime import build_agent, invoke_agent
 from cortex.workflow.types import ChatState, Intent
 
@@ -137,6 +138,11 @@ async def deep_research(state: ChatState, config: RunnableConfig) -> dict[str, A
         brief = query
 
     directive = _DEEP_RESEARCH_DIRECTIVE.format(brief=brief or query)
+    if presentation := plan_from_messages(
+        messages,
+        Intent.KNOWLEDGE_QUERY.value,
+    ).presentation_directive:
+        directive += f"\n\n{presentation}"
     extra = f"{directive}\n\n{memory_suffix}" if memory_suffix else directive
     agent = build_agent(
         Agents.RESEARCHER,

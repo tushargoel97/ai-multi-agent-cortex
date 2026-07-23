@@ -25,11 +25,14 @@ async def run_local_specialist(
     if latest is None or not text_content(latest).strip():
         return _error(f"The local specialist '{model_id}' received no question.")
     plan = plan_from_messages(state["messages"], "local_specialist")
+    context = agent_context(config, complexity=plan.complexity)
+    if directive := plan.presentation_directive:
+        context += f"\n\n{directive}"
     try:
         reply = await answer_with_local_specialist(
             model_id,
             state["messages"],
-            agent_context(config, complexity=plan.complexity),
+            context,
         )
     except Exception:  # noqa: BLE001
         logger.exception("Local specialist %r failed", model_id)

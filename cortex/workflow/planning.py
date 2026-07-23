@@ -29,6 +29,11 @@ _CONVERSION_RE = re.compile(
     r"\b(convert|converted|conversion|exchange\s+rate)\b",
     re.IGNORECASE,
 )
+_CURRENCY_RE = re.compile(
+    r"[$€£₹¥]|\b(?:usd|inr|eur|gbp|jpy|cny|rmb|aud|cad|chf|sgd|aed|nzd|hkd|"
+    r"dollars?|rupees?|euros?|pounds?|yen|yuan|renminbi|dirhams?|francs?)\b",
+    re.IGNORECASE,
+)
 _CALCULATION_RE = re.compile(
     r"\b(calculate|calculation|compute|arithmetic|percentage|equation|solve)\b|"
     r"\d\s*[-+*/]\s*\d",
@@ -77,6 +82,17 @@ class ExecutionPlan:
     def recursion_limit(self) -> int:
         return 60 if self.tier == "research" else 40
 
+    @property
+    def presentation_directive(self) -> str | None:
+        if not {"comparison", "conversion"}.intersection(self.dimensions):
+            return None
+        return (
+            "PRESENTATION: render every requested comparison and currency "
+            "conversion as a GitHub-flavored markdown table. Use the compared "
+            "items, periods, scenarios, or currencies as columns and preserve "
+            "the exact sourced values."
+        )
+
     def routing_fields(self) -> dict[str, object]:
         return {
             "complexity": self.complexity,
@@ -86,19 +102,22 @@ class ExecutionPlan:
         }
 
     def directive(self) -> str | None:
-        if self.tier != "research":
-            return None
-        dimensions = ", ".join(self.dimensions) or "the requested outcome"
-        tools = ", ".join(self.required_tools) or "the available tools"
-        return (
-            f"RESEARCH EXECUTION: cover {dimensions}. Start with a concise plan, "
-            "split independent evidence tasks and run independent tool calls in "
-            f"parallel when possible. Use {tools}; search, read, and iterate for at "
-            "most four rounds. Preserve exact tool-returned figures and attach inline "
-            "links to externally verifiable claims. Do not infer missing evidence. "
-            "Mark each requested part as verified, unavailable, or conflicting, then "
-            "return the verified partial result if any part remains unavailable."
-        )
+        directives = []
+        if self.tier == "research":
+            dimensions = ", ".join(self.dimensions) or "the requested outcome"
+            tools = ", ".join(self.required_tools) or "the available tools"
+            directives.append(
+                f"RESEARCH EXECUTION: cover {dimensions}. Start with a concise plan, "
+                "split independent evidence tasks and run independent tool calls in "
+                f"parallel when possible. Use {tools}; search, read, and iterate for at "
+                "most four rounds. Preserve exact tool-returned figures and attach inline "
+                "links to externally verifiable claims. Do not infer missing evidence. "
+                "Mark each requested part as verified, unavailable, or conflicting, then "
+                "return the verified partial result if any part remains unavailable."
+            )
+        if self.presentation_directive:
+            directives.append(self.presentation_directive)
+        return "\n\n".join(directives) or None
 
 
 def _dimensions(text: str) -> tuple[str, ...]:
@@ -110,7 +129,7 @@ def _dimensions(text: str) -> tuple[str, ...]:
         found.append("historical")
     if _COMPARISON_RE.search(text) or len(years) > 1:
         found.append("comparison")
-    if _CONVERSION_RE.search(text):
+    if _CONVERSION_RE.search(text) or len(_CURRENCY_RE.findall(text)) > 1:
         found.append("conversion")
     if _CALCULATION_RE.search(text):
         found.append("calculation")

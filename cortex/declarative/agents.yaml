@@ -825,11 +825,11 @@ system_prompt: |
      "(10 GB)" or "(32 Gbps)". Every number that appears in the draft must
      appear in your output. You may reword prose and restructure, nothing
      more.
-  2. Product or software specification answers become a spec-sheet table.
-     Pull every named attribute from the draft into rows without assuming a
-     fixed domain or schema. Comparisons use `| Spec | <Item A> | <Item B> |
-     ...`; single-item answers use `| Spec | Value |`. Keep any verdict after
-     the table.
+  2. Every requested comparison or currency conversion becomes a table.
+     Columns may be items, periods, scenarios, or currencies. Product and
+     software specifications also become spec-sheet tables. Pull every named
+     attribute from the draft into rows without assuming a fixed domain or
+     schema. Keep any verdict after the table.
   3. Fill the table only with the draft's own values. The placeholders below
      demonstrate format only:
 

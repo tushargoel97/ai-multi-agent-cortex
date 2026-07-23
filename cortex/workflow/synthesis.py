@@ -26,10 +26,11 @@ NOTE_PREFIXES = ("*I've logged this as a knowledge gap",)
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 _TABLE_RE = re.compile(r"^\s*\|.+\|\s*\n\s*\|[\s:|-]+\|", re.MULTILINE)
-_SPEC_QUERY_RE = re.compile(
+_TABLE_QUERY_RE = re.compile(
     r"\b(spec|specs|specification|specifications|compare|comparison|compared|"
     r"versus|vs\.?|difference between|which is (?:better|faster|best)|"
-    r"pros and cons|benchmarks?)\b",
+    r"pros and cons|benchmarks?|side-by-side|convert(?:ed|ing)?|conversion|"
+    r"exchange rate)\b",
     re.IGNORECASE,
 )
 _CODE_BLOCK_RE = re.compile(r"```([\w+-]*)\n(.*?)```", re.DOTALL)
@@ -68,11 +69,18 @@ def _carry_notes(source: str, text: str) -> str:
     return text
 
 
-def _routed_intent(messages: list) -> str | None:
+def _carry_sources(source: str, text: str) -> str:
+    match = re.search(r"(?ims)^sources?:\s.*\Z", source.strip())
+    section = match.group(0).strip() if match else ""
+    return f"{text}\n\n{section}" if section and section not in text else text
+
+
+def _routing_data(messages: list) -> dict[str, Any]:
     for message in reversed(messages):
         if is_router_marker(message):
-            return (message.additional_kwargs.get("routing") or {}).get("intent")
-    return None
+            routing = message.additional_kwargs.get("routing") or {}
+            return routing if isinstance(routing, dict) else {}
+    return {}
 
 
 def _code_syntax_notes(text: str) -> list[str]:
@@ -111,7 +119,7 @@ def _replacement(source: AIMessage, content: str) -> dict[str, list[AIMessage]]:
     }
 
 
-async def _render_spec_answer(
+async def _render_table_answer(
     question: str, draft: str, reference: str, model: Any
 ) -> str | None:
     from cortex.tools.spec_table import SpecTable, render_spec_markdown
@@ -124,9 +132,10 @@ async def _render_spec_answer(
             model=model,
             tools=[],
             system_prompt=(
-                "Extract product or software specs into a comparison "
-                "table. Copy values verbatim, prefer the authoritative reference "
-                "on conflicts, leave missing cells blank, and never invent values."
+                "Extract the requested comparison into a table. Columns may be "
+                "items, periods, scenarios, or currencies. Copy values and markdown "
+                "citations verbatim, prefer the authoritative reference on conflicts, "
+                "leave missing cells blank, and never invent values."
             ),
             response_format=ProviderStrategy(SpecTable),
         )
@@ -148,16 +157,16 @@ async def _render_spec_answer(
 
 
 def _format_model(
-    config: RunnableConfig, final: AIMessage, is_spec: bool
+    config: RunnableConfig, final: AIMessage, table_required: bool
 ) -> Any | None:
     from cortex.db.services.auto_mode import FAST_TIER, is_auto, resolve_auto_model
 
     cfg = (config or {}).get("configurable") or {}
     explicit = bool(cfg.get("model_id")) and not is_auto(cfg.get("model_id"))
-    tier = "knowledge_query" if is_spec else FAST_TIER
+    tier = "knowledge_query" if table_required else FAST_TIER
     if explicit or cfg.get("local_base_url"):
         return get_chat_client(config=config, auto_intent=tier)
-    resolved = resolve_auto_model("knowledge_query") if is_spec else None
+    resolved = resolve_auto_model("knowledge_query") if table_required else None
     resolved = resolved or resolve_auto_model(FAST_TIER)
     return build_client_from_resolved(resolved) if resolved else None
 
@@ -170,12 +179,11 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
     if not isinstance(final, AIMessage) or not isinstance(final.content, str):
         return {}
     metadata = final.additional_kwargs or {}
-    if not final.content.strip() or metadata.get("deep_research") or metadata.get(
-        "model_error"
-    ):
+    if not final.content.strip() or metadata.get("model_error"):
         return {}
 
-    intent = _routed_intent(messages)
+    routing = _routing_data(messages)
+    intent = routing.get("intent")
     if intent == "coding_task":
         notes = _code_syntax_notes(final.content)
         return (
@@ -189,21 +197,29 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
 
     human = last_human(messages)
     question = text_content(human) if human is not None else ""
-    is_spec = (
+    table_required = (
         intent == "product_specs"
-        or bool(_SPEC_QUERY_RE.search(question))
+        or bool(_TABLE_QUERY_RE.search(question))
+        or bool(
+            {"comparison", "conversion"}.intersection(
+                routing.get("evidence_dimensions") or ()
+            )
+        )
     )
-    if is_spec and _has_markdown_table(final.content):
+    if metadata.get("deep_research") and not table_required:
+        return {}
+    if table_required and _has_markdown_table(final.content):
         return {}
 
     try:
-        model = _format_model(config, final, is_spec)
+        model = _format_model(config, final, table_required)
         if model is None:
             return {}
         emit_progress("refining")
-        if is_spec:
-            rendered = await _render_spec_answer(question, final.content, "", model)
+        if table_required:
+            rendered = await _render_table_answer(question, final.content, "", model)
             if rendered:
+                rendered = _carry_sources(final.content, rendered)
                 return _replacement(final, _carry_notes(final.content, rendered))
 
         prompt = f"Question:\n{question}\n\nDraft answer:\n{final.content}"
@@ -223,7 +239,7 @@ async def synthesize(state: dict[str, Any], config: RunnableConfig) -> dict[str,
             return text_content(result).strip()
 
         text = await reformat()
-        if is_spec and (
+        if table_required and (
             not _has_markdown_table(text)
             or not _numbers_preserved(final.content, text)
         ):

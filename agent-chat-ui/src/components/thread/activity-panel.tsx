@@ -2,9 +2,9 @@
 
 import { Message } from "@langchain/langgraph-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, CheckCircle2, ExternalLink, ListChecks, X } from "lucide-react";
+import { Activity, CheckCircle2, ChevronRight, ExternalLink, ListChecks, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { deriveSteps } from "./agent-trace";
+import { deriveSteps, summarizeSteps, TraceStepList } from "./agent-trace";
 import { extractRichSources, favicon } from "./sources";
 
 function formatDuration(s: number): string {
@@ -76,7 +76,13 @@ export function ActivityPanel({
   );
   const domains = useMemo(() => [...new Set(sources.map((s) => s.domain))], [sources]);
   const [allChips, setAllChips] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(false);
   const { elapsed, lastTook } = useTurnTimer(live);
+  const summary = summarizeSteps(steps);
+
+  useEffect(() => {
+    if (live) setStepsOpen(false);
+  }, [live]);
 
   return (
     <>
@@ -136,34 +142,28 @@ export function ActivityPanel({
             </div>
           )}
           {steps.length > 0 ? (
-            <ol className="border-border ml-1 flex flex-col gap-2 border-l py-0.5 pl-3 text-xs">
-              {steps.map((step, i) => {
-                const Icon = step.icon;
-                const isLast = i === steps.length - 1;
-                return (
-                  <li key={step.key} className="flex items-start gap-2">
-                    <Icon
-                      className={cn(
-                        "mt-0.5 size-3.5 shrink-0",
-                        live && isLast
-                          ? "animate-pulse text-amber-500"
-                          : "text-muted-foreground/60",
-                      )}
-                    />
-                    <div className="flex min-w-0 flex-col">
-                      <span
-                        className={step.muted ? "text-muted-foreground/70" : "text-foreground/80"}
-                      >
-                        {step.label}
-                      </span>
-                      {step.detail && (
-                        <span className="text-muted-foreground/55 line-clamp-2">{step.detail}</span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+            <>
+              <button
+                type="button"
+                onClick={() => setStepsOpen((value) => !value)}
+                aria-expanded={stepsOpen}
+                className="text-muted-foreground hover:bg-muted/60 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors"
+              >
+                <ChevronRight
+                  className={cn("size-3.5 transition-transform", stepsOpen && "rotate-90")}
+                />
+                <span className="font-medium">Thought process</span>
+                {summary && <span className="text-muted-foreground/60">· {summary}</span>}
+              </button>
+              {stepsOpen && (
+                <TraceStepList
+                  steps={steps}
+                  live={live}
+                  className="ml-1 gap-2 pl-3"
+                  detailClassName="line-clamp-2"
+                />
+              )}
+            </>
           ) : (
             <p className="text-muted-foreground text-xs">No tool activity for the latest turn.</p>
           )}

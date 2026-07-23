@@ -8,6 +8,7 @@ import * as activity from "../src/components/thread/agent-activity";
 import * as progress from "../src/lib/agent-progress";
 import { AgentActivity } from "../src/components/thread/agent-activity";
 import { AgentTrace } from "../src/components/thread/agent-trace";
+import { ActivityPanel } from "../src/components/thread/activity-panel";
 
 Object.assign(globalThis, { React });
 
@@ -201,6 +202,41 @@ test("prefers explicit workflow progress over the earlier routing marker", () =>
 
   assert.match(html, />Collating answers</);
   assert.doesNotMatch(html, /role="status" aria-live="polite">Routing</);
+});
+
+test("keeps Activity panel thought steps consolidated under a collapsed summary", () => {
+  const html = renderToStaticMarkup(
+    createElement(ActivityPanel, {
+      open: true,
+      live: false,
+      onClose: () => {},
+      messages: [
+        { type: "human", content: "Find the current price" },
+        {
+          id: "route",
+          type: "ai",
+          content: "knowledge_query",
+          additional_kwargs: { routing: { intent: "knowledge_query" } },
+        },
+        {
+          id: "search",
+          type: "ai",
+          content: "",
+          tool_calls: [
+            {
+              id: "search-1",
+              name: "web_search",
+              args: { query: "current price" },
+            },
+          ],
+        },
+      ],
+    }),
+  );
+
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, />Thought process</);
+  assert.doesNotMatch(html, />Searching the web</);
 });
 
 test("renders the blooming Cortex mark and accessible live status", () => {
